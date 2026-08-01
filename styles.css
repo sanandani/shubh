@@ -18,7 +18,7 @@ html {
 
 body {
   margin: 0;
-  background: var(--paper);
+  background: radial-gradient(circle at 12% 12%, rgba(198, 189, 233, 0.18), transparent 18%), radial-gradient(circle at 82% 24%, rgba(242, 111, 92, 0.10), transparent 20%), var(--paper);
   color: var(--ink);
   font-family: "DM Sans", sans-serif;
   line-height: 1.6;
@@ -36,9 +36,23 @@ body a {
   align-items: center;
   justify-content: space-between;
   padding: 0 5vw;
-  height: 78px;
+  height: 90px;
   background: rgba(248, 245, 239, 0.95);
+  backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--line);
+}
+
+.brand-block {
+  display: grid;
+  gap: 6px;
+}
+
+.brand-tagline {
+  margin: 0;
+  color: var(--muted);
+  font: 12px "DM Mono", monospace;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
 }
 
 .brand {
@@ -77,19 +91,12 @@ nav a,
 }
 
 .hero {
-  min-height: calc(100vh - 78px);
+  min-height: calc(100vh - 90px);
   display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
+  grid-template-columns: minmax(0, 1.1fr) minmax(340px, 0.9fr);
   gap: 5vw;
   align-items: center;
   padding: clamp(72px, 10vw, 140px) 8vw 60px;
-}
-
-.kicker {
-  font: 500 11px/1.2 "DM Mono", monospace;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  margin: 0 0 24px;
 }
 
 .hero h1,
@@ -101,6 +108,20 @@ nav a,
   font: 500 clamp(44px, 6.5vw, 85px)/0.96 "Playfair Display", Georgia, serif;
   letter-spacing: -0.06em;
   margin: 0;
+  max-width: 720px;
+}
+
+.hero-text {
+  font-size: 18px;
+  max-width: 620px;
+  margin: 32px 0 0;
+}
+
+.kicker {
+  font: 500 11px/1.2 "DM Mono", monospace;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin: 0 0 24px;
 }
 
 .hero h1 em,
@@ -166,25 +187,43 @@ nav a,
   position: relative;
   min-height: 460px;
   max-height: 720px;
+  overflow: visible;
 }
 
 .hero-shape {
   position: absolute;
   inset: 0;
+  transform: translate(12%, -8%);
   background: var(--lavender);
   border-radius: 56% 44% 46% 54% / 45% 46% 54% 55%;
+  box-shadow: 0 40px 90px rgba(198, 189, 233, 0.22);
 }
 
 .hero-image {
   position: absolute;
   width: 86%;
   height: 86%;
+  top: 8%;
+  right: 0;
   object-fit: cover;
   object-position: center top;
-  bottom: 0;
-  left: 0;
-  border-radius: 28px;
-  box-shadow: 0 32px 70px rgba(24, 26, 54, 0.08);
+  border-radius: 32px;
+  box-shadow: 0 42px 90px rgba(24, 26, 54, 0.12);
+}
+
+.vertical-label {
+  position: absolute;
+  top: 50%;
+  right: -28px;
+  transform: translate(50%, -50%) rotate(-90deg);
+  background: rgba(248, 245, 239, 0.96);
+  padding: 12px 16px;
+  border-radius: 999px;
+  font: 500 11px "DM Mono", monospace;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--ink);
+  box-shadow: 0 20px 45px rgba(24, 26, 54, 0.08);
 }
 
 .vertical-label {
@@ -212,11 +251,9 @@ nav a,
   background: #fff;
 }
 
-.intro-grid {
-  display: grid;
-  grid-template-columns: 1.25fr 0.85fr;
-  gap: 8vw;
-  align-items: start;
+.research,
+.community {
+  background: rgba(228, 220, 248, 0.35);
 }
 
 .intro-details {
@@ -272,11 +309,7 @@ nav a,
   padding: 32px;
   border-radius: 24px;
   border: 1px solid var(--line);
-}
-
-.research-grid,
-.community-grid {
-  grid-template-columns: repeat(3, minmax(220px, 1fr));
+    box-shadow: 0 24px 45px rgba(24, 26, 54, 0.06);
 }
 
 .practice-list article {
@@ -366,6 +399,7 @@ nav a,
 .connect {
   background: var(--coral);
   color: var(--ink);
+  padding-bottom: 120px;
 }
 
 .connect h2 {
@@ -375,6 +409,11 @@ nav a,
 .connect p {
   max-width: 500px;
   margin: 24px 0 0;
+}
+
+.connect .connect-link {
+  display: inline-flex;
+  margin-top: 28px;
 }
 
 .footer-links,
@@ -467,18 +506,22 @@ footer .brand {
     padding: 24px;
   }
 
+  .hero-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .hero-actions a {
+    width: 100%;
+    justify-content: center;
+  }
+
   .practice-list article {
     grid-template-columns: 32px 1fr;
   }
 
-  .recognition-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .coverage-grid {
-    grid-template-columns: 1fr;
-  }
-
+  .recognition-grid,
+  .coverage-grid,
   .impact-list {
     grid-template-columns: 1fr;
   }
