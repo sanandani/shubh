@@ -185,30 +185,37 @@ nav a,
 
 .hero-image-wrap {
   position: relative;
-  min-height: 0;
-  max-height: none;
+  width: 100%;
+  max-width: 640px;
+  min-height: 520px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px;
   overflow: visible;
 }
 
 .hero-shape {
   position: absolute;
-  inset: 0;
-  transform: translate(12%, -8%);
+  width: 106%;
+  height: 106%;
+  top: -3%;
+  right: -3%;
+  transform: none;
   background: var(--lavender);
-  border-radius: 56% 44% 46% 54% / 45% 46% 54% 55%;
+  opacity: 0.72;
+  border-radius: 48% 52% 42% 58% / 44% 48% 52% 56%;
   box-shadow: 0 40px 90px rgba(198, 189, 233, 0.22);
+  z-index: 0;
 }
 
 .hero-image {
+  position: relative;
+  z-index: 1;
   display: block;
   width: 100%;
-  max-width: 620px;
   height: auto;
-  border-radius: 28px;
+  max-width: 520px;
+  border-radius: 32px;
   box-shadow: 0 32px 70px rgba(24, 26, 54, 0.08);
 }
 
@@ -460,6 +467,12 @@ footer .brand {
 
   .hero-image-wrap {
     min-height: 320px;
+    max-width: 100%;
+    padding: 0;
+  }
+
+  .hero-image {
+    max-width: 100%;
   }
 
   .intro,
