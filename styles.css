@@ -93,7 +93,7 @@ nav a,
 .hero {
   min-height: calc(100vh - 90px);
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(340px, 0.9fr);
+  grid-template-columns: 1fr minmax(260px, 520px);
   gap: 5vw;
   align-items: center;
   padding: clamp(72px, 10vw, 140px) 8vw 60px;
@@ -185,11 +185,12 @@ nav a,
 
 .hero-image-wrap {
   position: relative;
-  min-height: 360px;
-  max-height: 780px;
+  min-height: 0;
+  max-height: none;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 12px;
   overflow: visible;
 }
 
@@ -203,13 +204,10 @@ nav a,
 }
 
 .hero-image {
-  position: relative;
   display: block;
   width: 100%;
-  max-width: 520px;
+  max-width: 620px;
   height: auto;
-  object-fit: contain;
-  object-position: center center;
   border-radius: 28px;
   box-shadow: 0 32px 70px rgba(24, 26, 54, 0.08);
 }
