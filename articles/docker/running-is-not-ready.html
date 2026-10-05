@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Separate startup, readiness, and liveness signals to make container rollouts safer and easier to recover." />
+    <meta property="article:published_time" content="2025-09-23" />
+    <title>Running Is Not Ready — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" /><link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../index.html#about">About</a><a href="../../index.html#outcomes">Impact</a><a href="../../index.html#research">Research</a><a href="../../blog.html">Writing</a></nav><a class="menu-link" href="mailto:shubhamanandani@gmail.com">Connect<span>↗</span></a></header>
+    <main>
+      <article class="article-document">
+        <a class="article-back" href="../../blog.html#docker">← Docker articles</a>
+        <header class="article-document-header"><p class="kicker">Docker / Operations</p><h1>Running Is Not Ready: Operating Containerized Services</h1><p class="article-deck">Why startup, readiness, and liveness are different—and how to keep rollouts reversible when real systems fail.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2025-09-23">Published September 23, 2025</time><span>·</span><span>8 min read</span></div></header>
+        <div class="article-prose">
+          <p class="article-lede">One of the most reliable lessons from operating containerized services is simple: <strong>running is not ready.</strong> A process can be alive, a port can be open, and yet the service may not be able to handle real traffic. Treat startup, readiness, and liveness as separate concerns, verify each one deliberately, and design rollouts with recovery in mind.</p>
+          <p>This article uses a small public demo, <code>aceu-trust-demo</code>, as a running example. It uses a multi-stage image, a non-root user, a health endpoint, and a container deployment behind external HTTPS ingress. Its ACE-U output is illustrative and based on synthetic evidence; it is not a validated assessment of real people. The operational lessons apply more broadly.</p>
+          <h2>The “green” deployment that still fails</h2>
+          <p>A deployment reports “running” and the dashboard looks healthy, but requests time out. A dependency is still warming up. The process is alive, so the liveness signal stays green; the service is simply not ready to serve traffic yet. The failure began when one signal was expected to answer two different questions.</p>
+          <h2>Give each signal one job</h2>
+          <h3>Startup: has initialization finished?</h3><p>Startup covers work such as loading configuration, opening required connections, or priming a cache. Slow startup should not be mistaken for a dead process.</p>
+          <h3>Readiness: can this instance take traffic now?</h3><p>Readiness is a promise to callers. Keep it false until the dependencies required for the service’s critical path are available. A TCP connection alone may not be enough if the application depends on a loaded index or credentials.</p>
+          <h3>Liveness: is the process stuck in a state that needs a restart?</h3><p>Liveness should detect an unrecoverable condition, such as a deadlock. It should not fail merely because a downstream system is briefly unavailable: repeatedly restarting healthy processes can amplify an outage.</p>
+          <p>Docker’s <code>HEALTHCHECK</code> records a container health state. It does not, by itself, define how a particular load balancer or orchestrator routes traffic. In Kubernetes, configure startup, readiness, and liveness probes for their distinct purposes.</p>
+          <h3>A bounded Docker health check</h3><p>If Python is already part of the runtime image, a tiny local endpoint check avoids adding a separate <code>curl</code> package just for health status:</p>
+          <pre><code>HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD python -c 'import urllib.request; urllib.request.urlopen("http://localhost:8000/health", timeout=2)' || exit 1</code></pre>
+          <p>Keep this endpoint cheap and local. Put stricter dependency checks in a separate readiness endpoint, then configure your platform to use that endpoint to gate traffic.</p>
+          <h2>Roll out in stages and predefine rollback</h2><p>Do not move all traffic at once. Start with a small cohort, hold it under real load for a defined soak period, then expand. Write the rollback condition before the release—for example, a measured latency threshold sustained for a defined duration, or an error rate that crosses a set limit. The thresholds should come from the service’s baseline and risk profile, not be guessed after the rollout starts.</p>
+          <h2>Shut down gracefully</h2><p>When a platform scales down an idle container, the process may receive <code>SIGTERM</code>. Stop accepting new work, let in-flight requests finish within a deadline, close outbound clients, flush metrics, and exit. Treat <code>SIGKILL</code> as the forced fallback. Without a drain period, a routine scale-down can become partial writes, dangling sessions, or noisy retries.</p>
+          <h2>Make the dependency chain visible</h2><p>Under pressure, teams often blame the topmost service. Keep a runbook that follows dependencies below the application: runtime, network, storage, cache or index, and external services. Document how each layer fails and how to check it without adding load. Infrastructure problems such as CPU starvation, memory pressure, or network saturation can surface as application timeouts and backpressure.</p>
+          <p>A green health endpoint can also miss a heavy or rarely used path. Pair alerts with lightweight, non-sensitive transition logs such as <code>ready=false reason=index_warming</code> and <code>ready=true checks=passed</code>. A weekly on-call handoff—what broke, the likely cause, and which mitigation helped—turns recurring cold starts and slow dependency warm-ups into work the team can fix.</p>
+          <h2>Trade-offs to make explicit</h2><ul><li><strong>Strict readiness vs. first-green speed:</strong> better gating can delay traffic, while reducing user-facing failures.</li><li><strong>Longer soak vs. delivery pace:</strong> more observation lowers rollout risk but delays full exposure.</li><li><strong>Graceful drain vs. implementation effort:</strong> draining takes work; skipping it risks incomplete operations.</li><li><strong>Frequent liveness checks vs. flapping:</strong> overly sensitive checks can restart a service during resource spikes and worsen an incident.</li></ul>
+          <h2>Try it in your service</h2><ol><li>Add a separate <code>/ready</code> endpoint that checks the critical dependency before returning success.</li><li>Write down a staged rollout, soak period, and rollback trigger before your next release.</li><li>Handle <code>SIGTERM</code> by draining requests and closing resources cleanly.</li><li>Extend your runbook with infrastructure checks and first suspects for latency spikes.</li></ol>
+          <h2>Closing thought</h2><p>Separating startup, readiness, and liveness reduces confusion during incidents and helps limit their blast radius. The demo illustrates the distinction with a local health endpoint and a reversible deployment path. Its ACE-U dimensions—Authenticity, Credibility, Empathy, and Uniqueness—remain conceptual in this context, not a judgment of real people.</p>
+          <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.docker.com/reference/dockerfile/#healthcheck" target="_blank" rel="noreferrer">Dockerfile <code>HEALTHCHECK</code> reference</a></li><li><a href="https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/" target="_blank" rel="noreferrer">Kubernetes startup, readiness, and liveness probes</a></li></ul></aside>
+        </div>
+        <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+      </article>
+    </main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer>
+    <script src="../../script.js"></script>
+  </body>
+</html>

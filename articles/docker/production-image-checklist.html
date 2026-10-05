@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A practical production Docker image checklist covering multi-stage builds, non-root users, build context, secrets, and health checks." />
+    <meta property="article:published_time" content="2026-01-12" /><title>Smaller, Quieter, Safer — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" /><link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../index.html#about">About</a><a href="../../index.html#outcomes">Impact</a><a href="../../index.html#research">Research</a><a href="../../blog.html">Writing</a></nav><a class="menu-link" href="mailto:shubhamanandani@gmail.com">Connect<span>↗</span></a></header>
+    <main><article class="article-document">
+      <a class="article-back" href="../../blog.html#docker">← Docker articles</a>
+      <header class="article-document-header"><p class="kicker">Docker / Image security</p><h1>Smaller, Quieter, Safer: A Production Image Checklist</h1><p class="article-deck">A practical checklist for multi-stage builds, least privilege, and predictable runtime behavior.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-01-12">Published January 12, 2026</time><span>·</span><span>7 min read</span></div></header>
+      <div class="article-prose">
+        <p class="article-lede">A production container should be small enough to move efficiently, quiet enough to operate, and constrained enough to limit avoidable risk. Those outcomes come from simple habits: keep build tools out of the runtime image, use a non-root identity, keep the build context tight, and make health checks cheap.</p>
+        <p>The <code>aceu-trust-demo</code> uses a multi-stage build, a slim base, a non-root user, a health endpoint, and Compose for local runs. The checklist below is designed to make those decisions repeatable.</p>
+        <h2>1. Keep build tools out of the runtime stage</h2><p>Compilers, headers, and test tools belong in a build stage when the running application does not need them. Copy only the installed runtime dependencies and application code into the final stage. A smaller image can reduce transfer time and remove packages the service does not need.</p>
+        <pre><code># syntax=docker/dockerfile:1
+FROM python:3.12-slim AS builder
+WORKDIR /app
+RUN python -m venv /venv
+ENV PATH="/venv/bin:$PATH"
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY aceu ./aceu
+
+FROM python:3.12-slim AS runtime
+RUN useradd --uid 10001 --create-home appuser
+WORKDIR /app
+COPY --from=builder --chown=10001:10001 /venv /venv
+COPY --from=builder --chown=10001:10001 /app/aceu ./aceu
+ENV PATH="/venv/bin:$PATH" \
+    PYTHONDONTWRITEBYTECODE=1
+USER 10001
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD python -c 'import urllib.request; urllib.request.urlopen("http://localhost:8000/health", timeout=2)' || exit 1
+CMD ["uvicorn", "aceu.app:app", "--host", "0.0.0.0", "--port", "8000"]</code></pre>
+        <p>Check the actual base image and application requirements before using this verbatim. For example, a health endpoint must exist and return a failing status when the process is unhealthy.</p>
+        <h2>2. Choose a base image for the runtime</h2><p>A minimal base can reduce unnecessary packages, but it may omit a system library your app needs. Add required runtime packages explicitly, then measure the result. Pick an image the team can patch and operate; “smallest possible” is not the only goal.</p>
+        <h2>3. Run as a non-root user with a known UID</h2><p>Use an explicit user ID and make sure files copied into the image are readable by that user. If a writeable directory is needed, grant access only to that path. Fix ownership in the Dockerfile instead of switching back to root when a permissions error appears.</p>
+        <h2>4. Keep the build context narrow</h2><p>Docker can only build from the context it receives. Exclude local caches, virtual environments, repository history, and secrets with a <code>.dockerignore</code> file:</p>
+        <pre><code>__pycache__/
+*.py[cod]
+.env
+.git/
+node_modules/
+venv/
+.venv/
+dist/
+build/</code></pre>
+        <p>Review <code>COPY</code> statements as carefully as ignore rules. Do not copy test fixtures or private configuration into the runtime image unless the application needs them.</p>
+        <h2>5. Keep secrets out of image layers</h2><p>Do not place credentials in Dockerfile <code>ARG</code> or <code>ENV</code> instructions, and do not copy secret files into a layer. Prefer platform-managed runtime secrets. When a build genuinely needs a secret, use BuildKit’s secret mount rather than baking it into the image.</p>
+        <h2>6. Check for weakened isolation and noisy health checks</h2><p>Review Dockerfiles and deployment manifests for settings that weaken isolation, such as an unconfined seccomp profile. Keep health checks bounded and inexpensive; an overly aggressive check can add load or mark a service unhealthy during a temporary resource spike. Set log levels intentionally so normal operation does not bury useful signals.</p>
+        <h2>Trade-offs and failure modes</h2><ul><li><strong>Slim image vs. hidden dependencies:</strong> add the libraries you need, then verify the runtime stage starts and serves its critical paths.</li><li><strong>Non-root vs. file permissions:</strong> set ownership during build and grant write access only where needed.</li><li><strong>Health checks vs. extra load:</strong> probe a fast path and use a reasonable timeout and interval.</li><li><strong>Runtime secrets vs. rotation work:</strong> secure injection adds operational responsibilities, so document ownership and rotation clearly.</li></ul>
+        <p>Common surprises include a credential accidentally left in an image layer, a slim runtime missing a required shared library, or a non-root process unable to read a root-owned file. A deliberate image review catches these before deployment.</p>
+        <h2>Try it on your next image</h2><ol><li>Separate build and runtime stages, then compare the resulting image size.</li><li>Run the application under a non-root UID and verify file access.</li><li>Add a <code>.dockerignore</code> file and inspect the build context.</li><li>Add a CI lint step for known unsafe Dockerfile or manifest settings.</li></ol>
+        <h2>Closing thought</h2><p>A smaller, quieter, safer image is easier to move and less likely to surprise the team in production. The demo remains illustrative; the container practices are the reusable part.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.docker.com/build/building/best-practices/" target="_blank" rel="noreferrer">Docker build best practices</a></li><li><a href="https://docs.docker.com/build/building/multi-stage/" target="_blank" rel="noreferrer">Docker multi-stage builds</a></li><li><a href="https://docs.docker.com/build/building/secrets/" target="_blank" rel="noreferrer">Build secrets with Docker</a></li></ul></aside>
+      </div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

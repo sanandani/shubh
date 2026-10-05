@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Understand Docker-in-Docker trade-offs, protect daemon access, and make container-dependent CI tests fail closed." />
+    <meta property="article:published_time" content="2026-05-23" /><title>Docker in CI: The Real Cost of Docker-in-Docker — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" /><link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../index.html#about">About</a><a href="../../index.html#outcomes">Impact</a><a href="../../index.html#research">Research</a><a href="../../blog.html">Writing</a></nav><a class="menu-link" href="mailto:shubhamanandani@gmail.com">Connect<span>↗</span></a></header>
+    <main><article class="article-document">
+      <a class="article-back" href="../../blog.html#docker">← Docker articles</a>
+      <header class="article-document-header"><p class="kicker">Docker / CI &amp; isolation</p><h1>Docker in CI: The Real Cost of Docker-in-Docker</h1><p class="article-deck">Why teams use DinD, what daemon access exposes, and how to make container tests reliable.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-05-23">Published May 23, 2026</time><span>·</span><span>8 min read</span></div></header>
+      <div class="article-prose">
+        <p class="article-lede">Docker-in-Docker (DinD) can make CI feel simple: start a job, build an image, run container-based tests. The convenience comes with a real isolation decision. Privileged DinD can weaken the boundary around the runner; mounting the host Docker socket can give a build step powerful control over the host daemon.</p>
+        <p>Teams still choose these patterns because they support familiar workflows. The important thing is to make the choice explicit, restrict which code can use it, and avoid a “green” result when container tests never ran.</p>
+        <h2>First, know which daemon the job is using</h2><p>“Docker in CI” does not always mean DinD. Some runners expose a Docker daemon to the job; DinD starts a separate Docker daemon inside a service container. A mounted <code>/var/run/docker.sock</code> is a third pattern: the job’s Docker CLI talks to the host daemon. These setups have different isolation properties. Document the runner architecture before relying on it.</p>
+        <h2>Verify the daemon before running tests</h2><p>Make readiness an explicit step. If the daemon is missing or unresponsive, stop the job before it reports container-dependent tests as successful:</p>
+        <pre><code># Run only on a runner configured to provide Docker access.
+set -eu
+docker version
+docker info
+
+IMAGE="aceu-trust-demo:${GITHUB_SHA:-local}"
+docker build --tag "$IMAGE" .
+docker run --rm "$IMAGE" pytest -q</code></pre>
+        <p>For an actual DinD service, the job also needs to wait for that service’s daemon to become available. A fixed sleep is brittle; use a bounded readiness loop and fail with a clear message if the daemon never responds.</p>
+        <h2>Do not silently skip container-dependent tests</h2><p>If the daemon is a prerequisite, the test should fail when Docker is unavailable. Avoid code that catches every exception and quietly returns a passing or skipped result in a required CI job:</p>
+        <pre><code>import subprocess
+
+
+def docker_available() -&gt; bool:
+    try:
+        subprocess.run(
+            ["docker", "info"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return True
+    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return False
+
+
+def test_containerized_health_check_requires_docker():
+    assert docker_available(), "Docker daemon is required for this test"
+    # Continue with the containerized test flow.</code></pre>
+        <p>Tag Docker-dependent tests so developers can distinguish them from pure unit tests, but keep them required in the CI path that claims to validate the container.</p>
+        <h2>Choose the access pattern with eyes open</h2><ul><li><strong>Privileged DinD:</strong> familiar and flexible, but grants elevated capabilities to the service container. Restrict it to trusted workflows and isolate the runner.</li><li><strong>Host socket mount:</strong> avoids starting another daemon, but the mounted socket can let job code control the host Docker daemon. Treat access as highly privileged.</li><li><strong>Daemonless or remote builders:</strong> can reduce direct daemon exposure in some environments, but require setup and may change the build workflow.</li></ul>
+        <p>In every case, pin build images, keep credentials scoped, avoid running untrusted pull-request code on privileged self-hosted runners, and clean up jobs so containers and volumes do not leak into later runs.</p>
+        <h2>Watch for isolation leaks and flaky runners</h2><p>Look for unexpected host mounts, files written outside the workspace, orphaned containers, and daemon failures. Runner fleets can have transient problems. A documented single retry can filter a brief infrastructure hiccup, but repeated failure should remain visible and investigated—not retried until a broken test turns green.</p>
+        <h2>Trade-offs to discuss with the team</h2><ul><li><strong>Speed vs. isolation:</strong> DinD is familiar; stricter alternatives can require more setup.</li><li><strong>Fail closed vs. ergonomics:</strong> blocking on daemon failure catches false greens but can be frustrating when runner health is poor. Give contributors a clear error and retry path.</li><li><strong>Socket mount vs. privileged mode:</strong> neither is a free isolation boundary. Limit trusted code and runner scope for either design.</li></ul>
+        <h2>Try it in your CI</h2><ol><li>Write down whether jobs use host Docker, a mounted socket, or a separate DinD service.</li><li>Add a daemon readiness check before any container-dependent test.</li><li>Make those tests fail if Docker is unavailable; do not silently skip them.</li><li>Evaluate a daemonless or remote builder against your runner threat model.</li><li>Document when one retry is appropriate and when repeated failure needs investigation.</li></ol>
+        <h2>Closing thought</h2><p>DinD can be pragmatic, but it should never be invisible. Verify the daemon, make tests fail closed, and choose an isolation pattern that matches what the CI job is trusted to do.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.docker.com/engine/security/protect-access/" target="_blank" rel="noreferrer">Protect access to the Docker daemon socket</a></li><li><a href="https://docs.docker.com/engine/security/" target="_blank" rel="noreferrer">Docker Engine security</a></li><li><a href="https://docs.github.com/en/actions/reference/security/secure-use" target="_blank" rel="noreferrer">GitHub Actions secure-use guidance</a></li></ul></aside>
+      </div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

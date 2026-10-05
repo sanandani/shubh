@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Build an SBOM, scan each container image, and gate releases on actionable vulnerability severity." />
+    <meta property="article:published_time" content="2026-03-15" /><title>Don’t Ship What You Haven’t Scanned — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" /><link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../index.html#about">About</a><a href="../../index.html#outcomes">Impact</a><a href="../../index.html#research">Research</a><a href="../../blog.html">Writing</a></nav><a class="menu-link" href="mailto:shubhamanandani@gmail.com">Connect<span>↗</span></a></header>
+    <main><article class="article-document">
+      <a class="article-back" href="../../blog.html#docker">← Docker articles</a>
+      <header class="article-document-header"><p class="kicker">Docker / Supply chain</p><h1>Don’t Ship What You Haven’t Scanned: Gating Images Before Production</h1><p class="article-deck">SBOMs, severity gates, workable exceptions, and practical CI steps for container image scanning.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-03-15">Published March 15, 2026</time><span>·</span><span>8 min read</span></div></header>
+      <div class="article-prose">
+        <p class="article-lede">Images move quickly; vulnerability information changes just as quickly. My baseline is straightforward: make image contents visible, scan before release, gate on actionable findings, and define a narrow exception path with an owner and an expiry.</p>
+        <p>This is not a claim that scanners make an image safe. A scan is one control in a larger process. The goal is to replace last-minute surprises with a repeatable decision before an image reaches production.</p>
+        <h2>Start with an inventory</h2><p>A Software Bill of Materials (SBOM) lists software components included in an image. Generating one during the build gives scanners and reviewers a concrete inventory to inspect. Docker Buildx can attach an SBOM attestation to an image:</p>
+        <pre><code># Build and push to a registry so the SBOM attestation travels with the image.
+docker buildx build \
+  --tag "$IMAGE" \
+  --sbom=true \
+  --push .</code></pre>
+        <p>Build attestations depend on the BuildKit builder and where the image is stored. Verify that the registry contains the SBOM and that your scanner can read it; do not assume a successful command means the inventory is being retained in the place you expect.</p>
+        <h2>Gate on findings the team can act on</h2><p>Pick a severity policy and make it a failing CI step. For example, Trivy can return a non-zero exit status when High or Critical findings are present:</p>
+        <pre><code># IMAGE is the exact tag or digest built by the preceding step.
+trivy image \
+  --exit-code 1 \
+  --severity HIGH,CRITICAL \
+  "$IMAGE"</code></pre>
+        <p>Choose policy with the people who own the service. Severity labels are useful triage signals, but they do not tell you whether a vulnerable code path is reachable in your application. Prioritize fixable findings; keep visibility into the rest and record remediation plans.</p>
+        <h2>Make exceptions narrow and temporary</h2><p>Sometimes a scanner reports a finding with no available fix, or a team can show that a vulnerable path is not reachable in its deployment. If your policy allows an exception, require at least:</p><ul><li>a named owner responsible for revisiting it;</li><li>a short technical justification and the affected image digest;</li><li>a remediation plan or a reason no fix is available;</li><li>an expiry date that triggers re-review.</li></ul><p>An exception should have an end. An expired exception returns to the gate for a fresh decision.</p>
+        <h2>Scan third-party images and every release candidate</h2><p>Review a base image or build tool before first use, prefer trustworthy publishers, and record the digest of the image you evaluated. Scan the image that will actually be released, not only the Dockerfile or an earlier local build. Repeat the scan when rebuilding because packages and advisories change.</p>
+        <h2>Treat scanner failures as operational failures</h2><p>Scanning can fail because a registry is unavailable, an advisory feed cannot be fetched, a token expired, or the runner ran out of disk. These states are different from “the scan completed and found a vulnerability.” Preserve enough CI status and logs to tell which happened, and make sure infrastructure errors cannot turn into a silent pass.</p>
+        <h2>Keep the gate fast enough to keep</h2><p>If every scan takes too long, teams will look for ways around it. Cache what is safe to cache, tune the scanner, and make results easy to understand—but do not quietly skip scanning for small code changes. Also record who approved exceptions and when; keep logs free of credentials and other secrets.</p>
+        <h2>Failure modes to test</h2><ul><li><strong>The gate reports but does not block:</strong> test the pipeline with a known finding and confirm the build fails.</li><li><strong>Advisory access expires:</strong> make registry or scanner authentication failures visible and blocking.</li><li><strong>The SBOM is missing:</strong> treat a missing expected artifact as a failed build, not an empty inventory.</li><li><strong>A clean scan becomes stale:</strong> rebuild and rescan as dependencies or vulnerability data change.</li></ul>
+        <h2>Try it in your pipeline</h2><ol><li>Generate an SBOM for each release image and verify that it is retained.</li><li>Run a vulnerability scan on the exact image tag or digest that will ship.</li><li>Set a failing threshold, such as High and Critical, with a written exception policy.</li><li>Keep scanner outages separate from vulnerability findings in the CI result.</li></ol>
+        <h2>Closing thought</h2><p>A scan is most useful when it changes a release decision. Make image contents visible, agree on what blocks a release, and give every exception an owner and a clock.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.docker.com/build/metadata/attestations/sbom/" target="_blank" rel="noreferrer">Docker SBOM attestations</a></li><li><a href="https://docs.docker.com/build/ci/github-actions/attestations/" target="_blank" rel="noreferrer">Docker SBOM and provenance attestations in GitHub Actions</a></li><li><a href="https://trivy.dev/docs/latest/configuration/others/" target="_blank" rel="noreferrer">Trivy severity filtering and exit codes</a></li></ul></aside>
+      </div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

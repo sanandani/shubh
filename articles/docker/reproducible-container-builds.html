@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Pin dependencies, use lock files, and verify container artifacts to make local and cloud builds more reproducible." />
+    <meta property="article:published_time" content="2025-11-14" /><title>Same Dockerfile, Different Build — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" /><link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../index.html#about">About</a><a href="../../index.html#outcomes">Impact</a><a href="../../index.html#research">Research</a><a href="../../blog.html">Writing</a></nav><a class="menu-link" href="mailto:shubhamanandani@gmail.com">Connect<span>↗</span></a></header>
+    <main><article class="article-document">
+      <a class="article-back" href="../../blog.html#docker">← Docker articles</a>
+      <header class="article-document-header"><p class="kicker">Docker / Build systems</p><h1>Same Dockerfile, Different Build: Reproducible Container Builds</h1><p class="article-deck">Pin it, lock it, and verify what you actually built—across local and cloud.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2025-11-14">Published November 14, 2025</time><span>·</span><span>7 min read</span></div></header>
+      <div class="article-prose">
+        <p class="article-lede">I once pushed a change after a healthy local run of <code>aceu-trust-demo</code>. The cloud build resolved a newer FastAPI version—0.142.2 instead of 0.141.1 locally—and pulled an additional package, <code>opentelemetry-api</code>. The Dockerfile was the same; the dependency ranges were not locked.</p>
+        <p>That kind of drift is easy to miss. A repeatable build takes more than a Dockerfile: it needs a locked dependency graph, a deliberate base-image update policy, and a way to inspect the artifact that actually shipped.</p>
+        <h2>Why “same Dockerfile” can produce a different image</h2><p>Version ranges allow resolvers to choose newer compatible releases. A mutable base-image tag can also point to a newer image later. Build caches may keep an older layer locally while CI fetches fresh inputs. The source recipe is unchanged, but the resolved inputs differ.</p>
+        <h2>Lock the dependency graph</h2><p>Use exact direct-dependency pins and commit a lock file that records the resolved transitive versions. Where the package manager supports it, include hashes and install in locked mode. A short input file might look like this:</p>
+        <pre><code># requirements.in — human-maintained direct dependencies
+fastapi==0.141.1
+uvicorn==0.30.1
+
+# Resolve and lock transitive dependencies, including hashes.
+pip-compile --generate-hashes --output-file requirements.txt requirements.in</code></pre>
+        <p>Commit both files. Install from the generated lock in CI rather than re-resolving ranges during every image build:</p>
+        <pre><code>pip install --require-hashes -r requirements.txt</code></pre>
+        <p>Pins make change deliberate; they do not remove the need to update packages for fixes.</p>
+        <h2>Choose tags or digests deliberately</h2><p>Tags are convenient and can move to newer images. Digests identify a specific image immutably. A digest gives a reproducible base, but it will not advance to security fixes on its own—you must monitor updates and refresh it deliberately.</p>
+        <pre><code># Illustrative digest placeholder: replace with a verified digest
+FROM python:3.12-slim@sha256:&lt;verified-digest&gt;</code></pre>
+        <p>If you use tags, track when they change and refresh the base during scheduled builds. <code>--pull</code> tells Docker to attempt to pull referenced images before the build:</p>
+        <pre><code>docker build --pull --tag aceu-trust-demo:main .</code></pre>
+        <h2>Make updates reviewable</h2><p>Use a dependency update bot or scheduled update pull requests, then gate those changes with tests and image scanning. For production-critical dependencies, document which updates need an explicit reviewer. Prefer a visible, tested update over a silent change arriving through a floating version range.</p>
+        <h2>Keep registry access safe and documented</h2><p>CI needs a clear path to authenticate, tag, and push. Store credentials in the CI secret manager, use a short-lived token where available, and send passwords over standard input instead of exposing them in command arguments:</p>
+        <pre><code># REGISTRY_USER and REGISTRY_TOKEN come from the CI secret store.
+printf '%s' "$REGISTRY_TOKEN" | docker login "$REGISTRY_HOST" \
+  --username "$REGISTRY_USER" --password-stdin
+
+IMAGE="$REGISTRY_HOST/aceu-trust-demo:$GIT_SHA"
+docker build --pull --tag "$IMAGE" .
+docker push "$IMAGE"</code></pre>
+        <p>Document who owns the credentials, how rotation works, and what a failed login looks like. Never print secret values into build logs.</p>
+        <h2>Compare artifacts when behavior changes</h2><p>If local and cloud behavior diverge, inspect the image’s package inventory or generate an SBOM. Compare the resolved versions and base-image digest, then decide whether to re-lock, refresh the image, or accept the change with an appropriate test update. Looking at the built artifact beats guessing from the Dockerfile alone.</p>
+        <h2>Trade-offs and failure modes</h2><ul><li><strong>Exact pins vs. security updates:</strong> pins improve repeatability, while scheduled updates and scans keep them current.</li><li><strong>Tags vs. digests:</strong> tags are easier to refresh; digests make the selected base explicit and immutable.</li><li><strong>Locks vs. setup time:</strong> generating a lock adds a step, but saves time when builds need to be compared.</li><li><strong>Registry authentication:</strong> expired tokens or changed scopes should produce an explicit CI failure, not a misleading successful pipeline.</li></ul>
+        <h2>Try it in your pipeline</h2><ol><li>Replace floating version ranges with exact direct pins and commit a full lock file.</li><li>Pick a base-image policy: tag plus scheduled refresh, or digest plus an explicit update cadence.</li><li>Build with <code>--pull</code> when you want CI to check for updated base images.</li><li>Record the image tag or digest produced by CI and inspect its packages when behavior changes.</li></ol>
+        <h2>Closing thought</h2><p>“Same Dockerfile” rarely guarantees “same runtime.” Lock files, explicit base-image policy, and artifact inspection turn hidden drift into a change the team can review.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.docker.com/reference/cli/docker/buildx/build/" target="_blank" rel="noreferrer">Docker Buildx build options, including <code>--pull</code> and SBOM attestations</a></li><li><a href="https://docs.docker.com/reference/cli/docker/image/pull/#pull-an-image-by-digest-immutable-identifier" target="_blank" rel="noreferrer">Pulling an image by immutable digest</a></li><li><a href="https://pip-tools.readthedocs.io/en/latest/" target="_blank" rel="noreferrer">pip-tools documentation for Python dependency locking</a></li></ul></aside>
+      </div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>
