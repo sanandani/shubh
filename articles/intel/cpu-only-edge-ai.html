@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Design edge inference services for CPU-only environments with explicit hardware assumptions, real fallbacks, and predictable degradation." />
+    <meta property="article:published_time" content="2026-05-15" /><title>CPU-Only, By Design — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" /><link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../index.html#about">About</a><a href="../../index.html#outcomes">Impact</a><a href="../../index.html#research">Research</a><a href="../../blog.html">Writing</a></nav><a class="menu-link" href="mailto:shubhamanandani@gmail.com">Connect<span>↗</span></a></header>
+    <main><article class="article-document">
+      <a class="article-back" href="../../blog.html#intel">← Intel articles</a>
+      <header class="article-document-header"><p class="kicker">Intel / Edge deployment</p><h1>CPU-Only, By Design: Building an Edge-AI Service Without Assuming Accelerators</h1><p class="article-deck">Fallbacks, graceful degradation, and clear hardware assumptions that won’t surprise the next engineer.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-05-15">Published May 15, 2026</time><span>·</span><span>8 min read</span></div></header>
+      <div class="article-prose">
+        <p class="article-lede">Not every deployment target has a dedicated accelerator. In many environments, the only safe assumption is a general-purpose CPU. Treating that as a deliberate design constraint makes the service easier to deploy, explain, and operate.</p>
+        <p><code>aceu-edge-infer</code> is a small CPU-first inference demo with a documented OpenVINO runtime path. Its ACE-U outputs are illustrative—not a validated assessment of people. The design lesson is broader: state the hardware contract and make the service’s behavior when that contract is not met explicit.</p>
+        <h2>Document the hardware contract</h2><p>Say which device is required and what is optional. If CPU-only execution is supported, describe the expected model format, available runtime, resource needs, and what performance behavior users should plan for. If an accelerator is optional, list supported devices and the path selected when one is missing.</p>
+        <h2>Make device selection explicit</h2><p>For an OpenVINO model intended for CPU execution, specify the device in the compile call rather than relying on a default selection:</p>
+        <pre><code>import openvino as ov
+
+core = ov.Core()
+model = core.read_model("models/aceu_ir.xml")
+compiled_model = core.compile_model(model, "CPU")</code></pre>
+        <p>Test the exact runtime package and operating system you plan to ship. If startup cannot load the model or compile it for CPU, do not report the service as ready.</p>
+        <h2>Distinguish a fallback from a failure</h2><p>A fallback is a real, tested alternative execution path. It may be a different model artifact, a portable runtime, or a slower implementation that produces valid outputs. If none exists, the honest response to a missing runtime is a clear startup failure or an unavailable response—not placeholder scores or a “fallback” label that hides the problem.</p>
+        <p>Expose execution metadata that helps operators understand the path without leaking environment details:</p>
+        <pre><code>execution_info = {
+    "device": "CPU",
+    "precision": "INT8",
+    "fallback_used": False,
+}</code></pre>
+        <p>In a real service, derive these values from the compiled model and request path; do not hard-code them when the runtime can choose a different path.</p>
+        <h2>Degrade predictably on constrained hardware</h2><p>Assume memory and CPU shares may be limited. Measure the model’s memory footprint and end-to-end latency on the target class of device. Start with conservative concurrency; more threads do not automatically mean better p95 latency. If the service supports it, adjust batch size, request timeout, or concurrency by deployment profile, and document the effect.</p>
+        <p>Do not silently lower quality when the machine is under pressure. If a request is rejected, deferred, or routed to a different precision, make the behavior observable and keep the response contract clear.</p>
+        <h2>Separate startup, readiness, and liveness</h2><ul><li><strong>Startup:</strong> load the model and confirm the selected CPU runtime can compile it.</li><li><strong>Readiness:</strong> confirm the service can complete the critical inference path before it receives traffic.</li><li><strong>Liveness:</strong> use a cheap check for a process that is stuck, not an expensive inference on every probe.</li></ul><p>A stricter readiness check may delay the first “ready” signal. That is preferable to routing requests to a service that has not loaded its model. Keep checks bounded so probes do not become a source of load.</p>
+        <h2>Keep operational assumptions beside the code</h2><p>Add a “Hardware assumptions” section to the README and link it from deployment instructions. Include supported devices, runtime versions, precision choices, resource settings, fallback behavior, health endpoints, and a short way to verify the selected execution mode. The next engineer should not have to infer these from source code.</p>
+        <h2>Trade-offs and failure modes</h2><ul><li><strong>CPU portability vs. latency:</strong> a CPU path broadens where the service can run, but may not meet a workload’s latency target. Measure before promising an SLA.</li><li><strong>Optional accelerators vs. maintenance:</strong> each extra path adds test and support cost; add only devices the product needs.</li><li><strong>Strict readiness vs. quick deployment:</strong> waiting for a successful model load delays traffic, but avoids a false-green service.</li></ul><p>Common failures include assuming hardware that is not present, retrying device selection in a tight loop, and leaving hardware requirements undocumented. Provide a clear failure state and a controlled recovery path instead.</p>
+        <h2>Try it yourself</h2><ol><li>Write the CPU and optional accelerator requirements in your README.</li><li>Expose the actual device and precision selected for each execution path.</li><li>Simulate a missing optimized runtime and verify that the service fails clearly or uses a genuine tested fallback.</li><li>Measure memory and latency under representative CPU limits before selecting concurrency defaults.</li></ol>
+        <h2>Closing thought</h2><p>Designing for CPU-only execution is not a claim that CPU is always enough. It is a way to make assumptions visible, provide a credible fallback where one exists, and keep the service predictable on the hardware it supports.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.openvino.ai/2026/openvino-workflow/running-inference/inference-devices-and-modes/cpu-device.html" target="_blank" rel="noreferrer">OpenVINO CPU device documentation</a></li><li><a href="https://docs.openvino.ai/2026/openvino-workflow/running-inference/optimize-inference.html" target="_blank" rel="noreferrer">OpenVINO performance hints and inference optimization</a></li><li><a href="https://docs.openvino.ai/2026/openvino-workflow/model-preparation/convert-model-to-ir.html" target="_blank" rel="noreferrer">OpenVINO model conversion and runtime loading</a></li></ul></aside>
+      </div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="How to evaluate INT8 quantization honestly by measuring latency, output fidelity, calibration coverage, and production risk." />
+    <meta property="article:published_time" content="2025-11-23" /><title>Faster Isn’t Free — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" /><link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../index.html#about">About</a><a href="../../index.html#outcomes">Impact</a><a href="../../index.html#research">Research</a><a href="../../blog.html">Writing</a></nav><a class="menu-link" href="mailto:shubhamanandani@gmail.com">Connect<span>↗</span></a></header>
+    <main><article class="article-document">
+      <a class="article-back" href="../../blog.html#intel">← Intel articles</a>
+      <header class="article-document-header"><p class="kicker">Intel / Model optimization</p><h1>Faster Isn’t Free: The Real Trade-offs of Quantizing a Model from FP32 to INT8</h1><p class="article-deck">How I approach quantization without fooling myself—what gets faster, what can get worse, and when I decide not to ship it.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2025-11-23">Published November 23, 2025</time><span>·</span><span>9 min read</span></div></header>
+      <div class="article-prose">
+        <p class="article-lede">I’ve shipped CPU-only inference, and I’ve also declined to ship a “faster” model when the trade-off did not hold up. Quantizing a model from FP32 to INT8 can help meet latency or memory goals. It can also change outputs in ways that matter to the people relying on them.</p>
+        <p>In my public demo, <code>aceu-edge-infer</code>, I use a small ONNX classifier converted to OpenVINO IR and maintain FP32 and INT8 variants. The service reports which precision it used. It returns four ACE-U dimensions—Authenticity, Credibility, Empathy, and Uniqueness—but these are illustrative outputs from a demo, not validated judgments of real people. The engineering questions are the useful part.</p>
+        <h2>Why quantization can help—and why it changes behavior</h2><p>Quantization represents selected model weights and activations using lower-precision values. With fewer bits to move and process, an inference path may use less memory and run faster on compatible hardware. The actual speedup depends on the model, operators, runtime, and target device; INT8 is not a universal fast switch.</p>
+        <p>Lower precision also introduces rounding. Small changes in early layers can flow through later layers, and a score close to a decision threshold may move across it. Some operators quantize cleanly; others may need different quantization settings, to remain in higher precision, or to run through a fallback path.</p>
+        <h2>Look for where the errors gather</h2><p>Aggregate accuracy can hide concentrated regressions. Compare FP32 and INT8 outputs by class and by meaningful input slice. Inspect examples near decision boundaries, rare patterns, and values near the extremes of the calibration distribution. A useful audit asks not only “How much did the average score move?” but also “Where did the model change its decision?”</p>
+        <h2>Calibrate on data that resembles use</h2><p>Post-training quantization uses calibration samples to estimate ranges for activations. If the samples do not resemble the inputs the service will see, those ranges can be a poor fit. Include representative cases and the edge cases you care about. When real data cannot be used, diverse synthetic examples can help exercise the pipeline, but they do not replace evaluation on an appropriate held-out set.</p>
+        <p>A minimal OpenVINO/NNCF sketch looks like this. <code>calibration_samples</code> must yield preprocessed examples in the model’s expected input format:</p>
+        <pre><code>import nncf
+import openvino as ov
+
+core = ov.Core()
+model = core.read_model("model_fp32.xml")
+calibration_dataset = nncf.Dataset(calibration_samples)
+
+model_int8 = nncf.quantize(model, calibration_dataset)
+ov.save_model(model_int8, "model_int8.xml")</code></pre>
+        <p>This produces a quantized model; it does not establish that the model is accurate enough for a particular use. Keep calibration data and evaluation data separate, and record the evaluation results alongside the model artifact.</p>
+        <h2>Measure more than a mean</h2><ul><li><strong>Latency distribution:</strong> report p50, p95, and p99 for both precisions. A mean alone can hide a worse tail.</li><li><strong>Output deltas:</strong> compare score changes and decision changes across the evaluation set.</li><li><strong>Warm-up:</strong> exclude initialization and compilation work from steady-state measurements, but report cold-start behavior separately if it matters in production.</li><li><strong>Representative conditions:</strong> use the same device, request shape, batch size, concurrency, and preprocessing path.</li></ul>
+        <p>The demo contains a small harness that runs synthetic requests against both variants. Its results are scaffolding until measured on an appropriate workload; synthetic measurements should never be presented as production performance.</p>
+        <h2>Know when not to ship INT8</h2><p>If the latency improvement is marginal while the output changes affect a high-importance class, the trade-off may be negative. For sensitive applications, stability can matter more than a modest speed gain. Compare other options too: batching, request scheduling, a different CPU pool, or optimizing a costly preprocessing step may achieve the goal with less model-level change.</p>
+        <h2>Make precision visible and roll out in steps</h2><p>Record the precision and execution device in service logs or response metadata so a change is diagnosable. Keep the public response contract minimal and avoid exposing sensitive implementation details.</p><p>Before a full rollout, run FP32 and INT8 in shadow for a representative sample and alert on meaningful divergence. If one slice regresses, route it back to FP32 or disable the INT8 path while you investigate. Maintaining both variants adds operational work, but gives the team a controlled recovery option.</p>
+        <h2>Try it yourself</h2><ol><li>Build FP32 and INT8 variants and disclose the precision used for each request.</li><li>Measure warm and cold paths separately, then report latency percentiles and output-delta distributions.</li><li>Evaluate by class and edge-case slice, not only by aggregate accuracy.</li><li>Run a shadow comparison and define in advance what divergence will trigger a rollback.</li></ol>
+        <h2>Closing thought</h2><p>Quantization is powerful, but faster is not free. Percentiles, output deltas, and slice-level evaluation tell you whether INT8 belongs in the production path—or whether FP32 is the more responsible choice.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.openvino.ai/2026/openvino-workflow/model-optimization-guide/quantizing-models-post-training.html" target="_blank" rel="noreferrer">OpenVINO post-training quantization overview</a></li><li><a href="https://docs.openvino.ai/2026/openvino-workflow/model-optimization-guide/quantizing-models-post-training/basic-quantization-flow.html" target="_blank" rel="noreferrer">NNCF basic quantization flow and calibration datasets</a></li><li><a href="https://docs.openvino.ai/2026/openvino-workflow/running-inference/inference-devices-and-modes/cpu-device.html" target="_blank" rel="noreferrer">OpenVINO CPU device and supported inference precisions</a></li></ul></aside>
+      </div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

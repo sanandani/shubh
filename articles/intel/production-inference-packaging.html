@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A production checklist for OpenVINO inference services: reproducible conversion, versioned artifacts, visible precision, and tested fallbacks." />
+    <meta property="article:published_time" content="2026-07-23" /><title>Packaging Inference for Production — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" /><link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../index.html#about">About</a><a href="../../index.html#outcomes">Impact</a><a href="../../index.html#research">Research</a><a href="../../blog.html">Writing</a></nav><a class="menu-link" href="mailto:shubhamanandani@gmail.com">Connect<span>↗</span></a></header>
+    <main><article class="article-document">
+      <a class="article-back" href="../../blog.html#intel">← Intel articles</a>
+      <header class="article-document-header"><p class="kicker">Intel / Production readiness</p><h1>Packaging Inference for Production: A Checklist for Shipping an Optimized-Model Service</h1><p class="article-deck">Reproducible conversion, versioned artifacts, visible precision, and tested fallbacks—before you press “deploy.”</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-07-23">Published July 23, 2026</time><span>·</span><span>9 min read</span></div></header>
+      <div class="article-prose">
+        <p class="article-lede">A model can be accurate and still be hard to operate if conversion is manual, artifacts are opaque, precision changes silently, or fallbacks have never been exercised. Production readiness is the process around the model as much as the model itself.</p>
+        <p><code>aceu-edge-infer</code> is a modest inference demo, but I treat its packaging path as if another engineer will need to rebuild, inspect, and recover it. Its outputs remain illustrative, not evaluative of real people. This checklist is about making that kind of service repeatable.</p>
+        <h2>Make model conversion reproducible</h2><p>Keep conversion in a script or build step rather than a shell history. Record the source model hash, tool and runtime versions, input shapes, conversion options, and warnings. Use separate, reviewable configuration for FP32 and INT8 artifacts, and retain the conversion logs with the release build.</p>
+        <pre><code>from pathlib import Path
+import openvino as ov
+
+source = Path("models/source.onnx")
+output = Path("build/models/model_fp32.xml")
+output.parent.mkdir(parents=True, exist_ok=True)
+
+model = ov.convert_model(source)
+ov.save_model(model, output)</code></pre>
+        <p>This example shows the conversion step only. Production automation should also validate model inputs, run parity checks, record the tool version, and fail when expected artifacts are missing.</p>
+        <h2>Version and identify the artifacts</h2><p>Give model artifacts versions tied to the code and conversion configuration that produced them. Store IR XML and weights together, record hashes, and keep them immutable after release. If calibration or quantization changes, publish a new model version rather than overwriting a file called <code>latest</code>.</p>
+        <p>A release manifest can record the information operators need without embedding the model itself:</p>
+        <pre><code>{
+  "model_version": "&lt;release-version&gt;",
+  "source_format": "ONNX",
+  "runtime": "OpenVINO",
+  "precision_artifacts": ["FP32", "INT8"],
+  "device_policy": "CPU",
+  "source_sha256": "&lt;source-model-hash&gt;",
+  "conversion_config_sha256": "&lt;config-hash&gt;"
+}</code></pre>
+        <p>Replace the placeholders during the build. These are identifiers to calculate and record—not measured values to guess.</p>
+        <h2>Disclose the execution path</h2><p>Include the precision and device used in logs or response metadata. Where it makes sense for the product, provide a controlled option to route sensitive work through FP32. That small bit of transparency can make rollout analysis and incident response much faster. Keep the API contract stable and avoid exposing internal details that callers do not need.</p>
+        <h2>Test fallbacks before a release</h2><p>Simulate an unavailable optimized runtime and verify the intended behavior. A valid fallback should either return correct outputs on a supported slower path or fail clearly with a non-ready/unavailable state. It should not manufacture placeholder results or quietly claim the preferred precision.</p><p>If custom operators exist, test the fallback with representative inputs and confirm that the selected path is visible in logs. Document what operators or hardware are required for each execution mode.</p>
+        <h2>Package the runtime deliberately</h2><p>Use a multi-stage image where it keeps build tools out of the runtime. Run as a non-root user, keep the base image and dependencies maintained, copy only the application and model artifacts required at runtime, and provide a bounded health check.</p>
+        <pre><code># Illustrative Python service image; adapt paths and dependencies to your app.
+FROM python:3.12-slim AS builder
+WORKDIR /build
+RUN python -m venv /venv
+ENV PATH="/venv/bin:$PATH"
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+FROM python:3.12-slim AS runtime
+RUN useradd --uid 10001 --create-home appuser
+WORKDIR /app
+COPY --from=builder /venv /venv
+COPY --chown=10001:10001 app/ ./app/
+COPY --chown=10001:10001 models/ ./models/
+ENV PATH="/venv/bin:$PATH" \
+    PYTHONDONTWRITEBYTECODE=1
+USER 10001
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD python -c 'import urllib.request; urllib.request.urlopen("http://localhost:8000/health", timeout=2)' || exit 1
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]</code></pre>
+        <p>Confirm that the chosen base image contains everything the service actually needs. The Docker health check should stay lightweight; configure a separate platform readiness check if model loading or a sample inference must gate incoming traffic.</p>
+        <h2>Build, validate, and scan in CI</h2><p>Use the same conversion scripts in local development and CI. Check that expected files exist, compare model outputs against a golden set, build the service image, and scan it before release. Make missing artifacts, failed parity checks, and scan failures visible release blockers. Keep exceptions owned and time-bounded.</p>
+        <h2>Keep operational notes close to the code</h2><p>Give the README short, findable sections for conversion, artifact versions, precision modes, fallback behavior, and hardware assumptions. Add an incident note describing what to inspect when latency or output parity changes, and point to the known-good artifact for rollback.</p>
+        <h2>Trade-offs and failure modes</h2><ul><li><strong>Process rigor vs. prototype speed:</strong> scripts and manifests take effort once and save time on the next rebuild.</li><li><strong>More API metadata vs. smaller contract:</strong> publish only what helps callers; keep additional operational detail in logs.</li><li><strong>Strict readiness vs. faster first traffic:</strong> waiting for model load and checks reduces false-green deploys.</li></ul><p>“Mystery IR” files, silent FP32 fallbacks, and changed base images without review all make a service harder to reproduce. Version the inputs and outputs, disclose the selected path, and exercise rollback before you need it.</p>
+        <h2>Try it before your next release</h2><ol><li>Script FP32 and INT8 conversion and retain logs with immutable model artifacts.</li><li>Record source and configuration hashes in a release manifest.</li><li>Add actual precision/device metadata and a tested force-FP32 option if the product needs it.</li><li>Test missing-runtime and unsupported-operator behavior before launch.</li><li>Build, validate, and scan the same container image in CI that you intend to deploy.</li></ol>
+        <h2>Closing thought</h2><p>Packaging inference for production is about repeatability, transparency, and safe recovery. When another engineer can recreate the model, identify the execution path, and trigger a tested fallback, the service is ready for more than a successful demo.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.openvino.ai/2026/openvino-workflow/model-preparation/convert-model-to-ir.html" target="_blank" rel="noreferrer">OpenVINO model conversion and saving IR</a></li><li><a href="https://docs.docker.com/build/building/best-practices/" target="_blank" rel="noreferrer">Docker build best practices</a></li><li><a href="https://docs.docker.com/build/building/multi-stage/" target="_blank" rel="noreferrer">Docker multi-stage builds</a></li></ul></aside>
+      </div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

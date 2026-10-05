@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Build inference benchmarks that report warm-up, latency percentiles, output parity, and hardware conditions." />
+    <meta property="article:published_time" content="2026-01-28" /><title>Benchmarking Honestly — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" /><link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../index.html#about">About</a><a href="../../index.html#outcomes">Impact</a><a href="../../index.html#research">Research</a><a href="../../blog.html">Writing</a></nav><a class="menu-link" href="mailto:shubhamanandani@gmail.com">Connect<span>↗</span></a></header>
+    <main><article class="article-document">
+      <a class="article-back" href="../../blog.html#intel">← Intel articles</a>
+      <header class="article-document-header"><p class="kicker">Intel / Performance</p><h1>Benchmarking Honestly: Building a Repeatable, Trustworthy Inference Benchmark</h1><p class="article-deck">Warmups, percentiles, variance isolation, and why “it’s faster” is rarely the whole story.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-01-28">Published January 28, 2026</time><span>·</span><span>9 min read</span></div></header>
+      <div class="article-prose">
+        <p class="article-lede">Benchmarks are easy to fool. Run a handful of requests on a quiet laptop, choose the number that looks good, and almost any model can appear fast. Production has warm-up, load, input variation, and hardware contention. A useful benchmark makes those conditions visible.</p>
+        <p>In <code>aceu-edge-infer</code>, I keep a small harness that compares FP32 and INT8 inference and records latency and output deltas. The sample inputs are synthetic, so its results are method scaffolding—not evidence of production performance. The measurement discipline is what I want the demo to teach.</p>
+        <h2>Decide what question the benchmark answers</h2><p>Are you measuring cold start, steady-state single-request latency, or throughput under concurrent work? Those are different measurements. State the workload, model artifact, runtime and device, input shape, batch size, thread/concurrency settings, and whether preprocessing and post-processing are included.</p>
+        <h2>Warm up—and report cold start separately</h2><p>The first call may include model compilation, memory allocation, cache fill, or runtime initialization. If the question is steady-state latency, run a planned warm-up and keep those samples out of the measured set. If cold start matters to users, report it as its own metric instead of mixing it into steady-state numbers.</p>
+        <h2>Report percentiles as well as averages</h2><p>Users feel slow requests, not just the mean. Report p50, p95, and p99 latency for each model variant, along with the sample count and run duration. Tail percentiles need enough samples to be meaningful; do not imply precision the benchmark cannot support.</p>
+        <h2>Compare the same inputs and check outputs</h2><p>Run the same representative inputs through FP32 and INT8. Compare both the score deltas and task-level decisions. For classification, inspect per-class changes and examples near decision boundaries; a low average absolute difference can still hide an important decision flip.</p>
+        <p>Here is a small summarizer for arrays collected by a benchmark harness. It assumes both latency arrays contain milliseconds and each output array corresponds to the same input order, with one row per request and one column per model output:</p>
+        <pre><code>import numpy as np
+
+
+def latency_summary(samples_ms):
+    values = np.asarray(samples_ms, dtype=np.float64)
+    return {
+        "p50_ms": float(np.percentile(values, 50)),
+        "p95_ms": float(np.percentile(values, 95)),
+        "p99_ms": float(np.percentile(values, 99)),
+    }
+
+
+def parity_summary(outputs_fp32, outputs_int8):
+    fp32 = np.asarray(outputs_fp32, dtype=np.float64)
+    int8 = np.asarray(outputs_int8, dtype=np.float64)
+    per_request_delta = np.mean(np.abs(fp32 - int8), axis=-1)
+    return {
+        "mean_absolute_delta": float(np.mean(per_request_delta)),
+        "p95_absolute_delta": float(np.percentile(per_request_delta, 95)),
+    }</code></pre>
+        <p>These summaries do not replace task-specific evaluation. For example, also record whether top-class predictions or other decision thresholds changed.</p>
+        <h2>Control and record variance</h2><p>Use the same machine and runtime configuration for each comparison. Note background load, CPU power state, affinity or isolation settings if you use them, and any other workload sharing the device. Repeat runs and compare run-to-run variation. If the host cannot be isolated, state that plainly.</p>
+        <p>Use a representative validation set for accuracy and parity. Synthetic inputs are valuable for exercising a harness or pipeline, but they cannot establish how a model behaves on the real input distribution.</p>
+        <h2>Keep calibration and benchmark series distinct</h2><p>Calibration data influences the quantization parameters. Record its source and important characteristics, and keep the evaluation set separate. If calibration changes, treat the quantized model as a new artifact and rerun the full comparison rather than blending results from different model versions.</p>
+        <h2>Make precision and execution path observable</h2><p>If some requests fall back from INT8 to FP32, label them. Do not combine them into one “INT8” result. Emit structured output—JSON works well—with model hashes, precision, device, warm-up configuration, sample count, latency distribution, output deltas, and run metadata.</p>
+        <h2>Trade-offs and failure modes</h2><ul><li><strong>Simple harness vs. realistic load:</strong> a single-request loop is easy to understand, but it does not characterize concurrency or resource contention.</li><li><strong>Synthetic inputs vs. representative data:</strong> synthetic inputs make a repeatable demo; production claims need appropriate evaluation inputs.</li><li><strong>Tail reporting vs. small samples:</strong> percentiles reveal latency spread, but only when there are enough measurements to support them.</li><li><strong>Mixed precision vs. clean comparison:</strong> unreported fallbacks make speed and parity comparisons untrustworthy.</li></ul>
+        <h2>Try it yourself</h2><ol><li>Write down whether you are testing cold start, latency, throughput, or a combination.</li><li>Warm up deliberately and record the sample count and test conditions.</li><li>Report FP32 and INT8 percentiles alongside output-delta and decision-change summaries.</li><li>Repeat on an idle host and under representative load; keep those results separate.</li></ol>
+        <h2>Closing thought</h2><p>Benchmarking honestly is a habit. Warm up, report the distribution, compare outputs, and describe the machine and workload. Then “it’s faster” becomes a claim another engineer can reproduce and assess.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.openvino.ai/2026/get-started/learn-openvino/openvino-samples/throughput-benchmark.html" target="_blank" rel="noreferrer">OpenVINO throughput benchmark sample</a></li><li><a href="https://docs.openvino.ai/2026/about-openvino/performance-benchmarks/performance-benchmarks-faq.html" target="_blank" rel="noreferrer">OpenVINO performance measurement FAQ</a></li><li><a href="https://docs.openvino.ai/2026/openvino-workflow/running-inference/optimize-inference.html" target="_blank" rel="noreferrer">OpenVINO inference optimization guidance</a></li></ul></aside>
+      </div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>
