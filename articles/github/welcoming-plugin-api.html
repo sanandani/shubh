@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Design plugin APIs for contributors: small contracts, example-led docs, and sandboxing that keeps core stable and safe." /><meta property="article:published_time" content="2026-07-20" />
+<title>Designing for Other People’s Code: A Plugin API That Welcomes Contributions — Shubham Anandani</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" /><link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+</head><body class="blog-page article-page">
+<header class="site-header"><div class="brand-block"><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../index.html#about">About</a><a href="../../index.html#outcomes">Impact</a><a href="../../index.html#research">Research</a><a href="../../blog.html">Writing</a></nav><a class="menu-link" href="mailto:shubhamanandani@gmail.com">Connect<span>↗</span></a></header>
+<main><article class="article-document"><a class="article-back" href="../../blog.html#github">← GitHub articles</a>
+<header class="article-document-header"><p class="kicker">GitHub / Plugin Design</p><h1>Designing for Other People’s Code: A Plugin API That Welcomes Contributions</h1><p class="article-deck">Make extension safe and approachable: narrow interfaces, documentation-by-example, and sandboxed execution for contributed code.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-07-20">Published July 20, 2026</time><span>·</span><span>6 min read</span></div></header>
+<div class="article-prose"><p class="article-lede">The best way to attract contributions is to make the path small, clear, and safe. Big, powerful extension APIs are intimidating and fragile. A plugin interface is easier to adopt when it has a small typed contract, a complete example, and clear isolation boundaries for contributed code.</p><h3>The failure mode</h3><p>You want contributions, so you design a rich, flexible plugin API. The first contributor struggles to understand how the parts fit together. Another contributor introduces side effects that break core behavior. You spend time triaging issues rather than merging useful additions. The fix is to narrow the contract and improve examples.</p>
+        <h2>What I learned</h2>
+        <h3>Keep the interface tiny</h3><p>Use a single method with a small, typed result. Avoid optional hooks and deep callback trees. If you need flexibility, let plugins implement it internally. Keep core expectations documented and enforced with tests.</p>
+        <h3>Illustrative plugin contract</h3><pre><code>from dataclasses import dataclass
+from typing import Literal, Protocol
+
+@dataclass(frozen=True)
+class EvidenceResult:
+    status: Literal["present", "missing", "unverifiable"]
+    note: str = ""
+
+class EvidenceSource(Protocol):
+    name: str
+    def evaluate(self, profile: dict[str, object]) -&gt; EvidenceResult: ...</code></pre>
+        <h3>Documentation-by-example beats long narratives</h3><p>Write a short “Adding a plugin” doc that starts with a complete code example and a test. Follow with two variations that show common patterns (e.g., reading a field, combining small signals). Keep the words sparse and the code complete.</p>
+        <h3>Sandboxing contributed code — practical guardrails</h3><p>Run plugins within constraints:</p>
+        <p>Timeout per plugin evaluation.</p>
+        <p>Limit memory-intensive operations or external calls in the demo environment.</p>
+        <p>Validate types and restrict dangerous imports in plugin modules if possible.</p>
+        <p>A thread timeout is not a security sandbox: a host process cannot safely terminate arbitrary plugin code. For untrusted extensions, use a separate process or container with resource limits and restricted credentials, or load only trusted plugins.</p>
+        <h3>Versioning and compatibility checks (keep them light)</h3><p>Require plugins to declare supported interface versions and run contract tests. Keep the declaration simple, and make the CI failure message actionable (e.g., “Plugin supports 1.1.0; core is 1.2.0 — update SUPPORTED_VERSIONS”).</p>
+        <h3>Golden paths and anti-patterns</h3><p>Show five “golden path” examples contributors should follow:</p>
+        <p>Pure function: read inputs, return EvidenceResult, no side effects.</p>
+        <p>Lightweight computation: avoid heavy loops or large allocations.</p>
+        <p>Deterministic outputs: no random behavior or time-dependent outputs.</p>
+        <p>Typed result: always return one of the three states with a note.</p>
+        <p>No external calls: for demo simplicity, avoid network calls.</p>
+        <p>If you allow external calls, define strict limits and document them clearly.</p>
+        <h3>Error messages designed for contributors</h3><p>When a plugin fails a contract test, the message should name the plugin, the failing expectation, and the fix. Prefer helpful failures over terse stack traces. Provide a “common issues” page with targeted guidance.</p>
+        <h3>“Hello world” PR built into the docs</h3><p>Include a numbered guide that results in a merged PR:</p>
+        <p>Create plugin file.</p>
+        <p>Add minimal test.</p>
+        <p>Run pytest -q.</p>
+        <p>Open PR with the template.</p>
+        <p>Expected CI jobs and how to interpret them.</p>
+        <p>Merge expectations.</p>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>Small interface vs expressiveness: Narrow contracts limit advanced features; they also reduce fragility and cognitive load. For small projects, this trade-off is worth it.</p>
+        <p>Sandboxing vs performance: Timeouts and thread isolation add overhead. Keep limits modest and configurable.</p>
+        <p>Documentation-by-example vs thorough reference: Examples speed onboarding; deep reference can come later if demand arises.</p>
+        <h3>Failure modes</h3>
+        <p>“Stealth side effects”: Plugins write to global state or files unexpectedly. Solution: sandbox and contract tests; make side-effect-free behavior a rule.</p>
+        <p>“Doc drift”: Examples fall behind reality. Solution: run example snippets in CI and fail when they don’t compile.</p>
+        <p>“Silent timeouts”: Sandboxing hides errors without surfacing enough context. Solution: attach structured error notes to EvidenceResult.</p>
+        <h2>Try it yourself</h2>
+        <p>Shrink your plugin interface to a single method that returns a small typed object.</p>
+        <p>Add a sandbox wrapper with timeouts and typed error handling. Run plugins through it in CI contract tests.</p>
+        <p>Write a “hello world plugin” guide with a copy-paste example and a minimal test, then merge a sample PR to validate the path.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.github.com/en/actions/tutorials/build-and-test-code" target="_blank" rel="noreferrer">GitHub Actions: Building and testing</a></li><li><a href="https://semver.org/" target="_blank" rel="noreferrer">Semantic Versioning 2.0.0</a></li><li><a href="https://keepachangelog.com/en/1.1.0/" target="_blank" rel="noreferrer">Keep a Changelog</a></li></ul></aside></div>
+<footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer></article></main>
+<footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script></body></html>

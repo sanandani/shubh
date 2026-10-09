@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Scale-to-zero is great until it isn’t. Learn cold start costs, idle savings, and when identity verifiers need warm instances for predictable latency." /><meta property="article:published_time" content="2026-06-25" />
+<title>Deploying Identity Services Without a Server to Babysit — Shubham Anandani</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" /><link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+</head><body class="blog-page article-page">
+<header class="site-header"><div class="brand-block"><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../index.html#about">About</a><a href="../../index.html#outcomes">Impact</a><a href="../../index.html#research">Research</a><a href="../../blog.html">Writing</a></nav><a class="menu-link" href="mailto:shubhamanandani@gmail.com">Connect<span>↗</span></a></header>
+<main><article class="article-document"><a class="article-back" href="../../blog.html#microsoft">← Microsoft articles</a>
+<header class="article-document-header"><p class="kicker">Microsoft Entra / Identity Operations</p><h1>Deploying Identity Services Without a Server to Babysit</h1><p class="article-deck">Lessons from scale-to-zero containers: cold starts, idle billing, and when latency-sensitive verifiers should stay “warm.”</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-06-25">Published June 25, 2026</time><span>·</span><span>6 min read</span></div></header>
+<div class="article-prose"><p class="article-lede">Running identity-adjacent services on a scale-to-zero container platform can be delightful: no server to babysit, external HTTPS ingress, and idle billing that doesn’t punish quiet periods. With scale-to-zero containers, quiet periods can reduce idle usage. The trade-off is that the first request after an idle period may be slower, so measure that cold path against the latency needs of the service.</p><p>Identity workloads, however, bring constraints: some callers expect predictable latency, and some flows require warm caches or keys ready in memory. The trick is deciding where scale-to-zero helps and where “always on” wins.</p>
+        <h3>The failure mode</h3><p>You deploy a credential verifier that scales to zero. The first request after an idle period may be much slower than warm requests. A downstream system times out, retries, and amplifies load just as the platform is warming. Worse, your verifier loads keys and trust lists at startup, so the warming step is non-trivial. You saved on idle billing but created unpredictable tails.</p>
+        <h2>What I learned</h2>
+        <h3>Cold start budget: measure and design around it</h3><p>Measure cold starts: container pull, runtime initialization, key load, trust list load, and framework boot. If your end-to-end verification flow includes out-of-process checks (e.g., privacy-preserving revocation lookups), include those too. Decide whether your SLA tolerates the tails; if not, keep a minimum warm replica.</p>
+        <h3>Warm critical paths with lazy loading and caches</h3><p>Avoid monolithic startup. Load credential-signing keys via a managed secret store, but defer non-critical data until requested. Cache trust lists in memory and refresh asynchronously. Keep proof verification code hot by executing a tiny “self-check” during startup.</p>
+        <h3>Set min replicas for latency-sensitive endpoints</h3><p>If your platform supports minimum replicas, keep one verifier instance warm. Scale additional instances on demand. This hybrid approach preserves predictable latency while retaining cost controls.</p>
+        <h3>Health, readiness, and the “thin ready” trap</h3><p>Identity verifiers shouldn’t mark “ready” until critical dependencies (keys, trust lists) are present and a test proof passes. A “thin ready” (bare process up) can route traffic to a half-initialized instance, increasing failure rates.</p>
+        <h3>Scale rules: event triggers vs queue length</h3><p>If you use event-driven scale, ensure triggers reflect verifier load. Queue length or request rate are better signals than raw CPU in a verifier, since cryptographic checks are sporadic and short. Use conservative ramp-up to avoid stampedes during traffic bursts.</p>
+        <h3>Idle billing: cost vs safety</h3><p>Scale-to-zero saves money during periods of inactivity. In identity systems, weigh this against the cost of false timeouts and retries. For certain flows (e.g., login or checkout proofs), unpredictable tails are more expensive than idle replicas.</p>
+        <h3>Pipeline hygiene: small image, quick pull</h3><p>Use multi-stage builds, slim bases, and .dockerignore to keep images small. The smaller the image, the faster cold start. Avoid compiling dependencies at startup; freeze them in the image. Keep secrets out of layers entirely (next article).</p>
+        <h3>Illustrative configuration</h3><pre><code># Generic container-app.yaml structure
+name: identity-service
+ingress:
+  external: true
+  targetPort: 8000
+template:
+  containers:
+    - image: your-registry/identity-service:tag
+      resources:
+        cpu: 0.5
+        memory: 0.5Gi
+  probes:
+    liveness:
+      httpGet: { path: /health, port: 8000 }
+    readiness:
+      httpGet: { path: /ready, port: 8000 }
+  scale:
+    minReplicas: 1 # Keep one warm replica
+    maxReplicas: 10
+    rules:
+      - name: http-requests
+        http: { metadata: { concurrentRequests: "50" } }</code></pre>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>Cost vs predictability: Scale-to-zero cuts idle spend but risks unpredictable tails. Hybrid min replicas often balance both.</p>
+        <p>Strict readiness vs fast green: Stricter readiness delays routing but avoids half-initialized failures. Bias toward strict in identity contexts.</p>
+        <p>Lazy load vs startup completeness: Deferring non-critical data speeds boot but adds first-request work. Choose wisely.</p>
+        <h3>Failure modes</h3>
+        <p>“Thin ready”: Traffic routed to instances without loaded keys or trust lists. Fix readiness to validate critical paths.</p>
+        <p>“Stampede”: Traffic surge triggers too many replicas and cache thrash. Fix scale rules and backpressure.</p>
+        <p>“Oversized image”: Cold starts dominated by image pulls. Fix Docker hygiene.</p>
+        <h2>Try it yourself</h2>
+        <p>Measure the cold start path and identify high-cost steps. Record cold-start and warm-request latency as separate measurements.</p>
+        <p>Add a minimum warm replica and track tails. Compare p95 across scale-to-zero vs hybrid.</p>
+        <p>Implement readiness that runs a tiny proof self-check and confirms secret load before returning ready.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://learn.microsoft.com/en-us/azure/container-apps/scale-app" target="_blank" rel="noreferrer">Scale applications in Azure Container Apps</a></li><li><a href="https://learn.microsoft.com/en-us/azure/container-apps/health-probes" target="_blank" rel="noreferrer">Health probes in Azure Container Apps</a></li></ul></aside></div>
+<footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer></article></main>
+<footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script></body></html>

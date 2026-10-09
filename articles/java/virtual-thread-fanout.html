@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Virtual threads simplify I/O fan-out. Learn practical lessons: structured fan-out, back pressure, blocking calls, failure handling, and realistic expectations." /><meta property="article:published_time" content="2026-04-13" />
+<title>Virtual Threads Changed My Mental Model: Practical Lessons From I/O Fan-Out — Shubham Anandani</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" /><link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+</head><body class="blog-page article-page">
+<header class="site-header"><div class="brand-block"><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../index.html#about">About</a><a href="../../index.html#outcomes">Impact</a><a href="../../index.html#research">Research</a><a href="../../blog.html">Writing</a></nav><a class="menu-link" href="mailto:shubhamanandani@gmail.com">Connect<span>↗</span></a></header>
+<main><article class="article-document"><a class="article-back" href="../../blog.html#java">← Java articles</a>
+<header class="article-document-header"><p class="kicker">Java / JVM / Virtual Threads</p><h1>Virtual Threads Changed My Mental Model: Practical Lessons From I/O Fan-Out</h1><p class="article-deck">Moving an I/O-bound fan-out to virtual threads: what became simpler, what didn’t, and how my thread-pool instincts had to evolve.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-04-13">Published April 13, 2026</time><span>·</span><span>8 min read</span></div></header>
+<div class="article-prose"><p class="article-lede">Virtual threads changed how I design I/O fan-out in Java services. As an engineering manager who grew up with fixed thread pools, queue sizing, and saturation metrics, I had muscle memory: “pick a pool size, tune it, protect it.” With virtual threads, I can treat blocking I/O more like straightforward code again—without tying throughput to a small pool.</p>
+        <h3>The failure mode</h3><p>A caller triggers N downstream calls per request (fan-out). With a fixed pool, saturation appears quickly under spikes; with virtual threads, spikes are absorbed but not eliminated. If you translate “we can spawn thousands of threads” into “we don’t need back pressure,” you’ll rediscover failures—just in different places.</p>
+        <h2>What I learned</h2>
+        <h3>Think “task-per-thread” for blocking I/O, not “pool-per-service”</h3><p>Virtual threads make “one virtual thread per blocking task” feasible. You can write linear code for a downstream call and not contort it into callbacks just to avoid blocking. That simplifies failure handling and resource cleanup.</p>
+        <h3>Example fan-out</h3><pre><code>try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+    List&lt;Callable&lt;EvidenceResult&gt;&gt; tasks = sources.stream()
+        .map(source -&gt; (Callable&lt;EvidenceResult&gt;) source::fetchEvidence)
+        .toList();
+    List&lt;Future&lt;EvidenceResult&gt;&gt; futures = executor.invokeAll(tasks);
+    List&lt;EvidenceResult&gt; results = new ArrayList&lt;&gt;(futures.size());
+    for (Future&lt;EvidenceResult&gt; future : futures) {
+        results.add(future.get());
+    }
+    return aggregate(results);
+}</code></pre>
+        <p>This reads like blocking I/O because it is—but with virtual threads, the scheduler multiplexes them efficiently.</p>
+        <h3>Back pressure still matters</h3><p>If downstream services or data sources choke under spikes, virtual threads won’t magically fix it. The caller can spin up many virtual threads, but the destination still has limits. You need timeouts, rate limits, and circuit breakers. You also need to avoid accidental fan-in (e.g., mass aggregation that blocks on slowest responders indefinitely).</p>
+        <h3>CPU-bound work belongs elsewhere</h3><p>Virtual threads help with blocking I/O, not CPU-heavy tasks. If a task saturates CPU, the scheduler can’t help—you need to bound parallelism with a platform-appropriate mechanism (e.g., a limited executor or structured concurrency approach) to avoid oversubscription.</p>
+        <h3>Failure semantics are simpler when code is linear</h3><p>Exception handling in “straight-line” code is clearer than in callback-based designs. You still need to decide whether partial evidence returns a partial result (with Missing/Unverifiable states) or you fail the whole request. Virtual threads don’t make that decision; they just make the code easier to read.</p>
+        <h3>“Thousands of threads” doesn’t mean “no limits”</h3><p>Virtual threads are cheap, but not free. Sockets, file descriptors, and memory buffers are finite. The OS still enforces resource ceilings. Guard your fan-out with sensible limits: per-request caps, per-destination timeouts, and global safety checks.</p>
+        <h3>Observability shifts upstream</h3><p>With fixed pools, saturation appears as queue wait time. With virtual threads, saturation shifts to downstream latency and timeouts. Make sure your metrics capture per-destination latency percentiles and error rates. A spike in virtual-thread creation can be fine if destinations are healthy; it’s not fine if percentiles explode.</p>
+        <h3>Test under synthetic spike and tail latency</h3><p>I haven’t yet measured performance between virtual threads and a fixed pool for the demo. What I do measure is behavior under artificial spikes: do timeouts fire? Does the aggregation return timely partial results with Missing/Unverifiable? Tests simulate slow destinations and verify we don’t hang.</p>
+        <h3>Timeout per downstream call</h3><pre><code>try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+    Future&lt;EvidenceResult&gt; future = executor.submit(source::fetch);
+    try {
+        return future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+    } catch (TimeoutException timeoutError) {
+        future.cancel(true);
+        return EvidenceResult.unavailable("timeout");
+    }
+}</code></pre>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>Simplicity vs explicit limits: Virtual threads reduce boilerplate, but you still must implement back pressure. Silent defaults can mask saturation until it’s too late.</p>
+        <p>“Everything virtual” vs CPU realities: Virtual threads help with I/O. For CPU-bound work, a bounded executor or workload partitioning is safer.</p>
+        <p>Observability differences: You lose fixed-pool queue metrics and gain per-destination latency metrics. Update dashboards and alerts accordingly.</p>
+        <h3>Failure modes</h3>
+        <p>“Soft hangs”: Aggregation waits on the slowest responder forever. Add timeouts and partial-return logic.</p>
+        <p>“Resource leaks”: Thousands of virtual threads keep sockets open longer than intended. Validate resource cleanup paths.</p>
+        <p>“Oversubscription”: CPU-heavy tasks in virtual threads degrade the whole process. Bound CPU parallelism explicitly.</p>
+        <h2>Try it yourself</h2>
+        <p>Replace a fixed thread pool fan-out with newVirtualThreadPerTaskExecutor() and add per-destination timeouts. Observe behavior under synthetic spikes.</p>
+        <p>Add aggregation logic that treats timeouts as Missing and downstream errors as Unverifiable. Verify exhaustive handling with pattern matching.</p>
+        <p>Measure throughput and p95 latency in a controlled environment to inform whether virtual threads help your workload.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://openjdk.org/jeps/444" target="_blank" rel="noreferrer">Virtual Threads (JEP 444)</a></li><li><a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ExecutorService.html" target="_blank" rel="noreferrer">Java 21 ExecutorService API</a></li></ul></aside></div>
+<footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer></article></main>
+<footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script></body></html>

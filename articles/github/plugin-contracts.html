@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Extension points are fragile. Learn interface versioning, deprecation windows, and contract tests that catch breaking changes in plugin PRs before merge." /><meta property="article:published_time" content="2026-02-24" />
+<title>A Breaking Change in Someone Else’s PR: Guarding Extension Points Without Blocking Contributions — Shubham Anandani</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" /><link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+</head><body class="blog-page article-page">
+<header class="site-header"><div class="brand-block"><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../index.html#about">About</a><a href="../../index.html#outcomes">Impact</a><a href="../../index.html#research">Research</a><a href="../../blog.html">Writing</a></nav><a class="menu-link" href="mailto:shubhamanandani@gmail.com">Connect<span>↗</span></a></header>
+<main><article class="article-document"><a class="article-back" href="../../blog.html#github">← GitHub articles</a>
+<header class="article-document-header"><p class="kicker">GitHub / Api Compatibility</p><h1>A Breaking Change in Someone Else’s PR: Guarding Extension Points Without Blocking Contributions</h1><p class="article-deck">When a plugin interface change passes CI and breaks downstream work, you need versioning, deprecation windows, and contract tests.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-02-24">Published February 24, 2026</time><span>·</span><span>8 min read</span></div></header>
+<div class="article-prose"><p class="article-lede">Community projects depend on contributions from people who did not write the original code. That openness creates a compatibility challenge: a change can pass local unit tests while still breaking plugins written against the documented interface. Extensibility needs contract tests and clear versioning.</p><h3>The failure mode</h3><p>A contributor refactors a plugin interface, renaming a method and changing its return shape. Their tests pass. Your CI passes. You merge. One week later, a different contributor’s PR, built on the previous interface, fails unexpectedly. You didn’t catch the breaking change because you had no compatibility tests enforcing the plugin contract.</p>
+        <h2>What I learned</h2>
+        <h3>Treat extension points as public contracts</h3><p>If you support a plugin API, document it as a minimal, stable contract. Keep it small, reduce optional features, and define explicit versioning. Favor additive changes; avoid changing semantics quietly.</p>
+        <h3>Minimal contract (illustrative)</h3><pre><code># your_project/core.py
+from dataclasses import dataclass
+@dataclass(frozen=True)
+class EvidenceResult:
+type: str  # "present" | "missing" | "unverifiable"
+note: str = ""
+score_delta: float = 0.0
+class EvidenceSource:
+name: str
+def evaluate(self, profile: dict) -&gt; EvidenceResult:
+"""
+Input: dictionary of profile fields (synthetic in demo)
+Output: EvidenceResult with type, note, and optional score_delta
+"""
+raise NotImplementedError</code></pre>
+        <h3>Version the interface explicitly</h3><p>Add an interface version constant in the core module. Plugins import and declare the version they target. CI checks that plugin declarations match the core version and that any bump is accompanied by a deprecation window.</p>
+        <p>Versioning example:</p>
+        <pre><code># your_project/core_version.py
+INTERFACE_VERSION = "1.2.0"  # semantic versioned
+# plugin declares support
+SUPPORTED_VERSIONS = {"1.2.0"}  # plugins can add multiple supported versions</code></pre>
+        <p>Deprecation windows — commit to dates and behavior When you change the interface, announce deprecations with a grace window: two minor releases or a set number of weeks. During the window, keep the old behavior working and warn at runtime (without breaking tests). At the end, remove the old path and bump the interface version.</p>
+        <h3>Contract tests in CI</h3><p>Unit tests validate plugin internals. Contract tests validate extension points. Write tests that load every plugin and execute a baseline scenario: call evaluate() with a standard profile, assert return types and fields, and assert compatibility with the current core version. Fail the build on mismatch.</p>
+        <p>Contract test skeleton:</p>
+        <pre><code>import importlib
+
+from your_project.core import EvidenceResult
+from your_project.core_version import INTERFACE_VERSION
+
+PLUGIN_MODULES = ["your_project.plugins.example_plugin"]
+
+def test_all_plugins_implement_contract():
+    for module_name in PLUGIN_MODULES:
+        module = importlib.import_module(module_name)
+        plugin = module.ExamplePlugin()
+        result = plugin.evaluate({"example": True})
+        assert isinstance(result, EvidenceResult)
+        assert result.status in {"present", "missing", "unverifiable"}
+        assert INTERFACE_VERSION in module.SUPPORTED_VERSIONS</code></pre>
+        <p>Your CI should run both unit and contract tests. If the core changes, test the change against every supported plugin. If external plugins live in separate repositories, publish a small test harness they can add to their own CI.</p>
+        <p>Communicate interface changes in release notes Semantic version your interface. A breaking change to the plugin API is a major bump. The release notes should list exactly what changed and a minimal migration example. They should also link deprecation windows and final removal dates.</p>
+        <h3>Example release note</h3><pre><code>## Plugin API 2.0.0 (breaking)
+- Keep the result status field unchanged.
+- Make the score delta field required.
+- Migration: provide a zero delta when a plugin has no score change.
+- Publish a deprecation window and removal date.</code></pre>
+        <p>Keep extension points narrow Every new method or field in a plugin contract increases fragility. Keep it small. If contributors want flexibility, let them model complexity inside their plugin; keep the core contract simple, documented, and testable.</p>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>Strict contract tests vs contributor agility: Some contributors will feel slowed by extra checks. Counterbalance with templates and examples.</p>
+        <p>Deprecation windows vs maintenance overhead: Maintaining old paths for a window adds complexity. Keep windows short and focused for small projects.</p>
+        <h3>Central testing vs distributed plugins</h3><p>If plugins live elsewhere, you can’t run their tests pre-merge. Provide a harness and encourage adoption.</p>
+        <h3>Failure modes</h3>
+        <h3>“Silent break”</h3><p>A contributor changes the contract; unit tests pass; no compatibility suite fails. Solution: contract tests that load plugins and validate the core expectations.</p>
+        <p>“Major bump fatigue”: Frequent major bumps erode trust. Solution: batch breaking changes and make additive changes where possible.</p>
+        <p>“Ambiguous release notes”: Vague notes cause confusion. Solution: concrete migration steps and example code in release notes.</p>
+        <h2>Try it yourself</h2>
+        <p>Add an INTERFACE_VERSION constant and require plugins to declare supported versions.</p>
+        <p>Implement CI contract tests that import and execute all plugins against the core contract.</p>
+        <p>Document a deprecation window policy in CONTRIBUTING.md. Commit to timelines and stick to them.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://semver.org/" target="_blank" rel="noreferrer">Semantic Versioning 2.0.0</a></li><li><a href="https://keepachangelog.com/en/1.1.0/" target="_blank" rel="noreferrer">Keep a Changelog</a></li><li><a href="https://docs.github.com/en/actions/tutorials/build-and-test-code" target="_blank" rel="noreferrer">GitHub Actions: Building and testing</a></li></ul></aside></div>
+<footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer></article></main>
+<footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script></body></html>

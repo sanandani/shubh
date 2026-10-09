@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Verifiable credentials can be signed and valid yet still wrong. Learn issuer/holder/verifier roles, failure modes, and checks beyond JSON and signatures." /><meta property="article:published_time" content="2026-04-02" />
+<title>Verifiable Doesn’t Mean Verified: Getting Issuer, Holder, and Verifier Right — Shubham Anandani</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" /><link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+</head><body class="blog-page article-page">
+<header class="site-header"><div class="brand-block"><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../index.html#about">About</a><a href="../../index.html#outcomes">Impact</a><a href="../../index.html#research">Research</a><a href="../../blog.html">Writing</a></nav><a class="menu-link" href="mailto:shubhamanandani@gmail.com">Connect<span>↗</span></a></header>
+<main><article class="article-document"><a class="article-back" href="../../blog.html#microsoft">← Microsoft articles</a>
+<header class="article-document-header"><p class="kicker">Microsoft Entra / Verifiable Credentials</p><h1>Verifiable Doesn’t Mean Verified: Getting Issuer, Holder, and Verifier Right</h1><p class="article-deck">A practical walk through verifiable credentials where “well-formed JSON” and “cryptographically signed” still aren’t the same as “true.”</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-04-02">Published April 2, 2026</time><span>·</span><span>9 min read</span></div></header>
+<div class="article-prose"><p class="article-lede">I’m an engineering manager with experience integrating identity-verification flows conceptually aligned with Microsoft Entra Verified ID. One habit that keeps teams honest is repeating the phrase: verifiable doesn’t mean verified. The W3C Verifiable Credentials data model makes claims portable and cryptographically provable, but it doesn’t magically make those claims true, up to date, or appropriate for your use case.</p>
+        <h3>The failure mode</h3><p>A team builds a credential verifier that checks JSON shape and a signature. The code reports “valid.” A downstream feature treats the claim as true. Weeks later, someone discovers the issuer did, in fact, sign the credential, but the subject was not the person currently presenting it, or the credential expired months ago. The failure wasn’t cryptography; it was process: treating “verifiable” as “verified.”</p>
+        <h2>What I learned</h2>
+        <h3>Roles and responsibilities: issuer, holder, verifier</h3>
+        <pre><code>Issuer: Asserts something about a subject (the holder) and signs the assertion. Their trustworthiness is a human, contractual, and policy question, not a purely technical one.
+Holder: Receives and stores the credential; presents it to a verifier. Binding the holder to the subject of the credential (is this person who the claim describes?) is a separate step.
+Verifier: Evaluates signature validity, checks schema, ensures the issuer is trusted for that claim type, confirms the subject binding, interprets policy (expiry, audience, revocation), and decides whether to accept the claim.</code></pre>
+        <h3>Well-formed is necessary but not sufficient</h3><p>A credential can be:</p>
+        <pre><code>Well-formed: It conforms to expected JSON structure.
+Signed: The cryptographic proof validates against the issuer’s public key.
+Trusted: The issuer is recognized and allowed to assert this particular claim type.
+Bound: The subject is provably the presenter.
+Current: It hasn’t expired and isn’t revoked. Only when all are satisfied does “valid” approach “usable.”</code></pre>
+        <h3>Separate signature validation from trust decision</h3><p>Cryptography answers “did the claimed issuer sign this payload?” Trust answers “do we trust this issuer for this claim type right now?” You need both. If the issuer isn’t in your trust registry for the claim being evaluated, the result shouldn’t be “invalid claim,” it should be “untrusted issuer for this policy.”</p>
+        <h3>Subject binding is a first-class step</h3><p>A classic failure mode: someone presents a signed credential about a subject, but the presenter isn’t the subject. In practical flows, the verifier should confirm that the presenter’s wallet or identity key pair matches the credential subject, or use an out-of-band binding method aligned with your policy. If binding is missing, treat the result as “unverifiable” rather than “false.”</p>
+        <h3>Expiry and audience are policy gates, not parsing details</h3><p>Expiry and audience are part of the claim semantics. A credential can be signed and well-formed yet expired (or intended for a different audience). These conditions should result in “policy failure” states distinct from “cryptographic failure.”</p>
+        <h3>Revocation closes the loop</h3><p>Issuance is easy; ensuring the claim is still valid is the hard part. Revocation checks must avoid “phone home” privacy leaks (more in the revocation article below). Even a toy system benefits from an offline revocation list or privacy-preserving status check.</p>
+        <h3>Distinguish “invalid” from “unverifiable”</h3>
+        <h3>Illustrative verification flow</h3><pre><code>from dataclasses import dataclass
+from typing import Literal
+
+Status = Literal["accepted", "unverifiable", "invalid"]
+
+@dataclass(frozen=True)
+class ValidationResult:
+    signature_valid: bool
+    issuer_trusted: bool
+    subject_bound: bool
+    policy_ok: bool
+    status: Status
+
+# Keep proof validation, issuer trust, subject binding, and policy checks separate.
+# The exact proof checks depend on the credential format and verifier library supported by the deployment.</code></pre>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>Strict policy gates vs user friction: Strong audience/expiry checks reduce misuse but can frustrate users who present slightly out-of-date credentials. The fix is short-lived credentials and good UX.</p>
+        <p>Offline trust lists vs dynamic fetch: Offline lists avoid privacy leaks but risk staleness. Consider periodic sync with no per-verification lookups.</p>
+        <p>Subject binding rigor vs simplicity: Strong binding reduces fraud but adds ceremony. Pick the approach that fits your risk.</p>
+        <h3>Failure modes</h3>
+        <p>“Signed, therefore true”: Conflating cryptographic validity with trust. Fix by separating proof validation from issuer trust policy.</p>
+        <p>“Presenter ≠ subject”: Accepting credentials without subject binding. Fix by explicit binding checks.</p>
+        <p>“Policy drift”: Undocumented audience/expiry rules. Fix with centralized policy and tests.</p>
+        <h2>Try it yourself</h2>
+        <p>Implement a verifier that separately evaluates cryptographic proof, issuer trust, subject binding, and policy gates.</p>
+        <p>Return “unverifiable” for missing binding and “invalid” for failed policy (e.g., expiry).</p>
+        <p>Measure performance across well-formed accepts vs policy failures to understand user impact.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://www.w3.org/TR/vc-data-model-2.0/" target="_blank" rel="noreferrer">W3C Verifiable Credentials Data Model v2.0</a></li><li><a href="https://learn.microsoft.com/en-us/entra/verified-id/plan-verification-solution" target="_blank" rel="noreferrer">Microsoft Entra Verified ID verification planning</a></li><li><a href="https://learn.microsoft.com/en-us/entra/verified-id/verifiable-credentials-configure-verifier" target="_blank" rel="noreferrer">Configure a Verified ID verifier</a></li></ul></aside></div>
+<footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer></article></main>
+<footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script></body></html>

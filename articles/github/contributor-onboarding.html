@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Most CONTRIBUTING.md files fail. Build contributor paths that get to a working PR: quickstart scripts, test-first templates, guardrails, and realistic expectations." /><meta property="article:published_time" content="2026-01-23" />
+<title>Contribution Guidelines Nobody Reads: Designing Onboarding That Actually Works — Shubham Anandani</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" /><link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+</head><body class="blog-page article-page">
+<header class="site-header"><div class="brand-block"><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../index.html#about">About</a><a href="../../index.html#outcomes">Impact</a><a href="../../index.html#research">Research</a><a href="../../blog.html">Writing</a></nav><a class="menu-link" href="mailto:shubhamanandani@gmail.com">Connect<span>↗</span></a></header>
+<main><article class="article-document"><a class="article-back" href="../../blog.html#github">← GitHub articles</a>
+<header class="article-document-header"><p class="kicker">GitHub / Contributor Experience</p><h1>Contribution Guidelines Nobody Reads: Designing Onboarding That Actually Works</h1><p class="article-deck">Practical contributor onboarding that turns “I tried” into a working PR: quickstarts, guardrails, and code paths that are hard to misuse.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-01-23">Published January 23, 2026</time><span>·</span><span>9 min read</span></div></header>
+<div class="article-prose"><p class="article-lede">I maintain a small open-source project in my spare time. That means I care about contributor experience, but I don’t have limitless hours to hand-hold. The first hard lesson I learned is that most CONTRIBUTING.md files are performative: polite, informative, and easy to ignore. A good contribution guide should be a conveyor belt — once someone steps on, the belt carries them through setup, a small code change, a test run, and a PR.</p><p>A small open-source project may be maintained with limited time, so contributor experience matters. A tested quickstart, a narrow first change, and clear expectations make it easier for someone to turn an idea into a useful pull request.</p>
+        <h3>The failure mode</h3><p>A new contributor lands on your repo, reads a long CONTRIBUTING.md, and tries to set up the environment. They get halfway through a failing install, lose an hour chasing Python versions, and give up. Their idea never materializes, and you lose a potential collaborator. The contributions that do arrive are sporadic and often misaligned with your project norms.</p>
+        <h2>What I learned</h2>
+        <h3>A “quickstart” that is truly quick</h3><p>The first section of CONTRIBUTING.md should be a script that succeeds on a fresh machine in under 10 minutes. No optional flourishes; no “you can also…” — one path, tested regularly. In a Python project, that means creating an isolated environment, installing exact dependencies, running tests, and starting the server. If you support multiple OSes, state the best-supported environment up front and link alternatives after the main path.</p>
+        <h3>Example quickstart</h3><pre><code># clone + setup
+git clone https://github.com/yourname/your-project &amp;&amp; cd your-project
+python3 -m venv .venv &amp;&amp; source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+# run tests
+pytest -q
+# start service
+uvicorn app.main:app --host 0.0.0.0 --port 8000</code></pre>
+        <h3>A first PR path that doesn’t require knowing the whole codebase</h3><p>If your project supports plugins, design the first contribution as “add a simple plugin” — a single file with a single function, plus a minimal test. Scaffold the directory structure in the quickstart and provide a template file with TODOs. Make it obvious what a valid plugin looks like and how it integrates.</p>
+        <h3>Minimal plugin template</h3><pre><code># your_project/plugins/example_plugin.py
+from your_project.core import EvidenceSource, EvidenceResult
+class ExamplePlugin(EvidenceSource):
+    name = "example_plugin"
+def evaluate(self, profile: dict) -&gt; EvidenceResult:
+    # TODO: basic rule: if profile has 'example' flag, return a small boost
+if profile.get("example", False):
+    return EvidenceResult.present(score_delta=0.05, note="example flag")
+    return EvidenceResult.missing(reason="no example flag")</code></pre>
+        <h3>Tests are not optional — make them the easiest path</h3><p>Require a test in your PR template, but help contributors succeed by including a ready-made test template that imports the plugin and checks a tiny scenario. Fewer than 20 lines is perfect, and the test should run fast.</p>
+        <h3>PR checklist and matching test</h3><pre><code>### Checklist
+- [ ] Added a test covering the plugin behavior
+- [ ] Ran `pytest -q` locally
+- [ ] Updated plugin docs (one paragraph + example)
+Test template:
+# tests/test_example_plugin.py
+from your_project.plugins.example_plugin import ExamplePlugin
+from your_project.core import EvidenceResult
+def test_example_plugin_with_flag():
+plugin = ExamplePlugin()
+result = plugin.evaluate({"example": True})
+assert isinstance(result, EvidenceResult)
+assert result.type == "present"
+assert result.note == "example flag"</code></pre>
+        <h3>Labeling matters more than exhortations</h3><p>A “good first issue” label is a real signal. Curate it weekly: choose small, well-bounded tasks with a single file change and a single test. Avoid issues that depend on strategic decisions or require deep context. If you don’t have time to curate, do fewer but better — five solid good-first-issues beat twenty vague ones.</p>
+        <h3>“How to ask for help” — define the format, not the channel</h3><p>New contributors often ask for help with missing context. Provide a brief template for help requests: environment, exact command, full error output, and what they already tried. Keep it short and clear. This reduces back-and-forth and helps you respond faster.</p>
+        <pre><code>- OS and Python version:
+- Exact command:
+- Full error output (paste as a code block):
+- What I’ve tried so far:</code></pre>
+        <h3>The social contract: response-time expectations</h3><p>State expected response windows for maintainers. If you maintain the project in spare time, say so. Set realistic targets for issue triage and pull request reviews, then keep them visible. Set expectations, and you’ll reduce anxiety on both sides.</p>
+        <h3>CI that reduces guesswork</h3><p>Your CI should run tests and sanity checks on every PR with clear messages. If a plugin interface requires a test, fail with a helpful note when none is detected. If the project uses a formatting or linting standard, automate the fix script and link it from the failure output.</p>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>Prescriptive quickstart vs flexibility: You’ll help more contributors by picking one supported path; you’ll disappoint a few who prefer different tools. Document alternatives briefly but keep the main path simple.</p>
+        <p>Template rigor vs contributor creativity: Templates guide good behavior but can feel constraining. Invite advanced contributions after the first PR; keep the first path narrow and friendly.</p>
+        <p>CI strictness vs PR throughput: Strict checks reduce maintainers’ manual work but increase initial friction. Counterbalance with crystal-clear failure messages and one-line fix commands.</p>
+        <h3>Failure modes</h3>
+        <p>“Wall of text”: Long CONTRIBUTING.md that reads more like a policy than a path. Solution: front-load the quickstart and the first PR template; move policies to the bottom.</p>
+        <p>“Passes locally, fails in CI”: Version and environment differences. Solution: pin dependencies, provide a lock or requirements file, and document the supported Python version.</p>
+        <p>“Invisible expectations”: Unstated response windows or required tests. Solution: PR templates and CI checks that make expectations explicit.</p>
+        <h2>Try it yourself</h2>
+        <p>Rewrite the top of your CONTRIBUTING.md into a tested quickstart that succeeds in under 10 minutes.</p>
+        <p>Add a one-file plugin template and a matching test template. Wire CI to require a test for new plugins.</p>
+        <p>Curate five “good first issue” tickets with single-file changes and clear acceptance criteria. Measure issue and review response times, then adjust your maintainer schedule accordingly.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests" target="_blank" rel="noreferrer">GitHub Docs: Issue and pull request templates</a></li><li><a href="https://docs.github.com/en/communities/setting-up-your-project-for-healthy-contributions/creating-a-default-community-health-file" target="_blank" rel="noreferrer">GitHub Docs: Community health files</a></li></ul></aside></div>
+<footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer></article></main>
+<footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script></body></html>

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="SemVer is a user promise. Learn to recognize breaking changes, communicate them, write migration notes, and keep releases predictable for small projects." /><meta property="article:published_time" content="2026-03-13" />
+<title>Semantic Versioning Is a Promise, Not a Formality — Shubham Anandani</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" /><link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+</head><body class="blog-page article-page">
+<header class="site-header"><div class="brand-block"><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../index.html#about">About</a><a href="../../index.html#outcomes">Impact</a><a href="../../index.html#research">Research</a><a href="../../blog.html">Writing</a></nav><a class="menu-link" href="mailto:shubhamanandani@gmail.com">Connect<span>↗</span></a></header>
+<main><article class="article-document"><a class="article-back" href="../../blog.html#github">← GitHub articles</a>
+<header class="article-document-header"><p class="kicker">GitHub / Release Practice</p><h1>Semantic Versioning Is a Promise, Not a Formality</h1><p class="article-deck">For small projects, getting “breaking” right matters. When you change behavior, communicate clearly and follow your own rules.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-03-13">Published March 13, 2026</time><span>·</span><span>6 min read</span></div></header>
+<div class="article-prose"><p class="article-lede">Semantic Versioning (SemVer) looks straightforward: MAJOR.MINOR.PATCH. In practice, the hardest part is deciding when a change is breaking. In a small project, breaking changes cost contributors time and confidence. They also generate extra triage work you don’t have time for. For a public API, SemVer is a promise: when a contract change requires action from users, communicate it clearly and choose the appropriate version increment.</p><h3>The failure mode</h3><p>You change an endpoint’s response shape from {type:"present"} to {status:"present"} and add a field. Tests in your project pass because you updated them. A user’s integration breaks silently because they were parsing the old field. You release as a minor bump. Issues pile up. SemVer wasn’t just a label; it was a promise you broke.</p>
+        <h2>What I learned</h2>
+        <h3>Define “breaking” for your project — then honor it</h3><p>For a public API, breaking means any change that requires user action. That includes renames, removals, default behavior changes, stricter validation, and shifts in documented semantics. For plugin contracts, it includes method signatures and return-object fields. Write this down in CONTRIBUTING.md or RELEASE.md.</p>
+        <h3>Use PATCH for fixes, MINOR for additive changes, MAJOR for breaking</h3><p>PATCH: bug fixes that don’t change behavior or contracts. MINOR: new additive features, fields, or optional paths that don’t require code changes from users. MAJOR: anything else. If in doubt, lean toward stricter classification — small projects benefit from conservative signaling.</p>
+        <h3>Keep a changelog that’s useful, not performative</h3><p>A good CHANGELOG.md lists new features, fixes, and breaking changes with clear “migration” steps. Link to PRs and discussions when helpful, but don’t drown readers in noise. Make breaking changes a dedicated section with bullet points and example code.</p>
+        <h3>Changelog entry (example)</h3><pre><code>## [2.0.0] - 2026-02-15
+### Breaking
+- Plugin interface: `evaluate()` return now requires `score_delta`.
+- API response: field `note` renamed to `message`.
+- Migration:
+  - Plugins: provide a score delta when constructing the result.
+  - Clients: read the renamed message field.
+### Added
+- New synthetic evidence source: "activity_count".
+### Fixed
+- Corrected null-handling in JSON serialization for missing evidence.</code></pre>
+        <h3>Automate release notes and tags, but write the words yourself</h3><p>Automated release workflows help: tag versions, publish notes, and attach artifacts. The content of the notes should be authored by you or a maintainer who understands the changes. Meaningful context beats auto-generated lists.</p>
+        <h3>Communicate before you break</h3><p>— deprecation notes and timelines If you plan a breaking change, announce it with a deprecation note. Add warnings to logs, include a deprecation section in the changelog, and post a short explanation in discussions. Offer a migration window (e.g., two minor releases) and stick to it.</p>
+        <h3>Validate SemVer behavior with contract tests</h3><p>Combine SemVer discipline with tests: run a suite that loads the previous minor version’s contracts against the new release where feasible. If tests fail because you changed behavior without bumping MAJOR, you’ll catch it before publishing.</p>
+        <h3>Keep scope under control</h3><p>— fewer breaking changes, batched when necessary Batch breaking changes into a single major release rather than sprinkling them across minors. This helps users plan upgrades and reduces your triage load. Once you ship a major, leave a quiet window before the next one.</p>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>Strict SemVer vs development speed: Bumping MAJOR and writing migration notes take time. They also save user time and reduce issue volume.</p>
+        <p>Deprecation windows vs maintenance overhead: Supporting old paths gives contributors time to adapt. For small projects, choose short, firm windows.</p>
+        <p>Automated release processes vs human judgment: Automation speeds delivery; human-curated notes ensure clarity. Pair them.</p>
+        <h3>Failure modes</h3>
+        <p>“Silent breaking minor”: Change that requires user action shipped as MINOR. It erodes trust and increases support requirements.</p>
+        <p>“Vague changelog”: Readers can’t tell what changed. Solution: explicit “Breaking,” “Added,” “Fixed” sections with migration steps.</p>
+        <p>“SemVer theater”: You declare SemVer, then ignore it in practice. Users stop trusting your version signals. Solution: define rules and follow them.</p>
+        <h2>Try it yourself</h2>
+        <p>Write a short “What counts as breaking” policy tailored to your project and add it to CONTRIBUTING.md.</p>
+        <p>Adopt Keep a Changelog structure and commit to explicit migration notes for breaking changes.</p>
+        <p>Add a contract test suite that runs compatibility checks against the previous minor version. If it fails, reconsider your classification.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://semver.org/" target="_blank" rel="noreferrer">Semantic Versioning 2.0.0</a></li><li><a href="https://keepachangelog.com/en/1.1.0/" target="_blank" rel="noreferrer">Keep a Changelog</a></li><li><a href="https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository" target="_blank" rel="noreferrer">GitHub Docs: Managing releases</a></li></ul></aside></div>
+<footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer></article></main>
+<footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script></body></html>

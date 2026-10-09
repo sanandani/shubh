@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Flaky tests often signal shared state bugs. Learn to diagnose parallel execution issues, isolate fixtures, and design for deterministic test behavior." /><meta property="article:published_time" content="2026-05-15" />
+<title>Flaky Tests Are a Concurrency Bug: Fixing Shared State Under Parallel Execution — Shubham Anandani</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" /><link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+</head><body class="blog-page article-page">
+<header class="site-header"><div class="brand-block"><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../index.html#about">About</a><a href="../../index.html#outcomes">Impact</a><a href="../../index.html#research">Research</a><a href="../../blog.html">Writing</a></nav><a class="menu-link" href="mailto:shubhamanandani@gmail.com">Connect<span>↗</span></a></header>
+<main><article class="article-document"><a class="article-back" href="../../blog.html#java">← Java articles</a>
+<header class="article-document-header"><p class="kicker">Java / JVM / Test Reliability</p><h1>Flaky Tests Are a Concurrency Bug: Fixing Shared State Under Parallel Execution</h1><p class="article-deck">When tests fail intermittently, look for shared mutable fixtures—then fix the design, not just the test runner.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-05-15">Published May 15, 2026</time><span>·</span><span>6 min read</span></div></header>
+<div class="article-prose"><p class="article-lede">I’ve watched teams chase “test runner bugs” while the real culprit was design. Flakiness is often a concurrency issue—shared mutable state under parallel execution. JUnit 5 can run tests concurrently, so fixtures that share mutable state can make failures appear intermittent. Creating isolated data per test makes the behavior easier to reproduce and diagnose.</p><h3>The failure mode</h3><p>You enable parallel test execution and see intermittent failures: “record not found” or “unexpected duplicate.” You re-run and it passes. Blaming the test runner is easy. The problem is shared state: two tests reading/writing the same fixture or relying on an implicit order.</p>
+        <h2>What I learned</h2>
+        <h3>Default to per-test fixtures</h3><p>Use per-test initialization to avoid shared mutable state. In JUnit 5, keep your test instance lifecycle at PER_METHOD and recreate fixtures for each test. If the fixture is expensive, consider a template with parameterization that still isolates state.</p>
+        <h3>Example setup</h3><pre><code>import org.junit.jupiter.api.*;
+@TestInstance(TestInstance.Lifecycle.PER_METHOD)
+class EvidenceServiceTest {
+private InMemoryStore store;
+private EvidenceService service;
+@BeforeEach
+void init() {
+store = new InMemoryStore(); // new store per test
+service = new EvidenceService(store);
+store.seedProfile("alice", syntheticProfileAlice());
+}
+@Test
+void returnsMissingWhenTimeout() {
+// ...
+}
+@Test
+void returnsUnverifiableOnExceptions() {
+// ...
+}
+}</code></pre>
+        <h3>Avoid static mutable fields—especially in helpers</h3><p>Static caches and helpers make tests faster locally but brittle in parallel. If you truly need a cache, scope it per test, or guard it with thread-safe constructs and clear it explicitly. Better: don’t cache at all in tests unless you benchmarked the need.</p>
+        <h3>Make isolation visible—name-bound fixtures</h3><p>If a test seeds data, bind it to a unique key per test. Use random UUIDs or test names in keys to prevent accidental cross-test reuse. With Testcontainers, create per-test containers when state isolation is critical; share containers only for read-only tests.</p>
+        <h3>Parallel execution deserves explicit design</h3><p>JUnit 5 lets you run tests in parallel. That doesn’t mean every test should be parallel. Annotate classes that require single-thread execution, but treat that as a last resort. Prefer making tests parallel-safe by design.</p>
+        <p>JUnit configuration (illustrative):</p>
+        <pre><code>junit.jupiter.execution.parallel.enabled = true
+junit.jupiter.execution.parallel.mode.default = concurrent
+junit.jupiter.execution.parallel.mode.classes.default = concurrent</code></pre>
+        <h3>Deterministic time and waiting</h3><p>Tests that sleep and “hope the system is ready” fail under parallel runs. Replace sleeps with explicit synchronization: await a condition, poll with a small backoff, or use latches. Keep timeouts small and deterministic.</p>
+        <h3>Embrace “given-when-then” with isolated builders</h3><p>Build input data per test with dedicated builders. Don’t reuse a mutable “default profile” object across tests; copy or reconstruct it. Records help: immutable inputs prevent accidental mutation.</p>
+        <h3>Diagnose with logging and seeds</h3><p>When a test fails intermittently, print seeds and keys that identify data. If you see the same key in two tests, you found shared state. If you see non-deterministic ordering in a collection, sort inputs or assert set equivalence rather than list order.</p>
+        <h3>Per-test container with unique data</h3><pre><code>class StoreTests {
+    private PostgreSQLContainer&lt;?&gt; database;
+
+    @BeforeEach
+    void setUp() {
+        database = new PostgreSQLContainer&lt;&gt;("postgres:alpine")
+            .withDatabaseName("test_" + UUID.randomUUID())
+            .withUsername("user")
+            .withPassword("test-only");
+        database.start();
+    }
+
+    @AfterEach
+    void tearDown() {
+        database.stop();
+    }
+}</code></pre>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>Isolation vs speed: Per-test fixtures are slower than shared ones. Optimize later—start with correct behavior and only share read-only fixtures.</p>
+        <p>Parallelism vs determinism: Parallel runs surface concurrency bugs but may require more careful test design. The benefits outweigh the cost.</p>
+        <p>Container lifecycle vs developer ergonomics: Per-test containers are robust but slower. Consider class-level containers for read-only tests with clear resets.</p>
+        <h3>Failure modes</h3>
+        <h3>“Hidden globals”</h3><p>A helper modifies a static map. Under parallel, tests interleave and fail intermittently.</p>
+        <p>“Order assumptions”: Tests rely on iteration order of sets or maps; parallel runs expose different orders.</p>
+        <p>“Implicit sleeps”: Tests use fixed sleeps; faster/slower environments cause out-of-order expectations.</p>
+        <h2>Try it yourself</h2>
+        <p>Switch to PER_METHOD lifecycle and remove static mutable fields in tests. Add unique keys per test to seed data. Enable parallel execution and watch for failures that indicate hidden shared state.</p>
+        <p>Replace sleep-based readiness with explicit condition checks. Add timeouts and backoff policies.</p>
+        <p>Document which tests are parallel-safe and why; make non-parallel tests the exception and note the reason.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://junit.org/junit5/docs/current/user-guide/#writing-tests-parallel-execution" target="_blank" rel="noreferrer">JUnit 5 parallel execution</a></li><li><a href="https://java.testcontainers.org/" target="_blank" rel="noreferrer">Testcontainers for Java</a></li></ul></aside></div>
+<footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer></article></main>
+<footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script></body></html>

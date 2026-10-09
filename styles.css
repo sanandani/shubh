@@ -1271,3 +1271,45 @@ footer .brand {
     font-size: 23px;
   }
 }
+
+.microsoft-archive .docker-heading h2 em {
+  color: #4267a3;
+}
+
+.microsoft-archive .docker-count {
+  background: #e9eff8;
+  color: #385a8c;
+}
+
+.microsoft-archive .docker-index,
+.microsoft-archive .docker-article-card .read-time {
+  color: #4267a3;
+}
+
+.java-archive .docker-heading h2 em {
+  color: #a94442;
+}
+
+.java-archive .docker-count {
+  background: #f7e9e8;
+  color: #8d3837;
+}
+
+.java-archive .docker-index,
+.java-archive .docker-article-card .read-time {
+  color: #a94442;
+}
+
+.github-archive .docker-heading h2 em {
+  color: #415b4c;
+}
+
+.github-archive .docker-count {
+  background: #e9efeb;
+  color: #3c5849;
+}
+
+.github-archive .docker-index,
+.github-archive .docker-article-card .read-time {
+  color: #496853;
+}

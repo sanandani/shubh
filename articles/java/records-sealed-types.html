@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Modern Java lets you model ambiguity without nulls. Learn records, sealed interfaces, and pattern matching to represent missing and unverifiable states clearly." /><meta property="article:published_time" content="2026-03-03" />
+<title>Records Aren’t Just Less Typing: Modeling Ambiguity Without Nulls — Shubham Anandani</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" /><link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+</head><body class="blog-page article-page">
+<header class="site-header"><div class="brand-block"><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../index.html#about">About</a><a href="../../index.html#outcomes">Impact</a><a href="../../index.html#research">Research</a><a href="../../blog.html">Writing</a></nav><a class="menu-link" href="mailto:shubhamanandani@gmail.com">Connect<span>↗</span></a></header>
+<main><article class="article-document"><a class="article-back" href="../../blog.html#java">← Java articles</a>
+<header class="article-document-header"><p class="kicker">Java / Domain Modeling</p><h1>Records Aren’t Just Less Typing: Modeling Ambiguity Without Nulls</h1><p class="article-deck">How I use records, sealed interfaces, and pattern matching to model “present,” “missing,” and “unverifiable” — and force callers to handle every case.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-03-03">Published March 3, 2026</time><span>·</span><span>7 min read</span></div></header>
+<div class="article-prose"><p class="article-lede">I’m an engineering manager with a background in Java backend systems. One lesson that keeps paying dividends is this: ambiguity deserves types, not comments. Nulls and booleans blur meaning. “false,” “zero,” and “we don’t know” are not interchangeable. With modern Java (records, sealed interfaces, pattern matching), I model uncertainty explicitly and make ambiguity impossible to ignore.</p><p>Modern Java can express these outcomes as records and sealed types: Present, Missing, and Unverifiable. The same pattern works in ordinary service domains; it does not depend on a scoring model.</p>
+        <h3>The failure mode</h3><p>You return a number for a score and a boolean “hasEvidence.” A caller subtracts two scores and treats “0” as “no evidence,” then logs an anomaly when “0” appears alongside “hasEvidence=true.” The model caused this. Nulls and booleans encourage shortcuts and misinterpretation.</p>
+        <h2>What I learned</h2>
+        <h3>Use records for immutable, transparent domain data</h3><p>Records let me define concise, immutable carriers without boilerplate. They encourage a bias toward immutability and make the intent clear.</p>
+        <h3>Example response</h3><pre><code>public record AceuResponse(
+ScoreOrUnknown authenticity,
+ScoreOrUnknown credibility,
+ScoreOrUnknown empathy,
+ScoreOrUnknown uniqueness
+) {}
+public sealed interface ScoreOrUnknown permits Score, Missing, Unverifiable {}
+public record Score(double value) implements ScoreOrUnknown {
+public Score {
+if (Double.isNaN(value) || value &lt; 0.0 || value &gt; 1.0) {
+throw new IllegalArgumentException("Score must be [0,1]");
+}
+}
+}
+public record Missing(String reason) implements ScoreOrUnknown {}
+public record Unverifiable(String note) implements ScoreOrUnknown {}</code></pre>
+        <p>Records keep the data small and immutable. The sealed hierarchy enforces the set of states at compile time.</p>
+        <h3>Replace nulls and boolean flags with sealed states</h3><p>The temptation to use Double/Boolean and encode special states with null or false is strong. Resist it. Sealed interfaces make the valid state space explicit and force exhaustive handling. A boolean can’t distinguish “not applicable,” “not yet computed,” and “calculation failed.”</p>
+        <h3>Use pattern matching for exhaustive case handling</h3><p>Pattern matching in switch makes code read like the domain. It also turns omissions into compile errors when you use exhaustive switches.</p>
+        <p>Example handler:</p>
+        <pre><code>public String render(ScoreOrUnknown s) {
+return switch (s) {
+case Score sc          -&gt; "score=" + sc.value();
+case Missing miss      -&gt; "missing=" + miss.reason();
+case Unverifiable unv  -&gt; "unverifiable=" + unv.note();</code></pre>
+        <p>};</p>
+        <h3>}</h3>
+        <p>By handling each case explicitly, I make it impossible to “forget” one or conflate states.</p>
+        <h3>Prefer intent-rich types over ad-hoc maps and strings</h3><p>When a state needs more context (e.g., why data is missing), capture it in the type. Missing(String reason) and Unverifiable(String note) beat opaque strings and comments. If callers need to act differently based on the reason, add a reason code enum to the record.</p>
+        <h3>Keep aggregates typed—don’t flatten too early</h3><p>A response with four dimensions should preserve each dimension’s state. Avoid flattening to a single “overall score.” The minute you collapse, you discard information the caller needs for good decisions. In the demo, each dimension returns a ScoreOrUnknown. Only the caller decides how to combine them, and the compiler forces handling of unknowns.</p>
+        <h3>Embed validation where it belongs</h3><p>Put invariants in the type’s constructor. Scores are [0,1]; reasons should be concise, not multi-paragraph blobs. Records make these guardrails trivial to implement consistently.</p>
+        <h3>Use test fixtures that exercise every branch</h3><p>Define parameterized tests for your sealed states. For each dimension, test Score, Missing, and Unverifiable. Assert that pattern matching hits each branch, and that any new state added later causes compilation failures in exhaustive switches until it’s handled.</p>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>More types vs fewer booleans: Sealed types add structure and a few extra classes. The upside is clarity and compile-time enforcement; the downside is minor boilerplate, which records minimize.</p>
+        <p>Exhaustiveness vs flexibility: Exhaustive switches break on new states until handled. That’s a feature (safety) but can feel strict when you prototype quickly.</p>
+        <p>Text reasons vs structured codes: Free-form strings are easier; structured enums enable programmatic handling. Choose based on how callers use the data.</p>
+        <h3>Failure modes</h3>
+        <h3>“Shadow nulls”</h3><p>A downstream library returns null and you forget to wrap it in a sealed state. Guard external boundaries with adapters.</p>
+        <p>“State leakage”: Someone serializes ScoreOrUnknown to a shape that drops the state label (e.g., value=0.0 only). Add JSON configuration that includes a type field and test the wire format.</p>
+        <p>“Catch-all case”: Using a default branch in pattern matching reintroduces ambiguity. Avoid default; keep exhaustive cases explicit.</p>
+        <h2>Try it yourself</h2>
+        <p>Replace nullable fields for ambiguous states with a sealed interface and record implementations. Add exhaustive pattern matching where you consume them.</p>
+        <p>Write tests that construct each state per dimension and assert wire-format correctness (e.g., JSON includes the state “type”).</p>
+        <p>Audit one path where a null sneaks through and add an adapter to convert it into Missing or Unverifiable with a reason code.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://openjdk.org/jeps/395" target="_blank" rel="noreferrer">Records (JEP 395)</a></li><li><a href="https://openjdk.org/jeps/409" target="_blank" rel="noreferrer">Sealed Classes (JEP 409)</a></li><li><a href="https://openjdk.org/jeps/441" target="_blank" rel="noreferrer">Pattern Matching for switch (JEP 441)</a></li></ul></aside></div>
+<footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer></article></main>
+<footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script></body></html>

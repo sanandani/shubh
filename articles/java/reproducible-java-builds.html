@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Catch Java build drift before production: dependency pins, lock files, digest references, and clean-room rebuild verification in CI." /><meta property="article:published_time" content="2026-07-12" />
+<title>Reproducible Java Builds: Pinning, Locking, and Clean-Room Verification — Shubham Anandani</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" /><link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+</head><body class="blog-page article-page">
+<header class="site-header"><div class="brand-block"><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../index.html#about">About</a><a href="../../index.html#outcomes">Impact</a><a href="../../index.html#research">Research</a><a href="../../blog.html">Writing</a></nav><a class="menu-link" href="mailto:shubhamanandani@gmail.com">Connect<span>↗</span></a></header>
+<main><article class="article-document"><a class="article-back" href="../../blog.html#java">← Java articles</a>
+<header class="article-document-header"><p class="kicker">Java / JVM / Build Systems</p><h1>Reproducible Java Builds: Pinning, Locking, and Clean-Room Verification</h1><p class="article-deck">“It built on my machine” still happens. Here’s how I pin versions, lock dependencies, and verify reproducibility in CI.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-07-12">Published July 12, 2026</time><span>·</span><span>5 min read</span></div></header>
+<div class="article-prose"><p class="article-lede">I’ve seen Java builds succeed locally and differ in CI—transitive dependencies float, plugin versions advance, or caches hide changes. Reproducibility takes intention: pin versions, use lock files, and verify clean-room rebuilds. In a Java build, dependency locks and clean CI environments help reveal resolution drift before artifacts are released.</p><h3>The failure mode</h3><p>You set versions in pom.xml but leave transitive ranges unconstrained. Locally, a cached artifact hides a minor release; in CI, it resolves a new version. Behavior changes. The fix is not “rerun until green.” It’s making builds deterministic and verifying them under clean conditions.</p>
+        <h2>What I learned</h2>
+        <h3>Pin dependencies and plugins explicitly</h3><p>Use dependencyManagement to pin versions of critical dependencies and plugins. Avoid wildcard ranges. If you depend on a BOM (bill of materials), understand what it pins and add explicit versions for anything critical that the BOM leaves flexible.</p>
+        <h3>Example</h3><pre><code>&lt;dependencyManagement&gt;
+&lt;dependencies&gt;
+&lt;dependency&gt;
+&lt;groupId&gt;org.junit.jupiter&lt;/groupId&gt;
+&lt;artifactId&gt;junit-jupiter&lt;/artifactId&gt;
+&lt;version&gt;5.10.2&lt;/version&gt;
+&lt;/dependency&gt;
+&lt;!-- pin more --&gt;
+&lt;/dependencies&gt;
+&lt;/dependencyManagement&gt;</code></pre>
+        <h3>Use a lock mechanism to freeze transitive versions</h3><p>A lock file captures resolved versions so CI doesn’t “discover” new transitive artifacts. Tools exist for Maven and Gradle that generate and enforce locks. The specifics depend on your chosen plugin; the principle is the same: generate once, commit, and enforce.</p>
+        <p>Generate lock file locally (or in CI).</p>
+        <p>Commit it.</p>
+        <p>Configure the build to fail if resolutions differ from the lock.</p>
+        <h3>Clean-room rebuild in CI</h3><p>Build in an isolated environment with a cleared local repository. Verify that resolving dependencies succeeds strictly against your lock. Optionally run the build twice—once with the lock (expected success), once with lock enforcement disabled to detect version drift. The second build should fail if drift occurred.</p>
+        <h3>CI steps (illustrative)</h3><pre><code>- name: Clean local repo
+run: rm -rf ~/.m2/repository
+- name: Verify dependency locks
+run: mvn -q -B clean verify -P enforce-lock
+- name: “Clean room” rebuild
+run: docker run --rm -v "$PWD:/w" -w /w eclipse-temurin:21-jdk bash -lc "mvn -q -B clean verify -P enforce-lock"</code></pre>
+        <p>Reproducible artifacts (timestamps and ordering) Ensure JARs are reproducible: strip timestamps, stabilize entry ordering, and avoid embedding environment-specific paths. Many build tools support “reproducible build” flags. Enable them and verify artifact hashes are stable across clean rebuilds.</p>
+        <p>Digest references for external assets If your build fetches external tools or base images (for integration tests, for example), reference them by digest. Tags are mutable; digests fix identity. The trade-off is manual refresh when security updates appear—worth it for determinism.</p>
+        <h3>Automate updates safely</h3><p>Use a dependency-update bot that proposes version bumps. Gate those PRs with tests and scanning. Accepting updates becomes explicit, and drift is no longer silent.</p>
+        <h3>Document the “how to fix drift” playbook</h3><p>When lock enforcement fails, the fix should be documented: regenerate lock with your plugin, review changes, run tests, and commit. Avoid ad-hoc local resolutions—keep the workflow consistent.</p>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>Pins vs agility: Strict pins and locks slow updates but eliminate surprises. Use bots to keep pace safely.</p>
+        <p>Clean rooms vs speed: Clean rebuilds take longer. For CI, prioritize correctness over a few minutes of build time.</p>
+        <p>Digests vs tags: Digests provide determinism; tags ease maintenance. For production-critical assets, default to digests.</p>
+        <h3>Failure modes</h3>
+        <p>“Partial pins”: You pin direct deps but miss transitive ones. Locks solve this; without locks, drift leaks in.</p>
+        <p>“Plugin drift”: Build plugins advance silently. Pin plugin versions in pluginManagement.</p>
+        <p>“Non-reproducible JARs”: Differences in timestamps or ordering break hash equality. Turn on reproducible flags and verify.</p>
+        <h2>Try it yourself</h2>
+        <p>Add dependency and plugin pins in dependencyManagement/pluginManagement.</p>
+        <p>Integrate a lock mechanism; commit the lock file; add an enforcement profile.</p>
+        <p>Run a clean-room rebuild in CI and compare the artifacts. Confirm artifact hashes match between runs.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://maven.apache.org/guides/introduction/introduction-to-dependency-mechanism.html" target="_blank" rel="noreferrer">Maven dependency management</a></li><li><a href="https://docs.gradle.org/current/userguide/dependency_locking.html" target="_blank" rel="noreferrer">Gradle dependency locking</a></li><li><a href="https://maven.apache.org/guides/mini/guide-reproducible-builds.html" target="_blank" rel="noreferrer">Reproducible Builds Maven plugin</a></li></ul></aside></div>
+<footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer></article></main>
+<footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script></body></html>

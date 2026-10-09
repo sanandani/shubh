@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Model “unknown” separately from “false.” Learn sealed types, exhaustive pattern matching, and propagation rules that preserve meaning end to end." /><meta property="article:published_time" content="2026-08-22" />
+<title>Designing for Partial Data: Distinguishing “We Don’t Know” From “False” — Shubham Anandani</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" /><link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+</head><body class="blog-page article-page">
+<header class="site-header"><div class="brand-block"><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../index.html#about">About</a><a href="../../index.html#outcomes">Impact</a><a href="../../index.html#research">Research</a><a href="../../blog.html">Writing</a></nav><a class="menu-link" href="mailto:shubhamanandani@gmail.com">Connect<span>↗</span></a></header>
+<main><article class="article-document"><a class="article-back" href="../../blog.html#java">← Java articles</a>
+<header class="article-document-header"><p class="kicker">Java / Partial Data</p><h1>Designing for Partial Data: Distinguishing “We Don’t Know” From “False”</h1><p class="article-deck">Sealed types and exhaustive pattern matching keep “unknown” distinct from “zero” throughout a service.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-08-22">Published August 22, 2026</time><span>·</span><span>7 min read</span></div></header>
+<div class="article-prose"><p class="article-lede">Partial data is normal. Missing signals and unverifiable sources happen. If you collapse “unknown” into “false” or “zero,” you erode trust. As an engineering manager, I’ve learned to design services that treat “we don’t know” as a first-class outcome. In Java, sealed types and exhaustive pattern matching make this straightforward and enforceable.</p>
+        <h3>The failure mode</h3><p>Your aggregator treats null as “0.0,” sums four dimensions, and displays a neat number. A caller misreads that as “complete and low.” In reality, two dimensions were missing, and one was unverifiable. The number masked uncertainty.</p>
+        <h2>What I learned</h2>
+        <h3>Keep partial states in the domain layer, not just at the edges</h3><p>Don’t convert unknowns to defaults at the boundary. Let domain logic operate on sealed types. If you must produce a single number, force policy conversion in a dedicated function so that the decision is auditable.</p>
+        <h3>Policy example</h3><pre><code>public final class AggregationPolicy {
+public static double conservativeAverage(List&lt;ScoreOrUnknown&gt; dims) {
+int count = 0;
+double sum = 0.0;
+for (ScoreOrUnknown d : dims) {
+switch (d) {
+case Score sc         -&gt; { sum += sc.value(); count++; }
+case Missing miss     -&gt; { /* exclude; track missing elsewhere */ }
+case Unverifiable unv -&gt; { /* exclude; track unverifiable */ }
+}
+}
+if (count == 0) return Double.NaN; // no numeric evidence
+return sum / count;
+}
+public static boolean okToDisplay(List&lt;ScoreOrUnknown&gt; dims) {
+long unknowns = dims.stream().filter(x -&gt; !(x instanceof Score)).count();
+return unknowns == 0; // or choose a threshold
+}
+}</code></pre>
+        <h3>Propagate uncertainty deliberately</h3><p>Unknowns should travel with the data: into logs, decisions, and UI. For example, if two dimensions are unknown, surface that count alongside any numeric aggregation. The goal is to prevent silent conversions that distort confidence.</p>
+        <h3>Make unknown-handling policies explicit and testable</h3><p>Write tests that assert what happens when all dimensions are unknown, when some are missing, and when a single unverifiable dimension appears. Pattern matching keeps these tests aligned with the domain states. Don’t assume a “best effort” numeric default; decide and encode.</p>
+        <h3>Resist “default values” in DTOs</h3><p>If you serialize to JSON, include a type field in each dimension and omit value when the state isn’t Score. A consumer reading {"type":"Missing","reason":"timeout"} can act accordingly. Defaulting to 0.0 or “unknown=false” invites misuse.</p>
+        <p>Teach callers to branch by type, not numeric checks Documentation should show switch examples, not “if value is 0 then unknown.” This reduces coupling and preserves room for future states (e.g., “Contested,” “Deprecated”).</p>
+        <p>Audit conversion points with a linelist List every place where ScoreOrUnknown becomes a single number or a boolean. Audit these conversions periodically. If you discover accidental flattening, refactor to preserve states or add proper policy functions.</p>
+        <p>Accept that aggregation may return “no number” Returning NaN or omitting a field is reasonable when inputs are fully unknown. Treat this as normal, not exceptional. UI can show “insufficient evidence” with counts; APIs can document this outcome clearly.</p>
+        <p>JSON serialization with a type field</p>
+        <h3>// Using a simple custom serializer sketch</h3>
+        <pre><code>public record Score(double value) implements ScoreOrUnknown {}
+public record Missing(String reason) implements ScoreOrUnknown {}
+public record Unverifiable(String note) implements ScoreOrUnknown {}
+public Map&lt;String, Object&gt; toJson(ScoreOrUnknown s) {
+return switch (s) {
+case Score sc         -&gt; Map.of("type", "Score", "value", sc.value());
+case Missing miss     -&gt; Map.of("type", "Missing", "reason", miss.reason());
+case Unverifiable unv -&gt; Map.of("type", "Unverifiable", "note", unv.note());</code></pre>
+        <p>};</p>
+        <p>}</p>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>Transparency vs brevity: Returning types and reasons increases payload size but improves clarity. Favor clarity when ambiguity matters.</p>
+        <p>Strictness vs convenience: Throwing on invalid scores and disallowing defaults catches bugs early but may frustrate callers used to flexible shapes.</p>
+        <p>NaN vs explicit omission: NaN signals “no numeric value” but can be mishandled by consumers. Omitting a field or providing a separate state field avoids confusion.</p>
+        <h3>Failure modes</h3>
+        <h3>“Silent flattening”</h3><p>A downstream transforms unknowns to zero—likely out of habit. Catch this in contract tests.</p>
+        <h3>“Enum drift”</h3><p>If reason codes evolve, consumers break. Document codes and provide a safe default handling path.</p>
+        <p>“Partial measures hiding in averages”: An average of one numeric with three unknowns looks “complete” unless you also surface unknown counts.</p>
+        <h2>Try it yourself</h2>
+        <p>Refactor one DTO to embed a sealed state rather than a nullable numeric field. Add a type field in JSON. Update consumers to switch on type.</p>
+        <p>Write aggregation policies that return NaN or omit fields when inputs are fully unknown. Test behavior explicitly.</p>
+        <p>Add metrics that count unknowns and unverifiable states separately from numeric distributions.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://openjdk.org/jeps/395" target="_blank" rel="noreferrer">Records (JEP 395)</a></li><li><a href="https://openjdk.org/jeps/409" target="_blank" rel="noreferrer">Sealed Classes (JEP 409)</a></li><li><a href="https://openjdk.org/jeps/441" target="_blank" rel="noreferrer">Pattern Matching for switch (JEP 441)</a></li></ul></aside></div>
+<footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer></article></main>
+<footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script></body></html>

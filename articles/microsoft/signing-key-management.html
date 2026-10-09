@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="Keep signing keys out of images. Learn managed secret stores, rotation, mounts, and CI/scan steps that catch accidental key bake-ins before deploy." /><meta property="article:published_time" content="2026-07-12" />
+<title>Keys Don’t Belong in the Image: Secret Management for Credential Signing — Shubham Anandani</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="../../styles.css" /><link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+</head><body class="blog-page article-page">
+<header class="site-header"><div class="brand-block"><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../index.html#about">About</a><a href="../../index.html#outcomes">Impact</a><a href="../../index.html#research">Research</a><a href="../../blog.html">Writing</a></nav><a class="menu-link" href="mailto:shubhamanandani@gmail.com">Connect<span>↗</span></a></header>
+<main><article class="article-document"><a class="article-back" href="../../blog.html#microsoft">← Microsoft articles</a>
+<header class="article-document-header"><p class="kicker">Microsoft Entra / Key Management</p><h1>Keys Don’t Belong in the Image: Secret Management for Credential Signing</h1><p class="article-deck">Managed secret stores, rotation, and guarding against the “oops, we baked a key” failure mode.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-07-12">Published July 12, 2026</time><span>·</span><span>7 min read</span></div></header>
+<div class="article-prose"><p class="article-lede">Signing keys are crown jewels in identity services. If they leak, attackers can mint forged credentials that look real. The easiest way to leak a key is to bake it into a container image or configuration file. Load signing keys at runtime from a managed secret store; keep private key material out of source files, build arguments, and image layers.</p><h3>The failure mode</h3><p>A contributor tests locally with a .env file containing a signing key. A sloppy Dockerfile copies everything under the project directory, including .env. CI builds the image; the key ends up in a layer. The image is pushed to a registry. Even if you rotate later, the leak is permanent in history.</p>
+        <h2>What I learned</h2>
+        <h3>Secrets never live in source or image layers</h3><p>Keep signing keys out of your repository and artifact layers. Use a managed secret store pattern to provide keys at runtime via secure mounts or platform-managed environment variables that never touch the image.</p>
+        <h3>.dockerignore is a security control</h3><p>Treat .dockerignore as part of your security posture. Explicitly ignore .env, credential files, test fixtures containing secrets, and local caches. Keep the build context as small as possible.</p>
+        <h3>Runtime retrieval, not build-time embedding</h3><p>Load keys at runtime from the secret store client library or a platform-provided mount. Fail readiness until the key loads. If the secret is missing, return clear errors and refuse to sign. Do not “fall back” to dummy keys in production—reserve test keys for explicit non-prod builds.</p>
+        <h3>Rotation: short lifetimes and multiple active keys</h3><p>Signing keys should rotate regularly. The verifier should accept signatures from a small set of current keys, and the issuer should roll keys with overlap: publish new key, start signing with it, keep the old key valid for verification until the overlap window expires.</p>
+        <h3>Audit and scanning: prevent accidental bake-ins</h3><p>Add CI checks that scan images for secret patterns. Simple rules catch common mistakes (e.g., files named .env, PEM key headers). Block the build if found. Complement this with code scanning that flags dangerous COPY patterns.</p>
+        <h3>Separate test and prod key handling</h3><p>For demos, use explicitly marked test keys with sandboxed scopes. Never reuse test keys in environments accessible outside controlled demos. Label logs and status endpoints so it’s obvious which environment your verifier belongs to.</p>
+        <h3>Minimize key surface: hardware-backed or managed services</h3><p>Where possible, use hardware-backed key stores or provider-managed keys with restricted export. Keep application access tightly scoped to “sign” and “read public key.” The app should never be able to exfiltrate private key material.</p>
+        <h3>Illustrative runtime secret loading</h3><pre><code>def load_signing_key(secret_store, key_id: str) -&gt; bytes:
+    key = secret_store.read(key_id)
+    if not key:
+        raise RuntimeError("signing key unavailable")
+    return key
+
+# Load keys from a managed store at runtime. Never copy key material
+# into source, build arguments, container layers, or sample configuration.
+# Keep readiness false until the signing dependency is ready.</code></pre>
+        <h3>Example .dockerignore</h3><pre><code>.env
+*.pem
+__pycache__/
+*.pyc
+.git/
+node_modules/
+tests/fixtures/secrets/</code></pre>
+        <h3>Example Dockerfile pattern</h3><pre><code>FROM python:3.12-slim AS runtime
+WORKDIR /app
+COPY pyproject.toml poetry.lock ./
+RUN pip install --no-cache-dir poetry &amp;&amp; poetry install --no-root
+COPY --chown=10001:10001 app ./app
+USER 10001
+EXPOSE 8000</code></pre>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>Runtime dependency vs build independence: Secret store clients add runtime requirements. The gain is eliminating baked-in risk.</p>
+        <p>Rotation complexity vs safety: Overlapping keys complicate issuers and verifiers. The gain is smooth migration.</p>
+        <p>Strict readiness vs availability: Refusing to start without keys prevents undefined behavior. Availability dips are better than silent mis-signing.</p>
+        <h3>Failure modes</h3>
+        <p>“COPY .”: Blindly copying the entire source tree into the image. Fix with .dockerignore and explicit COPY.</p>
+        <p>“Fallback key”: Using a dummy key in production when secret load fails. Fix with hard failures and improved observability.</p>
+        <p>“Exportable private keys”: Allowing the app to export private keys. Fix with hardware-backed or provider-managed keys.</p>
+        <h2>Try it yourself</h2>
+        <p>Add .dockerignore entries for secrets and verify your build context (run docker build --no-cache and inspect logs).</p>
+        <p>Use strict readiness that fails until keys load from a managed store. Test rotation: accept signatures from two keys during an overlap window.</p>
+        <p>Add CI scans that fail on secret-like files in images. Track and eliminate false positives carefully.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://learn.microsoft.com/en-us/entra/verified-id/verifiable-credentials-configure-tenant" target="_blank" rel="noreferrer">Configure Verified ID with Azure Key Vault</a></li><li><a href="https://learn.microsoft.com/en-us/azure/container-apps/manage-secrets" target="_blank" rel="noreferrer">Azure Container Apps secrets</a></li><li><a href="https://docs.docker.com/build/concepts/context/" target="_blank" rel="noreferrer">Docker build context and .dockerignore</a></li></ul></aside></div>
+<footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer></article></main>
+<footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script></body></html>
