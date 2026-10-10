@@ -1,20 +1,35 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Pin dependencies, use lock files, and verify container artifacts to make local and cloud builds more reproducible." />
-    <meta property="article:published_time" content="2025-11-14" /><title>Same Dockerfile, Different Build — Shubham Anandani</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <title>Same Dockerfile, Different Build: Reproducible Container Builds — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="../../styles.css" /><link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/docker/reproducible-container-builds.html" />
+    <meta property="article:published_time" content="2025-11-14T12:00:00-08:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Same Dockerfile, Different Build: Reproducible Container Builds" />
+    <meta property="og:description" content="Pin dependencies, use lock files, and verify container artifacts to make local and cloud builds more reproducible." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/docker/reproducible-container-builds.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="docker" />
+    <meta property="article:tag" content="containers" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "Article", "headline": "Same Dockerfile, Different Build: Reproducible Container Builds", "datePublished": "2025-11-14T12:00:00-08:00", "author": {"@type": "Person", "name": "Shubham Anandani", "url": "https://www.imshubh.com/"}, "image": "https://www.imshubh.com/assets/shubham-anandani.jpg"}</script>
+      <link rel="alternate" type="application/atom+xml" title="ATOM" href="https://www.imshubh.com/atom.xml" />
   </head>
   <body class="blog-page article-page">
     <header class="site-header"><div class="brand-block"><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../index.html#about">About</a><a href="../../index.html#outcomes">Impact</a><a href="../../index.html#research">Research</a><a href="../../blog.html">Writing</a></nav><a class="menu-link" href="mailto:shubhamanandani@gmail.com">Connect<span>↗</span></a></header>
-    <main><article class="article-document">
-      <a class="article-back" href="../../blog.html#docker">← Docker articles</a>
-      <header class="article-document-header"><p class="kicker">Docker / Build systems</p><h1>Same Dockerfile, Different Build: Reproducible Container Builds</h1><p class="article-deck">Pin it, lock it, and verify what you actually built—across local and cloud.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2025-11-14">Published November 14, 2025</time><span>·</span><span>7 min read</span></div></header>
-      <div class="article-prose">
-        <p class="article-lede">I once pushed a change after a healthy local run of <code>aceu-trust-demo</code>. The cloud build resolved a newer FastAPI version—0.142.2 instead of 0.141.1 locally—and pulled an additional package, <code>opentelemetry-api</code>. The Dockerfile was the same; the dependency ranges were not locked.</p>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#docker">← Docker articles</a>
+      <header class="article-document-header"><p class="kicker">Docker / Build systems</p><h1>Same Dockerfile, Different Build: Reproducible Container Builds</h1><p class="article-deck">Pin it, lock it, and verify what you actually built—across local and cloud.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2025-11-14T12:00:00-08:00">Published November 14, 2025</time><span>·</span><span>5 min read</span></div></header>
+      <div class="article-prose"><p class="article-lede">I once pushed a change after a healthy local run of <code>aceu-trust-demo</code>. The cloud build resolved a newer FastAPI version—0.142.2 instead of 0.141.1 locally—and pulled an additional package, <code>opentelemetry-api</code>. The Dockerfile was the same; the dependency ranges were not locked.</p>
         <p>That kind of drift is easy to miss. A repeatable build takes more than a Dockerfile: it needs a locked dependency graph, a deliberate base-image update policy, and a way to inspect the artifact that actually shipped.</p>
         <h2>Why “same Dockerfile” can produce a different image</h2><p>Version ranges allow resolvers to choose newer compatible releases. A mutable base-image tag can also point to a newer image later. Build caches may keep an older layer locally while CI fetches fresh inputs. The source recipe is unchanged, but the resolved inputs differ.</p>
         <h2>Lock the dependency graph</h2><p>Use exact direct-dependency pins and commit a lock file that records the resolved transitive versions. Where the package manager supports it, include hashes and install in locked mode. A short input file might look like this:</p>
@@ -46,8 +61,7 @@ docker push "$IMAGE"</code></pre>
         <h2>Trade-offs and failure modes</h2><ul><li><strong>Exact pins vs. security updates:</strong> pins improve repeatability, while scheduled updates and scans keep them current.</li><li><strong>Tags vs. digests:</strong> tags are easier to refresh; digests make the selected base explicit and immutable.</li><li><strong>Locks vs. setup time:</strong> generating a lock adds a step, but saves time when builds need to be compared.</li><li><strong>Registry authentication:</strong> expired tokens or changed scopes should produce an explicit CI failure, not a misleading successful pipeline.</li></ul>
         <h2>Try it in your pipeline</h2><ol><li>Replace floating version ranges with exact direct pins and commit a full lock file.</li><li>Pick a base-image policy: tag plus scheduled refresh, or digest plus an explicit update cadence.</li><li>Build with <code>--pull</code> when you want CI to check for updated base images.</li><li>Record the image tag or digest produced by CI and inspect its packages when behavior changes.</li></ol>
         <h2>Closing thought</h2><p>“Same Dockerfile” rarely guarantees “same runtime.” Lock files, explicit base-image policy, and artifact inspection turn hidden drift into a change the team can review.</p>
-        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.docker.com/reference/cli/docker/buildx/build/" target="_blank" rel="noreferrer">Docker Buildx build options, including <code>--pull</code> and SBOM attestations</a></li><li><a href="https://docs.docker.com/reference/cli/docker/image/pull/#pull-an-image-by-digest-immutable-identifier" target="_blank" rel="noreferrer">Pulling an image by immutable digest</a></li><li><a href="https://pip-tools.readthedocs.io/en/latest/" target="_blank" rel="noreferrer">pip-tools documentation for Python dependency locking</a></li></ul></aside>
-      </div>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.docker.com/reference/cli/docker/buildx/build/" target="_blank" rel="noreferrer">Docker Buildx build options, including <code>--pull</code> and SBOM attestations</a></li><li><a href="https://docs.docker.com/reference/cli/docker/image/pull/#pull-an-image-by-digest-immutable-identifier" target="_blank" rel="noreferrer">Pulling an image by immutable digest</a></li><li><a href="https://pip-tools.readthedocs.io/en/latest/" target="_blank" rel="noreferrer">pip-tools documentation for Python dependency locking</a></li></ul></aside></div>
       <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
     </article></main>
     <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>

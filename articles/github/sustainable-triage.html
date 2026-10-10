@@ -1,16 +1,35 @@
 <!doctype html>
-<html lang="en"><head>
-<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<meta name="description" content="Reduce burnout with sustainable triage: clear labels, response-time placeholders, friendly declines, and contributor pathways you can maintain." /><meta property="article:published_time" content="2026-04-02" />
-<title>Triage Without Burning Out: Sustainable Patterns for Issues and PRs — Shubham Anandani</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="../../styles.css" /><link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
-</head><body class="blog-page article-page">
-<header class="site-header"><div class="brand-block"><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../index.html#about">About</a><a href="../../index.html#outcomes">Impact</a><a href="../../index.html#research">Research</a><a href="../../blog.html">Writing</a></nav><a class="menu-link" href="mailto:shubhamanandani@gmail.com">Connect<span>↗</span></a></header>
-<main><article class="article-document"><a class="article-back" href="../../blog.html#github">← GitHub articles</a>
-<header class="article-document-header"><p class="kicker">GitHub / Maintainer Health</p><h1>Triage Without Burning Out: Sustainable Patterns for Issues and PRs</h1><p class="article-deck">Labeling, response-time expectations, and healthy “no” decisions for a maintainer with finite time.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-04-02">Published April 2, 2026</time><span>·</span><span>6 min read</span></div></header>
-<div class="article-prose"><p class="article-lede">Maintaining an open-source project alongside a full-time job means learning to triage sustainably. You can’t answer everything immediately or accept every idea. You can design labeling and response patterns that make your limited time effective — and that keep contributors engaged without exhausting you.</p>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Reduce burnout with sustainable triage: clear labels, response-time placeholders, friendly declines, and contributor pathways you can maintain." />
+    <title>Triage Without Burning Out: Sustainable Patterns for Issues and PRs — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/github/sustainable-triage.html" />
+    <meta property="article:published_time" content="2026-04-02T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Triage Without Burning Out: Sustainable Patterns for Issues and PRs" />
+    <meta property="og:description" content="Reduce burnout with sustainable triage: clear labels, response-time placeholders, friendly declines, and contributor pathways you can maintain." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/github/sustainable-triage.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="github" />
+    <meta property="article:tag" content="opensource" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "Article", "headline": "Triage Without Burning Out: Sustainable Patterns for Issues and PRs", "datePublished": "2026-04-02T12:00:00-07:00", "author": {"@type": "Person", "name": "Shubham Anandani", "url": "https://www.imshubh.com/"}, "image": "https://www.imshubh.com/assets/shubham-anandani.jpg"}</script>
+      <link rel="alternate" type="application/atom+xml" title="ATOM" href="https://www.imshubh.com/atom.xml" />
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../index.html#about">About</a><a href="../../index.html#outcomes">Impact</a><a href="../../index.html#research">Research</a><a href="../../blog.html">Writing</a></nav><a class="menu-link" href="mailto:shubhamanandani@gmail.com">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#github">← Github articles</a>
+      <header class="article-document-header"><p class="kicker">GitHub / Maintainer Health</p><h1>Triage Without Burning Out: Sustainable Patterns for Issues and PRs</h1><p class="article-deck">Labeling, response-time expectations, and healthy “no” decisions for a maintainer with finite time.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-04-02T12:00:00-07:00">Published April 2, 2026</time><span>·</span><span>5 min read</span></div></header>
+      <div class="article-prose"><p class="article-lede">Maintaining an open-source project alongside a full-time job means learning to triage sustainably. You can’t answer everything immediately or accept every idea. You can design labeling and response patterns that make your limited time effective — and that keep contributors engaged without exhausting you.</p>
         <h3>The failure mode</h3><p>You wake up to ten new issues and three PRs. Two are duplicates, three ask for features outside the project scope, and several lack context. You try to answer quickly and get pulled into long threads that don’t move the project forward. A week later, you’re behind, less responsive, and a contributor feels ignored.</p>
         <h2>What I learned</h2>
         <h3>Label early, label consistently</h3><p>Set up labels that reflect workflow, not internal discussions: “good first issue,” “help wanted,” “needs reproduction,” “needs test,” “scope discussion,” “declined” (with a short reason). Use them as soon as you read an issue. Labels create a shared vocabulary and make your backlog scannable.</p>
@@ -38,5 +57,8 @@
         <h3>Publish response-time expectations</h3><p>and measure response times over the next month.</p>
         <p>Adopt a friendly decline template and a short “how to get a fast review” section in CONTRIBUTING.md.</p>
         <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests" target="_blank" rel="noreferrer">GitHub Docs: Issue and pull request templates</a></li><li><a href="https://docs.github.com/en/communities/setting-up-your-project-for-healthy-contributions/creating-a-default-community-health-file" target="_blank" rel="noreferrer">GitHub Docs: Community health files</a></li></ul></aside></div>
-<footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer></article></main>
-<footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script></body></html>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>
