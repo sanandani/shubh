@@ -1,0 +1,1015 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0"><channel><title>Shubham Anandani — Writing</title><link>https://www.imshubh.com/blog.html</link><description>Engineering notes on identity, AI, systems, and open source by Shubham Anandani.</description><language>en-us</language><lastBuildDate>Tue, 25 Aug 2026 12:00:00 -0700</lastBuildDate><atom:link href="https://www.imshubh.com/rss.xml" rel="self" type="application/rss+xml" /><managingEditor>shubhamanandani@gmail.com (Shubham Anandani)</managingEditor><image><url>https://www.imshubh.com/assets/shubham-anandani.jpg</url><title>Shubham Anandani</title><link>https://www.imshubh.com/</link></image><item><title>Revocation Is the Hard Part</title><link>https://www.imshubh.com/articles/microsoft/credential-revocation.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/microsoft/credential-revocation.html</guid><pubDate>Tue, 25 Aug 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Revocation checks must avoid “phone home” privacy leaks. Learn lists vs status endpoints, holder stapling, caching, and short-lived credentials.</description><category>identity</category><category>credentials</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">Issuing verifiable credentials is straightforward: define a claim, sign it, return it to the holder. Revocation is harder: you need to detect when a credential should no longer be accepted, ideally without creating a surveillance channel that reveals who asked and when.</p>
+        <h3>The failure mode</h3><p>A verifier calls a central revocation endpoint for every check. The endpoint sees who asked (IP or key), when, for which credential ID, and what outcome occurred. Even if the credential is privacy-preserving, the revocation lookup becomes a “phone home” channel that leaks context. Users and regulators won’t love that.</p>
+        <h2>What I learned</h2>
+        <h3>Understand the revocation design space</h3>
+        <h3>Status list (offline)</h3><p>The issuer publishes a privacy-preserving list of credential status values (for example, a bitstring status list) that verifiers fetch periodically. Verification checks against the local list.</p>
+        <h3>Online status check</h3><p>The verifier queries a status endpoint per credential. Freshness improves; privacy worsens.</p>
+        <h3>Holder stapling</h3><p>The holder obtains a fresh status attestation and presents it along with the credential. The verifier checks the stapled proof without contacting the issuer per verification.</p>
+        <h3>Short-lived credentials:</h3><p>Expire credentials quickly so revocation windows are short. This reduces reliance on revocation checks.</p>
+        <h3>Privacy-preserving lists: batch and compress</h3><p>A status list can represent many credentials without revealing individual identities. Verifiers download the list on a schedule (e.g., every policy-defined freshness window), cache it locally, and check bits/entries offline. Lists can be partitioned or hashed to limit list size.</p>
+        <h3>Stapling shifts “phone home” to holder flow</h3><p>With stapling, the holder requests a status proof from the issuer (or a delegated service) at a cadence, then presents it to verifiers. This avoids per-verification lookups by verifiers but still requires the holder to contact the issuer on some schedule. The privacy difference is who calls whom and when.</p>
+        <h3>Short-lived credentials reduce time at risk</h3><p>If credentials expire quickly, revocation needs are less acute. This shifts load from revocation infrastructure to issuance (more frequent renewals). Combine with holder stapling to keep verification fast and private.</p>
+        <h3>Model cache freshness and failure modes</h3><p>Verifiers should track the freshness of status lists. If a list is too old (e.g., beyond your policy window), treat the result as “unverifiable” rather than “accepted,” and prompt re-fetch or stapling. Distinguish “cache stale” from “revoked.”</p>
+        <h3>Avoid per-ID URLs in logs</h3><p>If you must hit an online status endpoint, avoid logging per-ID lookups in a way that identifies a particular holder or verifier. Aggregate metrics instead. Keep any necessary identifiers hashed or pseudonymous.</p>
+        <h3>Distinguish revocation from expiry and audience</h3><p>Revocation says “this specific credential is no longer valid.” Expiry says “credentials of this type are only valid until T.” Audience says “this verifier is permitted to consume the claim.” Don’t overload revocation with other policy failures.</p>
+        <h3>Illustrative status-list freshness check</h3><pre><code>from dataclasses import dataclass
+from datetime import datetime, timezone
+
+@dataclass(frozen=True)
+class StatusSnapshot:
+    fetched_at: datetime
+    bits: bytes
+
+def is_fresh(snapshot: StatusSnapshot, max_age_seconds: int) -&gt; bool:
+    age = datetime.now(timezone.utc) - snapshot.fetched_at
+    return age.total_seconds() &lt;= max_age_seconds
+
+# Choose the freshness window from policy and operational requirements.
+# Stale status should have an explicit outcome, such as "unverifiable".</code></pre>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>Offline lists vs freshness: Lists preserve privacy but can be stale. Address with frequent, batched updates.</p>
+        <p>Stapling vs issuer load: Stapling shifts calls to holders; issuer still handles periodic status proofs. Load is manageable with caching and rate limits.</p>
+        <p>Short-lived credentials vs user friction: Frequent renewals add UX overhead. Balance with clear prompts and automated refresh flows.</p>
+        <h3>Failure modes</h3>
+        <p>“Phone home”: Per-verification lookups leak context. Solution: offline lists or stapling.</p>
+        <p>“Stale cache”: Verifiers use outdated lists. Solution: freshness checks and policy windows that treat stale as “unverifiable.”</p>
+        <p>“Revocation conflation”: Treating expiry or audience failure as revocation. Solution: separate policy checks.</p>
+        <h2>Try it yourself</h2>
+        <p>Implement an offline status list with a freshness window. Treat stale lists as “unverifiable.”</p>
+        <p>Add holder stapling to your demo: the holder fetches a status proof and presents it alongside the credential.</p>
+        <p>Track performance for offline list checks vs online status calls. Compare privacy and tail behavior.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://learn.microsoft.com/en-us/entra/verified-id/how-to-issuer-revoke" target="_blank" rel="noreferrer">Revoke a verifiable credential as an issuer</a></li><li><a href="https://www.w3.org/TR/vc-bitstring-status-list/" target="_blank" rel="noreferrer">W3C Bitstring Status List v1.0</a></li><li><a href="https://learn.microsoft.com/en-us/entra/verified-id/plan-verification-solution" target="_blank" rel="noreferrer">Plan a Verified ID verification solution</a></li></ul></aside>]]></content:encoded></item><item><title>Designing for Partial Data: Distinguishing “We Don’t Know” From “False”</title><link>https://www.imshubh.com/articles/java/java-partial-data.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/java/java-partial-data.html</guid><pubDate>Sat, 22 Aug 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Model “unknown” separately from “false.” Learn sealed types, exhaustive pattern matching, and propagation rules that preserve meaning end to end.</description><category>java</category><category>backend</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">Partial data is normal. Missing signals and unverifiable sources happen. If you collapse “unknown” into “false” or “zero,” you erode trust. As an engineering manager, I’ve learned to design services that treat “we don’t know” as a first-class outcome. In Java, sealed types and exhaustive pattern matching make this straightforward and enforceable.</p>
+        <h3>The failure mode</h3><p>Your aggregator treats null as “0.0,” sums four dimensions, and displays a neat number. A caller misreads that as “complete and low.” In reality, two dimensions were missing, and one was unverifiable. The number masked uncertainty.</p>
+        <h2>What I learned</h2>
+        <h3>Keep partial states in the domain layer, not just at the edges</h3><p>Don’t convert unknowns to defaults at the boundary. Let domain logic operate on sealed types. If you must produce a single number, force policy conversion in a dedicated function so that the decision is auditable.</p>
+        <h3>Policy example</h3><pre><code>public final class AggregationPolicy {
+public static double conservativeAverage(List&lt;ScoreOrUnknown&gt; dims) {
+int count = 0;
+double sum = 0.0;
+for (ScoreOrUnknown d : dims) {
+switch (d) {
+case Score sc         -&gt; { sum += sc.value(); count++; }
+case Missing miss     -&gt; { /* exclude; track missing elsewhere */ }
+case Unverifiable unv -&gt; { /* exclude; track unverifiable */ }
+}
+}
+if (count == 0) return Double.NaN; // no numeric evidence
+return sum / count;
+}
+public static boolean okToDisplay(List&lt;ScoreOrUnknown&gt; dims) {
+long unknowns = dims.stream().filter(x -&gt; !(x instanceof Score)).count();
+return unknowns == 0; // or choose a threshold
+}
+}</code></pre>
+        <h3>Propagate uncertainty deliberately</h3><p>Unknowns should travel with the data: into logs, decisions, and UI. For example, if two dimensions are unknown, surface that count alongside any numeric aggregation. The goal is to prevent silent conversions that distort confidence.</p>
+        <h3>Make unknown-handling policies explicit and testable</h3><p>Write tests that assert what happens when all dimensions are unknown, when some are missing, and when a single unverifiable dimension appears. Pattern matching keeps these tests aligned with the domain states. Don’t assume a “best effort” numeric default; decide and encode.</p>
+        <h3>Resist “default values” in DTOs</h3><p>If you serialize to JSON, include a type field in each dimension and omit value when the state isn’t Score. A consumer reading {"type":"Missing","reason":"timeout"} can act accordingly. Defaulting to 0.0 or “unknown=false” invites misuse.</p>
+        <p>Teach callers to branch by type, not numeric checks Documentation should show switch examples, not “if value is 0 then unknown.” This reduces coupling and preserves room for future states (e.g., “Contested,” “Deprecated”).</p>
+        <p>Audit conversion points with a linelist List every place where ScoreOrUnknown becomes a single number or a boolean. Audit these conversions periodically. If you discover accidental flattening, refactor to preserve states or add proper policy functions.</p>
+        <p>Accept that aggregation may return “no number” Returning NaN or omitting a field is reasonable when inputs are fully unknown. Treat this as normal, not exceptional. UI can show “insufficient evidence” with counts; APIs can document this outcome clearly.</p>
+        <p>JSON serialization with a type field</p>
+        <h3>// Using a simple custom serializer sketch</h3>
+        <pre><code>public record Score(double value) implements ScoreOrUnknown {}
+public record Missing(String reason) implements ScoreOrUnknown {}
+public record Unverifiable(String note) implements ScoreOrUnknown {}
+public Map&lt;String, Object&gt; toJson(ScoreOrUnknown s) {
+return switch (s) {
+case Score sc         -&gt; Map.of("type", "Score", "value", sc.value());
+case Missing miss     -&gt; Map.of("type", "Missing", "reason", miss.reason());
+case Unverifiable unv -&gt; Map.of("type", "Unverifiable", "note", unv.note());</code></pre>
+        <p>};</p>
+        <p>}</p>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>Transparency vs brevity: Returning types and reasons increases payload size but improves clarity. Favor clarity when ambiguity matters.</p>
+        <p>Strictness vs convenience: Throwing on invalid scores and disallowing defaults catches bugs early but may frustrate callers used to flexible shapes.</p>
+        <p>NaN vs explicit omission: NaN signals “no numeric value” but can be mishandled by consumers. Omitting a field or providing a separate state field avoids confusion.</p>
+        <h3>Failure modes</h3>
+        <h3>“Silent flattening”</h3><p>A downstream transforms unknowns to zero—likely out of habit. Catch this in contract tests.</p>
+        <h3>“Enum drift”</h3><p>If reason codes evolve, consumers break. Document codes and provide a safe default handling path.</p>
+        <p>“Partial measures hiding in averages”: An average of one numeric with three unknowns looks “complete” unless you also surface unknown counts.</p>
+        <h2>Try it yourself</h2>
+        <p>Refactor one DTO to embed a sealed state rather than a nullable numeric field. Add a type field in JSON. Update consumers to switch on type.</p>
+        <p>Write aggregation policies that return NaN or omit fields when inputs are fully unknown. Test behavior explicitly.</p>
+        <p>Add metrics that count unknowns and unverifiable states separately from numeric distributions.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://openjdk.org/jeps/395" target="_blank" rel="noreferrer">Records (JEP 395)</a></li><li><a href="https://openjdk.org/jeps/409" target="_blank" rel="noreferrer">Sealed Classes (JEP 409)</a></li><li><a href="https://openjdk.org/jeps/441" target="_blank" rel="noreferrer">Pattern Matching for switch (JEP 441)</a></li></ul></aside>]]></content:encoded></item><item><title>Packaging Inference for Production: A Checklist for Shipping an Optimized-Model Service</title><link>https://www.imshubh.com/articles/intel/production-inference-packaging.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/intel/production-inference-packaging.html</guid><pubDate>Thu, 23 Jul 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>A production checklist for OpenVINO inference services: reproducible conversion, versioned artifacts, visible precision, and tested fallbacks.</description><category>intel</category><category>edgeai</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">A model can be accurate and still be hard to operate if conversion is manual, artifacts are opaque, precision changes silently, or fallbacks have never been exercised. Production readiness is the process around the model as much as the model itself.</p>
+        <p><code>aceu-edge-infer</code> is a modest inference demo, but I treat its packaging path as if another engineer will need to rebuild, inspect, and recover it. Its outputs remain illustrative, not evaluative of real people. This checklist is about making that kind of service repeatable.</p>
+        <h2>Make model conversion reproducible</h2><p>Keep conversion in a script or build step rather than a shell history. Record the source model hash, tool and runtime versions, input shapes, conversion options, and warnings. Use separate, reviewable configuration for FP32 and INT8 artifacts, and retain the conversion logs with the release build.</p>
+        <pre><code>from pathlib import Path
+import openvino as ov
+
+source = Path("models/source.onnx")
+output = Path("build/models/model_fp32.xml")
+output.parent.mkdir(parents=True, exist_ok=True)
+
+model = ov.convert_model(source)
+ov.save_model(model, output)</code></pre>
+        <p>This example shows the conversion step only. Production automation should also validate model inputs, run parity checks, record the tool version, and fail when expected artifacts are missing.</p>
+        <h2>Version and identify the artifacts</h2><p>Give model artifacts versions tied to the code and conversion configuration that produced them. Store IR XML and weights together, record hashes, and keep them immutable after release. If calibration or quantization changes, publish a new model version rather than overwriting a file called <code>latest</code>.</p>
+        <p>A release manifest can record the information operators need without embedding the model itself:</p>
+        <pre><code>{
+  "model_version": "&lt;release-version&gt;",
+  "source_format": "ONNX",
+  "runtime": "OpenVINO",
+  "precision_artifacts": ["FP32", "INT8"],
+  "device_policy": "CPU",
+  "source_sha256": "&lt;source-model-hash&gt;",
+  "conversion_config_sha256": "&lt;config-hash&gt;"
+}</code></pre>
+        <p>Replace the placeholders during the build. These are identifiers to calculate and record—not measured values to guess.</p>
+        <h2>Disclose the execution path</h2><p>Include the precision and device used in logs or response metadata. Where it makes sense for the product, provide a controlled option to route sensitive work through FP32. That small bit of transparency can make rollout analysis and incident response much faster. Keep the API contract stable and avoid exposing internal details that callers do not need.</p>
+        <h2>Test fallbacks before a release</h2><p>Simulate an unavailable optimized runtime and verify the intended behavior. A valid fallback should either return correct outputs on a supported slower path or fail clearly with a non-ready/unavailable state. It should not manufacture placeholder results or quietly claim the preferred precision.</p><p>If custom operators exist, test the fallback with representative inputs and confirm that the selected path is visible in logs. Document what operators or hardware are required for each execution mode.</p>
+        <h2>Package the runtime deliberately</h2><p>Use a multi-stage image where it keeps build tools out of the runtime. Run as a non-root user, keep the base image and dependencies maintained, copy only the application and model artifacts required at runtime, and provide a bounded health check.</p>
+        <pre><code># Illustrative Python service image; adapt paths and dependencies to your app.
+FROM python:3.12-slim AS builder
+WORKDIR /build
+RUN python -m venv /venv
+ENV PATH="/venv/bin:$PATH"
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+FROM python:3.12-slim AS runtime
+RUN useradd --uid 10001 --create-home appuser
+WORKDIR /app
+COPY --from=builder /venv /venv
+COPY --chown=10001:10001 app/ ./app/
+COPY --chown=10001:10001 models/ ./models/
+ENV PATH="/venv/bin:$PATH" \
+    PYTHONDONTWRITEBYTECODE=1
+USER 10001
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD python -c 'import urllib.request; urllib.request.urlopen("http://localhost:8000/health", timeout=2)' || exit 1
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]</code></pre>
+        <p>Confirm that the chosen base image contains everything the service actually needs. The Docker health check should stay lightweight; configure a separate platform readiness check if model loading or a sample inference must gate incoming traffic.</p>
+        <h2>Build, validate, and scan in CI</h2><p>Use the same conversion scripts in local development and CI. Check that expected files exist, compare model outputs against a golden set, build the service image, and scan it before release. Make missing artifacts, failed parity checks, and scan failures visible release blockers. Keep exceptions owned and time-bounded.</p>
+        <h2>Keep operational notes close to the code</h2><p>Give the README short, findable sections for conversion, artifact versions, precision modes, fallback behavior, and hardware assumptions. Add an incident note describing what to inspect when latency or output parity changes, and point to the known-good artifact for rollback.</p>
+        <h2>Trade-offs and failure modes</h2><ul><li><strong>Process rigor vs. prototype speed:</strong> scripts and manifests take effort once and save time on the next rebuild.</li><li><strong>More API metadata vs. smaller contract:</strong> publish only what helps callers; keep additional operational detail in logs.</li><li><strong>Strict readiness vs. faster first traffic:</strong> waiting for model load and checks reduces false-green deploys.</li></ul><p>“Mystery IR” files, silent FP32 fallbacks, and changed base images without review all make a service harder to reproduce. Version the inputs and outputs, disclose the selected path, and exercise rollback before you need it.</p>
+        <h2>Try it before your next release</h2><ol><li>Script FP32 and INT8 conversion and retain logs with immutable model artifacts.</li><li>Record source and configuration hashes in a release manifest.</li><li>Add actual precision/device metadata and a tested force-FP32 option if the product needs it.</li><li>Test missing-runtime and unsupported-operator behavior before launch.</li><li>Build, validate, and scan the same container image in CI that you intend to deploy.</li></ol>
+        <h2>Closing thought</h2><p>Packaging inference for production is about repeatability, transparency, and safe recovery. When another engineer can recreate the model, identify the execution path, and trigger a tested fallback, the service is ready for more than a successful demo.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.openvino.ai/2026/openvino-workflow/model-preparation/convert-model-to-ir.html" target="_blank" rel="noreferrer">OpenVINO model conversion and saving IR</a></li><li><a href="https://docs.docker.com/build/building/best-practices/" target="_blank" rel="noreferrer">Docker build best practices</a></li><li><a href="https://docs.docker.com/build/building/multi-stage/" target="_blank" rel="noreferrer">Docker multi-stage builds</a></li></ul></aside>]]></content:encoded></item><item><title>Designing for Other People’s Code: A Plugin API That Welcomes Contributions</title><link>https://www.imshubh.com/articles/github/welcoming-plugin-api.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/github/welcoming-plugin-api.html</guid><pubDate>Mon, 20 Jul 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Design plugin APIs for contributors: small contracts, example-led docs, and sandboxing that keeps core stable and safe.</description><category>github</category><category>opensource</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">The best way to attract contributions is to make the path small, clear, and safe. Big, powerful extension APIs are intimidating and fragile. A plugin interface is easier to adopt when it has a small typed contract, a complete example, and clear isolation boundaries for contributed code.</p><h3>The failure mode</h3><p>You want contributions, so you design a rich, flexible plugin API. The first contributor struggles to understand how the parts fit together. Another contributor introduces side effects that break core behavior. You spend time triaging issues rather than merging useful additions. The fix is to narrow the contract and improve examples.</p>
+        <h2>What I learned</h2>
+        <h3>Keep the interface tiny</h3><p>Use a single method with a small, typed result. Avoid optional hooks and deep callback trees. If you need flexibility, let plugins implement it internally. Keep core expectations documented and enforced with tests.</p>
+        <h3>Illustrative plugin contract</h3><pre><code>from dataclasses import dataclass
+from typing import Literal, Protocol
+
+@dataclass(frozen=True)
+class EvidenceResult:
+    status: Literal["present", "missing", "unverifiable"]
+    note: str = ""
+
+class EvidenceSource(Protocol):
+    name: str
+    def evaluate(self, profile: dict[str, object]) -&gt; EvidenceResult: ...</code></pre>
+        <h3>Documentation-by-example beats long narratives</h3><p>Write a short “Adding a plugin” doc that starts with a complete code example and a test. Follow with two variations that show common patterns (e.g., reading a field, combining small signals). Keep the words sparse and the code complete.</p>
+        <h3>Sandboxing contributed code — practical guardrails</h3><p>Run plugins within constraints:</p>
+        <p>Timeout per plugin evaluation.</p>
+        <p>Limit memory-intensive operations or external calls in the demo environment.</p>
+        <p>Validate types and restrict dangerous imports in plugin modules if possible.</p>
+        <p>A thread timeout is not a security sandbox: a host process cannot safely terminate arbitrary plugin code. For untrusted extensions, use a separate process or container with resource limits and restricted credentials, or load only trusted plugins.</p>
+        <h3>Versioning and compatibility checks (keep them light)</h3><p>Require plugins to declare supported interface versions and run contract tests. Keep the declaration simple, and make the CI failure message actionable (e.g., “Plugin supports 1.1.0; core is 1.2.0 — update SUPPORTED_VERSIONS”).</p>
+        <h3>Golden paths and anti-patterns</h3><p>Show five “golden path” examples contributors should follow:</p>
+        <p>Pure function: read inputs, return EvidenceResult, no side effects.</p>
+        <p>Lightweight computation: avoid heavy loops or large allocations.</p>
+        <p>Deterministic outputs: no random behavior or time-dependent outputs.</p>
+        <p>Typed result: always return one of the three states with a note.</p>
+        <p>No external calls: for demo simplicity, avoid network calls.</p>
+        <p>If you allow external calls, define strict limits and document them clearly.</p>
+        <h3>Error messages designed for contributors</h3><p>When a plugin fails a contract test, the message should name the plugin, the failing expectation, and the fix. Prefer helpful failures over terse stack traces. Provide a “common issues” page with targeted guidance.</p>
+        <h3>“Hello world” PR built into the docs</h3><p>Include a numbered guide that results in a merged PR:</p>
+        <p>Create plugin file.</p>
+        <p>Add minimal test.</p>
+        <p>Run pytest -q.</p>
+        <p>Open PR with the template.</p>
+        <p>Expected CI jobs and how to interpret them.</p>
+        <p>Merge expectations.</p>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>Small interface vs expressiveness: Narrow contracts limit advanced features; they also reduce fragility and cognitive load. For small projects, this trade-off is worth it.</p>
+        <p>Sandboxing vs performance: Timeouts and thread isolation add overhead. Keep limits modest and configurable.</p>
+        <p>Documentation-by-example vs thorough reference: Examples speed onboarding; deep reference can come later if demand arises.</p>
+        <h3>Failure modes</h3>
+        <p>“Stealth side effects”: Plugins write to global state or files unexpectedly. Solution: sandbox and contract tests; make side-effect-free behavior a rule.</p>
+        <p>“Doc drift”: Examples fall behind reality. Solution: run example snippets in CI and fail when they don’t compile.</p>
+        <p>“Silent timeouts”: Sandboxing hides errors without surfacing enough context. Solution: attach structured error notes to EvidenceResult.</p>
+        <h2>Try it yourself</h2>
+        <p>Shrink your plugin interface to a single method that returns a small typed object.</p>
+        <p>Add a sandbox wrapper with timeouts and typed error handling. Run plugins through it in CI contract tests.</p>
+        <p>Write a “hello world plugin” guide with a copy-paste example and a minimal test, then merge a sample PR to validate the path.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.github.com/en/actions/tutorials/build-and-test-code" target="_blank" rel="noreferrer">GitHub Actions: Building and testing</a></li><li><a href="https://semver.org/" target="_blank" rel="noreferrer">Semantic Versioning 2.0.0</a></li><li><a href="https://keepachangelog.com/en/1.1.0/" target="_blank" rel="noreferrer">Keep a Changelog</a></li></ul></aside>]]></content:encoded></item><item><title>Reproducible Java Builds: Pinning, Locking, and Clean-Room Verification</title><link>https://www.imshubh.com/articles/java/reproducible-java-builds.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/java/reproducible-java-builds.html</guid><pubDate>Sun, 12 Jul 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Catch Java build drift before production: dependency pins, lock files, digest references, and clean-room rebuild verification in CI.</description><category>java</category><category>backend</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">I’ve seen Java builds succeed locally and differ in CI—transitive dependencies float, plugin versions advance, or caches hide changes. Reproducibility takes intention: pin versions, use lock files, and verify clean-room rebuilds. In a Java build, dependency locks and clean CI environments help reveal resolution drift before artifacts are released.</p><h3>The failure mode</h3><p>You set versions in pom.xml but leave transitive ranges unconstrained. Locally, a cached artifact hides a minor release; in CI, it resolves a new version. Behavior changes. The fix is not “rerun until green.” It’s making builds deterministic and verifying them under clean conditions.</p>
+        <h2>What I learned</h2>
+        <h3>Pin dependencies and plugins explicitly</h3><p>Use dependencyManagement to pin versions of critical dependencies and plugins. Avoid wildcard ranges. If you depend on a BOM (bill of materials), understand what it pins and add explicit versions for anything critical that the BOM leaves flexible.</p>
+        <h3>Example</h3><pre><code>&lt;dependencyManagement&gt;
+&lt;dependencies&gt;
+&lt;dependency&gt;
+&lt;groupId&gt;org.junit.jupiter&lt;/groupId&gt;
+&lt;artifactId&gt;junit-jupiter&lt;/artifactId&gt;
+&lt;version&gt;5.10.2&lt;/version&gt;
+&lt;/dependency&gt;
+&lt;!-- pin more --&gt;
+&lt;/dependencies&gt;
+&lt;/dependencyManagement&gt;</code></pre>
+        <h3>Use a lock mechanism to freeze transitive versions</h3><p>A lock file captures resolved versions so CI doesn’t “discover” new transitive artifacts. Tools exist for Maven and Gradle that generate and enforce locks. The specifics depend on your chosen plugin; the principle is the same: generate once, commit, and enforce.</p>
+        <p>Generate lock file locally (or in CI).</p>
+        <p>Commit it.</p>
+        <p>Configure the build to fail if resolutions differ from the lock.</p>
+        <h3>Clean-room rebuild in CI</h3><p>Build in an isolated environment with a cleared local repository. Verify that resolving dependencies succeeds strictly against your lock. Optionally run the build twice—once with the lock (expected success), once with lock enforcement disabled to detect version drift. The second build should fail if drift occurred.</p>
+        <h3>CI steps (illustrative)</h3><pre><code>- name: Clean local repo
+run: rm -rf ~/.m2/repository
+- name: Verify dependency locks
+run: mvn -q -B clean verify -P enforce-lock
+- name: “Clean room” rebuild
+run: docker run --rm -v "$PWD:/w" -w /w eclipse-temurin:21-jdk bash -lc "mvn -q -B clean verify -P enforce-lock"</code></pre>
+        <p>Reproducible artifacts (timestamps and ordering) Ensure JARs are reproducible: strip timestamps, stabilize entry ordering, and avoid embedding environment-specific paths. Many build tools support “reproducible build” flags. Enable them and verify artifact hashes are stable across clean rebuilds.</p>
+        <p>Digest references for external assets If your build fetches external tools or base images (for integration tests, for example), reference them by digest. Tags are mutable; digests fix identity. The trade-off is manual refresh when security updates appear—worth it for determinism.</p>
+        <h3>Automate updates safely</h3><p>Use a dependency-update bot that proposes version bumps. Gate those PRs with tests and scanning. Accepting updates becomes explicit, and drift is no longer silent.</p>
+        <h3>Document the “how to fix drift” playbook</h3><p>When lock enforcement fails, the fix should be documented: regenerate lock with your plugin, review changes, run tests, and commit. Avoid ad-hoc local resolutions—keep the workflow consistent.</p>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>Pins vs agility: Strict pins and locks slow updates but eliminate surprises. Use bots to keep pace safely.</p>
+        <p>Clean rooms vs speed: Clean rebuilds take longer. For CI, prioritize correctness over a few minutes of build time.</p>
+        <p>Digests vs tags: Digests provide determinism; tags ease maintenance. For production-critical assets, default to digests.</p>
+        <h3>Failure modes</h3>
+        <p>“Partial pins”: You pin direct deps but miss transitive ones. Locks solve this; without locks, drift leaks in.</p>
+        <p>“Plugin drift”: Build plugins advance silently. Pin plugin versions in pluginManagement.</p>
+        <p>“Non-reproducible JARs”: Differences in timestamps or ordering break hash equality. Turn on reproducible flags and verify.</p>
+        <h2>Try it yourself</h2>
+        <p>Add dependency and plugin pins in dependencyManagement/pluginManagement.</p>
+        <p>Integrate a lock mechanism; commit the lock file; add an enforcement profile.</p>
+        <p>Run a clean-room rebuild in CI and compare the artifacts. Confirm artifact hashes match between runs.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://maven.apache.org/guides/introduction/introduction-to-dependency-mechanism.html" target="_blank" rel="noreferrer">Maven dependency management</a></li><li><a href="https://docs.gradle.org/current/userguide/dependency_locking.html" target="_blank" rel="noreferrer">Gradle dependency locking</a></li><li><a href="https://maven.apache.org/guides/mini/guide-reproducible-builds.html" target="_blank" rel="noreferrer">Reproducible Builds Maven plugin</a></li></ul></aside>]]></content:encoded></item><item><title>Keys Don’t Belong in the Image: Secret Management for Credential Signing</title><link>https://www.imshubh.com/articles/microsoft/signing-key-management.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/microsoft/signing-key-management.html</guid><pubDate>Sun, 12 Jul 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Keep signing keys out of images. Learn managed secret stores, rotation, mounts, and CI/scan steps that catch accidental key bake-ins before deploy.</description><category>identity</category><category>credentials</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">Signing keys are crown jewels in identity services. If they leak, attackers can mint forged credentials that look real. The easiest way to leak a key is to bake it into a container image or configuration file. Load signing keys at runtime from a managed secret store; keep private key material out of source files, build arguments, and image layers.</p><h3>The failure mode</h3><p>A contributor tests locally with a .env file containing a signing key. A sloppy Dockerfile copies everything under the project directory, including .env. CI builds the image; the key ends up in a layer. The image is pushed to a registry. Even if you rotate later, the leak is permanent in history.</p>
+        <h2>What I learned</h2>
+        <h3>Secrets never live in source or image layers</h3><p>Keep signing keys out of your repository and artifact layers. Use a managed secret store pattern to provide keys at runtime via secure mounts or platform-managed environment variables that never touch the image.</p>
+        <h3>.dockerignore is a security control</h3><p>Treat .dockerignore as part of your security posture. Explicitly ignore .env, credential files, test fixtures containing secrets, and local caches. Keep the build context as small as possible.</p>
+        <h3>Runtime retrieval, not build-time embedding</h3><p>Load keys at runtime from the secret store client library or a platform-provided mount. Fail readiness until the key loads. If the secret is missing, return clear errors and refuse to sign. Do not “fall back” to dummy keys in production—reserve test keys for explicit non-prod builds.</p>
+        <h3>Rotation: short lifetimes and multiple active keys</h3><p>Signing keys should rotate regularly. The verifier should accept signatures from a small set of current keys, and the issuer should roll keys with overlap: publish new key, start signing with it, keep the old key valid for verification until the overlap window expires.</p>
+        <h3>Audit and scanning: prevent accidental bake-ins</h3><p>Add CI checks that scan images for secret patterns. Simple rules catch common mistakes (e.g., files named .env, PEM key headers). Block the build if found. Complement this with code scanning that flags dangerous COPY patterns.</p>
+        <h3>Separate test and prod key handling</h3><p>For demos, use explicitly marked test keys with sandboxed scopes. Never reuse test keys in environments accessible outside controlled demos. Label logs and status endpoints so it’s obvious which environment your verifier belongs to.</p>
+        <h3>Minimize key surface: hardware-backed or managed services</h3><p>Where possible, use hardware-backed key stores or provider-managed keys with restricted export. Keep application access tightly scoped to “sign” and “read public key.” The app should never be able to exfiltrate private key material.</p>
+        <h3>Illustrative runtime secret loading</h3><pre><code>def load_signing_key(secret_store, key_id: str) -&gt; bytes:
+    key = secret_store.read(key_id)
+    if not key:
+        raise RuntimeError("signing key unavailable")
+    return key
+
+# Load keys from a managed store at runtime. Never copy key material
+# into source, build arguments, container layers, or sample configuration.
+# Keep readiness false until the signing dependency is ready.</code></pre>
+        <h3>Example .dockerignore</h3><pre><code>.env
+*.pem
+__pycache__/
+*.pyc
+.git/
+node_modules/
+tests/fixtures/secrets/</code></pre>
+        <h3>Example Dockerfile pattern</h3><pre><code>FROM python:3.12-slim AS runtime
+WORKDIR /app
+COPY pyproject.toml poetry.lock ./
+RUN pip install --no-cache-dir poetry &amp;&amp; poetry install --no-root
+COPY --chown=10001:10001 app ./app
+USER 10001
+EXPOSE 8000</code></pre>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>Runtime dependency vs build independence: Secret store clients add runtime requirements. The gain is eliminating baked-in risk.</p>
+        <p>Rotation complexity vs safety: Overlapping keys complicate issuers and verifiers. The gain is smooth migration.</p>
+        <p>Strict readiness vs availability: Refusing to start without keys prevents undefined behavior. Availability dips are better than silent mis-signing.</p>
+        <h3>Failure modes</h3>
+        <p>“COPY .”: Blindly copying the entire source tree into the image. Fix with .dockerignore and explicit COPY.</p>
+        <p>“Fallback key”: Using a dummy key in production when secret load fails. Fix with hard failures and improved observability.</p>
+        <p>“Exportable private keys”: Allowing the app to export private keys. Fix with hardware-backed or provider-managed keys.</p>
+        <h2>Try it yourself</h2>
+        <p>Add .dockerignore entries for secrets and verify your build context (run docker build --no-cache and inspect logs).</p>
+        <p>Use strict readiness that fails until keys load from a managed store. Test rotation: accept signatures from two keys during an overlap window.</p>
+        <p>Add CI scans that fail on secret-like files in images. Track and eliminate false positives carefully.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://learn.microsoft.com/en-us/entra/verified-id/verifiable-credentials-configure-tenant" target="_blank" rel="noreferrer">Configure Verified ID with Azure Key Vault</a></li><li><a href="https://learn.microsoft.com/en-us/azure/container-apps/manage-secrets" target="_blank" rel="noreferrer">Azure Container Apps secrets</a></li><li><a href="https://docs.docker.com/build/concepts/context/" target="_blank" rel="noreferrer">Docker build context and .dockerignore</a></li></ul></aside>]]></content:encoded></item><item><title>Deploying Identity Services Without a Server to Babysit</title><link>https://www.imshubh.com/articles/microsoft/identity-scale-to-zero.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/microsoft/identity-scale-to-zero.html</guid><pubDate>Thu, 25 Jun 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Scale-to-zero is great until it isn’t. Learn cold start costs, idle savings, and when identity verifiers need warm instances for predictable latency.</description><category>identity</category><category>credentials</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">Running identity-adjacent services on a scale-to-zero container platform can be delightful: no server to babysit, external HTTPS ingress, and idle billing that doesn’t punish quiet periods. With scale-to-zero containers, quiet periods can reduce idle usage. The trade-off is that the first request after an idle period may be slower, so measure that cold path against the latency needs of the service.</p><p>Identity workloads, however, bring constraints: some callers expect predictable latency, and some flows require warm caches or keys ready in memory. The trick is deciding where scale-to-zero helps and where “always on” wins.</p>
+        <h3>The failure mode</h3><p>You deploy a credential verifier that scales to zero. The first request after an idle period may be much slower than warm requests. A downstream system times out, retries, and amplifies load just as the platform is warming. Worse, your verifier loads keys and trust lists at startup, so the warming step is non-trivial. You saved on idle billing but created unpredictable tails.</p>
+        <h2>What I learned</h2>
+        <h3>Cold start budget: measure and design around it</h3><p>Measure cold starts: container pull, runtime initialization, key load, trust list load, and framework boot. If your end-to-end verification flow includes out-of-process checks (e.g., privacy-preserving revocation lookups), include those too. Decide whether your SLA tolerates the tails; if not, keep a minimum warm replica.</p>
+        <h3>Warm critical paths with lazy loading and caches</h3><p>Avoid monolithic startup. Load credential-signing keys via a managed secret store, but defer non-critical data until requested. Cache trust lists in memory and refresh asynchronously. Keep proof verification code hot by executing a tiny “self-check” during startup.</p>
+        <h3>Set min replicas for latency-sensitive endpoints</h3><p>If your platform supports minimum replicas, keep one verifier instance warm. Scale additional instances on demand. This hybrid approach preserves predictable latency while retaining cost controls.</p>
+        <h3>Health, readiness, and the “thin ready” trap</h3><p>Identity verifiers shouldn’t mark “ready” until critical dependencies (keys, trust lists) are present and a test proof passes. A “thin ready” (bare process up) can route traffic to a half-initialized instance, increasing failure rates.</p>
+        <h3>Scale rules: event triggers vs queue length</h3><p>If you use event-driven scale, ensure triggers reflect verifier load. Queue length or request rate are better signals than raw CPU in a verifier, since cryptographic checks are sporadic and short. Use conservative ramp-up to avoid stampedes during traffic bursts.</p>
+        <h3>Idle billing: cost vs safety</h3><p>Scale-to-zero saves money during periods of inactivity. In identity systems, weigh this against the cost of false timeouts and retries. For certain flows (e.g., login or checkout proofs), unpredictable tails are more expensive than idle replicas.</p>
+        <h3>Pipeline hygiene: small image, quick pull</h3><p>Use multi-stage builds, slim bases, and .dockerignore to keep images small. The smaller the image, the faster cold start. Avoid compiling dependencies at startup; freeze them in the image. Keep secrets out of layers entirely (next article).</p>
+        <h3>Illustrative configuration</h3><pre><code># Generic container-app.yaml structure
+name: identity-service
+ingress:
+  external: true
+  targetPort: 8000
+template:
+  containers:
+    - image: your-registry/identity-service:tag
+      resources:
+        cpu: 0.5
+        memory: 0.5Gi
+  probes:
+    liveness:
+      httpGet: { path: /health, port: 8000 }
+    readiness:
+      httpGet: { path: /ready, port: 8000 }
+  scale:
+    minReplicas: 1 # Keep one warm replica
+    maxReplicas: 10
+    rules:
+      - name: http-requests
+        http: { metadata: { concurrentRequests: "50" } }</code></pre>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>Cost vs predictability: Scale-to-zero cuts idle spend but risks unpredictable tails. Hybrid min replicas often balance both.</p>
+        <p>Strict readiness vs fast green: Stricter readiness delays routing but avoids half-initialized failures. Bias toward strict in identity contexts.</p>
+        <p>Lazy load vs startup completeness: Deferring non-critical data speeds boot but adds first-request work. Choose wisely.</p>
+        <h3>Failure modes</h3>
+        <p>“Thin ready”: Traffic routed to instances without loaded keys or trust lists. Fix readiness to validate critical paths.</p>
+        <p>“Stampede”: Traffic surge triggers too many replicas and cache thrash. Fix scale rules and backpressure.</p>
+        <p>“Oversized image”: Cold starts dominated by image pulls. Fix Docker hygiene.</p>
+        <h2>Try it yourself</h2>
+        <p>Measure the cold start path and identify high-cost steps. Record cold-start and warm-request latency as separate measurements.</p>
+        <p>Add a minimum warm replica and track tails. Compare p95 across scale-to-zero vs hybrid.</p>
+        <p>Implement readiness that runs a tiny proof self-check and confirms secret load before returning ready.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://learn.microsoft.com/en-us/azure/container-apps/scale-app" target="_blank" rel="noreferrer">Scale applications in Azure Container Apps</a></li><li><a href="https://learn.microsoft.com/en-us/azure/container-apps/health-probes" target="_blank" rel="noreferrer">Health probes in Azure Container Apps</a></li></ul></aside>]]></content:encoded></item><item><title>Null Isn’t False: Building Fair Credential Verifiers</title><link>https://www.imshubh.com/articles/microsoft/fair-credential-verifiers.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/microsoft/fair-credential-verifiers.html</guid><pubDate>Sat, 30 May 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Conflating “missing” with “false” creates bias. Learn a verifier design that separates unverifiable from invalid and protects downstream decisions.</description><category>identity</category><category>credentials</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">One of the subtle but damaging patterns in identity systems is treating null as false. If a credential lacks a field, or a proof is absent, some code paths flip a boolean to false and move on. In verification, this collapses “we don’t know” into “disproven.” The difference matters: missing evidence isn’t proof of falsehood.</p>
+        <h3>The failure mode</h3><p>A verifier expects a “proofOfX” field. The credential arrives without it. The code sets proofOfX=false. A downstream gate denies access. Later, it turns out “proofOfX” wasn’t required for this flow, or the holder didn’t have a way to request it yet. The deny was based on an absence, not a disproven claim.</p>
+        <h2>What I learned</h2>
+        <h3>Model states, not booleans</h3><p>Replace booleans with intent-rich types. For a given proof, consider states like Present, Missing, Expired, Revoked, Unverifiable (failed binding), and Invalid (malformed or bad signature). This simple taxonomy avoids flattening all “not present” into “false.”</p>
+        <h3>Exhaustive decision logic at boundaries</h3><p>At the verifier boundary, use exhaustive switches over the state. Force downstream callers to handle each branch. If your language supports pattern matching, lean on it to eliminate default fall-through behaviors.</p>
+        <h3>Treat absence as an opportunity to request or fall back</h3><p>If a required field is missing, decide whether to:</p>
+        <p>Prompt the holder to supply it (if applicable).</p>
+        <p>Proceed with reduced assurance and log the state.</p>
+        <p>Deny the request explicitly as “unverifiable,” not “invalid.” The right action depends on your policy and context; the key is keeping “unverifiable” distinct.</p>
+        <h3>Make “invalid” a narrow, technical category</h3><p>Invalid should mean “structured wrong,” “bad signature,” or “contradiction.” It shouldn’t include “not provided,” “not bound,” or “not present yet.” Narrow “invalid” ensures you don’t over-penalize users for the system’s constraints.</p>
+        <h3>Propagate state through APIs and UX</h3><p>Expose the state in API responses: include status: "unverifiable" with a short note. Avoid returning false or 0 as a sentinel for “missing.” In UX, explain that more evidence is needed or that a different path is available.</p>
+        <h3>Beware implicit type coercions</h3><p>JSON, databases, and ORMs often coerce nulls to zero or false. Audit these boundaries. Ensure your serializers and persistence layers preserve state labels rather than defaulting values.</p>
+        <h3>Test for fairness: counterfactuals</h3><p>Put fairness into tests. For example: if “proofOfX” is missing, does the system deny or ask for more evidence? Are there alternative flows? Keep tests that assert the difference between “unverifiable” and “invalid.”</p>
+        <h3>Explicit verification outcomes</h3><pre><code>from dataclasses import dataclass
+from typing import Literal
+
+Status = Literal["accepted", "unverifiable", "invalid"]
+
+@dataclass(frozen=True)
+class FieldCheck:
+    name: str
+    status: Status
+    note: str | None = None</code></pre>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>More state complexity vs simplicity: Explicit states add a little code. The clarity and fairness gains are worth it.</p>
+        <p>UX friction vs silent denial: Asking for more evidence can add steps. Silent denials are worse. Balance friction with guidance.</p>
+        <p>Logging granularity vs privacy: Notes improve debugging; ensure they contain no sensitive data.</p>
+        <h3>Failure modes</h3>
+        <p>“Hidden coercion”: Tooling collapses null to false. Solution: audit boundaries and enforce state labels.</p>
+        <p>“Catch-all invalid”: Development shortcuts treat everything negative as invalid. Solution: write exhaustive switches and linters.</p>
+        <p>“Unverifiable loop”: Repeated prompts for evidence without alternative paths. Solution: define fallback policies clearly.</p>
+        <h2>Try it yourself</h2>
+        <p>Replace boolean checks for critical credential fields with stateful outcomes (“accepted,” “unverifiable,” “invalid”).</p>
+        <p>Expose the state in your verifier’s API. Track how often “unverifiable” occurs and address UX with prompts or fallbacks.</p>
+        <p>Add tests that assert denials only occur for “invalid,” not “unverifiable.”</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://www.w3.org/TR/vc-data-model-2.0/" target="_blank" rel="noreferrer">W3C Verifiable Credentials Data Model v2.0</a></li><li><a href="https://docs.oracle.com/en/java/javase/21/language/pattern-matching-switch-expressions-and-statements.html" target="_blank" rel="noreferrer">Java pattern matching for switch</a></li></ul></aside>]]></content:encoded></item><item><title>Docker in CI: The Real Cost of Docker-in-Docker</title><link>https://www.imshubh.com/articles/docker/docker-in-ci.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/docker/docker-in-ci.html</guid><pubDate>Sat, 23 May 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Understand Docker-in-Docker trade-offs, protect daemon access, and make container-dependent CI tests fail closed.</description><category>docker</category><category>containers</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">Docker-in-Docker (DinD) can make CI feel simple: start a job, build an image, run container-based tests. The convenience comes with a real isolation decision. Privileged DinD can weaken the boundary around the runner; mounting the host Docker socket can give a build step powerful control over the host daemon.</p>
+        <p>Teams still choose these patterns because they support familiar workflows. The important thing is to make the choice explicit, restrict which code can use it, and avoid a “green” result when container tests never ran.</p>
+        <h2>First, know which daemon the job is using</h2><p>“Docker in CI” does not always mean DinD. Some runners expose a Docker daemon to the job; DinD starts a separate Docker daemon inside a service container. A mounted <code>/var/run/docker.sock</code> is a third pattern: the job’s Docker CLI talks to the host daemon. These setups have different isolation properties. Document the runner architecture before relying on it.</p>
+        <h2>Verify the daemon before running tests</h2><p>Make readiness an explicit step. If the daemon is missing or unresponsive, stop the job before it reports container-dependent tests as successful:</p>
+        <pre><code># Run only on a runner configured to provide Docker access.
+set -eu
+docker version
+docker info
+
+IMAGE="aceu-trust-demo:${GITHUB_SHA:-local}"
+docker build --tag "$IMAGE" .
+docker run --rm "$IMAGE" pytest -q</code></pre>
+        <p>For an actual DinD service, the job also needs to wait for that service’s daemon to become available. A fixed sleep is brittle; use a bounded readiness loop and fail with a clear message if the daemon never responds.</p>
+        <h2>Do not silently skip container-dependent tests</h2><p>If the daemon is a prerequisite, the test should fail when Docker is unavailable. Avoid code that catches every exception and quietly returns a passing or skipped result in a required CI job:</p>
+        <pre><code>import subprocess
+
+
+def docker_available() -&gt; bool:
+    try:
+        subprocess.run(
+            ["docker", "info"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return True
+    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return False
+
+
+def test_containerized_health_check_requires_docker():
+    assert docker_available(), "Docker daemon is required for this test"
+    # Continue with the containerized test flow.</code></pre>
+        <p>Tag Docker-dependent tests so developers can distinguish them from pure unit tests, but keep them required in the CI path that claims to validate the container.</p>
+        <h2>Choose the access pattern with eyes open</h2><ul><li><strong>Privileged DinD:</strong> familiar and flexible, but grants elevated capabilities to the service container. Restrict it to trusted workflows and isolate the runner.</li><li><strong>Host socket mount:</strong> avoids starting another daemon, but the mounted socket can let job code control the host Docker daemon. Treat access as highly privileged.</li><li><strong>Daemonless or remote builders:</strong> can reduce direct daemon exposure in some environments, but require setup and may change the build workflow.</li></ul>
+        <p>In every case, pin build images, keep credentials scoped, avoid running untrusted pull-request code on privileged self-hosted runners, and clean up jobs so containers and volumes do not leak into later runs.</p>
+        <h2>Watch for isolation leaks and flaky runners</h2><p>Look for unexpected host mounts, files written outside the workspace, orphaned containers, and daemon failures. Runner fleets can have transient problems. A documented single retry can filter a brief infrastructure hiccup, but repeated failure should remain visible and investigated—not retried until a broken test turns green.</p>
+        <h2>Trade-offs to discuss with the team</h2><ul><li><strong>Speed vs. isolation:</strong> DinD is familiar; stricter alternatives can require more setup.</li><li><strong>Fail closed vs. ergonomics:</strong> blocking on daemon failure catches false greens but can be frustrating when runner health is poor. Give contributors a clear error and retry path.</li><li><strong>Socket mount vs. privileged mode:</strong> neither is a free isolation boundary. Limit trusted code and runner scope for either design.</li></ul>
+        <h2>Try it in your CI</h2><ol><li>Write down whether jobs use host Docker, a mounted socket, or a separate DinD service.</li><li>Add a daemon readiness check before any container-dependent test.</li><li>Make those tests fail if Docker is unavailable; do not silently skip them.</li><li>Evaluate a daemonless or remote builder against your runner threat model.</li><li>Document when one retry is appropriate and when repeated failure needs investigation.</li></ol>
+        <h2>Closing thought</h2><p>DinD can be pragmatic, but it should never be invisible. Verify the daemon, make tests fail closed, and choose an isolation pattern that matches what the CI job is trusted to do.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.docker.com/engine/security/protect-access/" target="_blank" rel="noreferrer">Protect access to the Docker daemon socket</a></li><li><a href="https://docs.docker.com/engine/security/" target="_blank" rel="noreferrer">Docker Engine security</a></li><li><a href="https://docs.github.com/en/actions/reference/security/secure-use" target="_blank" rel="noreferrer">GitHub Actions secure-use guidance</a></li></ul></aside>]]></content:encoded></item><item><title>CPU-Only, By Design: Building an Edge-AI Service Without Assuming Accelerators</title><link>https://www.imshubh.com/articles/intel/cpu-only-edge-ai.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/intel/cpu-only-edge-ai.html</guid><pubDate>Fri, 15 May 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Design edge inference services for CPU-only environments with explicit hardware assumptions, real fallbacks, and predictable degradation.</description><category>intel</category><category>edgeai</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">Not every deployment target has a dedicated accelerator. In many environments, the only safe assumption is a general-purpose CPU. Treating that as a deliberate design constraint makes the service easier to deploy, explain, and operate.</p>
+        <p><code>aceu-edge-infer</code> is a small CPU-first inference demo with a documented OpenVINO runtime path. Its ACE-U outputs are illustrative—not a validated assessment of people. The design lesson is broader: state the hardware contract and make the service’s behavior when that contract is not met explicit.</p>
+        <h2>Document the hardware contract</h2><p>Say which device is required and what is optional. If CPU-only execution is supported, describe the expected model format, available runtime, resource needs, and what performance behavior users should plan for. If an accelerator is optional, list supported devices and the path selected when one is missing.</p>
+        <h2>Make device selection explicit</h2><p>For an OpenVINO model intended for CPU execution, specify the device in the compile call rather than relying on a default selection:</p>
+        <pre><code>import openvino as ov
+
+core = ov.Core()
+model = core.read_model("models/aceu_ir.xml")
+compiled_model = core.compile_model(model, "CPU")</code></pre>
+        <p>Test the exact runtime package and operating system you plan to ship. If startup cannot load the model or compile it for CPU, do not report the service as ready.</p>
+        <h2>Distinguish a fallback from a failure</h2><p>A fallback is a real, tested alternative execution path. It may be a different model artifact, a portable runtime, or a slower implementation that produces valid outputs. If none exists, the honest response to a missing runtime is a clear startup failure or an unavailable response—not placeholder scores or a “fallback” label that hides the problem.</p>
+        <p>Expose execution metadata that helps operators understand the path without leaking environment details:</p>
+        <pre><code>execution_info = {
+    "device": "CPU",
+    "precision": "INT8",
+    "fallback_used": False,
+}</code></pre>
+        <p>In a real service, derive these values from the compiled model and request path; do not hard-code them when the runtime can choose a different path.</p>
+        <h2>Degrade predictably on constrained hardware</h2><p>Assume memory and CPU shares may be limited. Measure the model’s memory footprint and end-to-end latency on the target class of device. Start with conservative concurrency; more threads do not automatically mean better p95 latency. If the service supports it, adjust batch size, request timeout, or concurrency by deployment profile, and document the effect.</p>
+        <p>Do not silently lower quality when the machine is under pressure. If a request is rejected, deferred, or routed to a different precision, make the behavior observable and keep the response contract clear.</p>
+        <h2>Separate startup, readiness, and liveness</h2><ul><li><strong>Startup:</strong> load the model and confirm the selected CPU runtime can compile it.</li><li><strong>Readiness:</strong> confirm the service can complete the critical inference path before it receives traffic.</li><li><strong>Liveness:</strong> use a cheap check for a process that is stuck, not an expensive inference on every probe.</li></ul><p>A stricter readiness check may delay the first “ready” signal. That is preferable to routing requests to a service that has not loaded its model. Keep checks bounded so probes do not become a source of load.</p>
+        <h2>Keep operational assumptions beside the code</h2><p>Add a “Hardware assumptions” section to the README and link it from deployment instructions. Include supported devices, runtime versions, precision choices, resource settings, fallback behavior, health endpoints, and a short way to verify the selected execution mode. The next engineer should not have to infer these from source code.</p>
+        <h2>Trade-offs and failure modes</h2><ul><li><strong>CPU portability vs. latency:</strong> a CPU path broadens where the service can run, but may not meet a workload’s latency target. Measure before promising an SLA.</li><li><strong>Optional accelerators vs. maintenance:</strong> each extra path adds test and support cost; add only devices the product needs.</li><li><strong>Strict readiness vs. quick deployment:</strong> waiting for a successful model load delays traffic, but avoids a false-green service.</li></ul><p>Common failures include assuming hardware that is not present, retrying device selection in a tight loop, and leaving hardware requirements undocumented. Provide a clear failure state and a controlled recovery path instead.</p>
+        <h2>Try it yourself</h2><ol><li>Write the CPU and optional accelerator requirements in your README.</li><li>Expose the actual device and precision selected for each execution path.</li><li>Simulate a missing optimized runtime and verify that the service fails clearly or uses a genuine tested fallback.</li><li>Measure memory and latency under representative CPU limits before selecting concurrency defaults.</li></ol>
+        <h2>Closing thought</h2><p>Designing for CPU-only execution is not a claim that CPU is always enough. It is a way to make assumptions visible, provide a credible fallback where one exists, and keep the service predictable on the hardware it supports.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.openvino.ai/2026/openvino-workflow/running-inference/inference-devices-and-modes/cpu-device.html" target="_blank" rel="noreferrer">OpenVINO CPU device documentation</a></li><li><a href="https://docs.openvino.ai/2026/openvino-workflow/running-inference/optimize-inference.html" target="_blank" rel="noreferrer">OpenVINO performance hints and inference optimization</a></li><li><a href="https://docs.openvino.ai/2026/openvino-workflow/model-preparation/convert-model-to-ir.html" target="_blank" rel="noreferrer">OpenVINO model conversion and runtime loading</a></li></ul></aside>]]></content:encoded></item><item><title>Flaky Tests Are a Concurrency Bug: Fixing Shared State Under Parallel Execution</title><link>https://www.imshubh.com/articles/java/parallel-test-state.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/java/parallel-test-state.html</guid><pubDate>Fri, 15 May 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Flaky tests often signal shared state bugs. Learn to diagnose parallel execution issues, isolate fixtures, and design for deterministic test behavior.</description><category>java</category><category>backend</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">I’ve watched teams chase “test runner bugs” while the real culprit was design. Flakiness is often a concurrency issue—shared mutable state under parallel execution. JUnit 5 can run tests concurrently, so fixtures that share mutable state can make failures appear intermittent. Creating isolated data per test makes the behavior easier to reproduce and diagnose.</p><h3>The failure mode</h3><p>You enable parallel test execution and see intermittent failures: “record not found” or “unexpected duplicate.” You re-run and it passes. Blaming the test runner is easy. The problem is shared state: two tests reading/writing the same fixture or relying on an implicit order.</p>
+        <h2>What I learned</h2>
+        <h3>Default to per-test fixtures</h3><p>Use per-test initialization to avoid shared mutable state. In JUnit 5, keep your test instance lifecycle at PER_METHOD and recreate fixtures for each test. If the fixture is expensive, consider a template with parameterization that still isolates state.</p>
+        <h3>Example setup</h3><pre><code>import org.junit.jupiter.api.*;
+@TestInstance(TestInstance.Lifecycle.PER_METHOD)
+class EvidenceServiceTest {
+private InMemoryStore store;
+private EvidenceService service;
+@BeforeEach
+void init() {
+store = new InMemoryStore(); // new store per test
+service = new EvidenceService(store);
+store.seedProfile("alice", syntheticProfileAlice());
+}
+@Test
+void returnsMissingWhenTimeout() {
+// ...
+}
+@Test
+void returnsUnverifiableOnExceptions() {
+// ...
+}
+}</code></pre>
+        <h3>Avoid static mutable fields—especially in helpers</h3><p>Static caches and helpers make tests faster locally but brittle in parallel. If you truly need a cache, scope it per test, or guard it with thread-safe constructs and clear it explicitly. Better: don’t cache at all in tests unless you benchmarked the need.</p>
+        <h3>Make isolation visible—name-bound fixtures</h3><p>If a test seeds data, bind it to a unique key per test. Use random UUIDs or test names in keys to prevent accidental cross-test reuse. With Testcontainers, create per-test containers when state isolation is critical; share containers only for read-only tests.</p>
+        <h3>Parallel execution deserves explicit design</h3><p>JUnit 5 lets you run tests in parallel. That doesn’t mean every test should be parallel. Annotate classes that require single-thread execution, but treat that as a last resort. Prefer making tests parallel-safe by design.</p>
+        <p>JUnit configuration (illustrative):</p>
+        <pre><code>junit.jupiter.execution.parallel.enabled = true
+junit.jupiter.execution.parallel.mode.default = concurrent
+junit.jupiter.execution.parallel.mode.classes.default = concurrent</code></pre>
+        <h3>Deterministic time and waiting</h3><p>Tests that sleep and “hope the system is ready” fail under parallel runs. Replace sleeps with explicit synchronization: await a condition, poll with a small backoff, or use latches. Keep timeouts small and deterministic.</p>
+        <h3>Embrace “given-when-then” with isolated builders</h3><p>Build input data per test with dedicated builders. Don’t reuse a mutable “default profile” object across tests; copy or reconstruct it. Records help: immutable inputs prevent accidental mutation.</p>
+        <h3>Diagnose with logging and seeds</h3><p>When a test fails intermittently, print seeds and keys that identify data. If you see the same key in two tests, you found shared state. If you see non-deterministic ordering in a collection, sort inputs or assert set equivalence rather than list order.</p>
+        <h3>Per-test container with unique data</h3><pre><code>class StoreTests {
+    private PostgreSQLContainer&lt;?&gt; database;
+
+    @BeforeEach
+    void setUp() {
+        database = new PostgreSQLContainer&lt;&gt;("postgres:alpine")
+            .withDatabaseName("test_" + UUID.randomUUID())
+            .withUsername("user")
+            .withPassword("test-only");
+        database.start();
+    }
+
+    @AfterEach
+    void tearDown() {
+        database.stop();
+    }
+}</code></pre>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>Isolation vs speed: Per-test fixtures are slower than shared ones. Optimize later—start with correct behavior and only share read-only fixtures.</p>
+        <p>Parallelism vs determinism: Parallel runs surface concurrency bugs but may require more careful test design. The benefits outweigh the cost.</p>
+        <p>Container lifecycle vs developer ergonomics: Per-test containers are robust but slower. Consider class-level containers for read-only tests with clear resets.</p>
+        <h3>Failure modes</h3>
+        <h3>“Hidden globals”</h3><p>A helper modifies a static map. Under parallel, tests interleave and fail intermittently.</p>
+        <p>“Order assumptions”: Tests rely on iteration order of sets or maps; parallel runs expose different orders.</p>
+        <p>“Implicit sleeps”: Tests use fixed sleeps; faster/slower environments cause out-of-order expectations.</p>
+        <h2>Try it yourself</h2>
+        <p>Switch to PER_METHOD lifecycle and remove static mutable fields in tests. Add unique keys per test to seed data. Enable parallel execution and watch for failures that indicate hidden shared state.</p>
+        <p>Replace sleep-based readiness with explicit condition checks. Add timeouts and backoff policies.</p>
+        <p>Document which tests are parallel-safe and why; make non-parallel tests the exception and note the reason.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://junit.org/junit5/docs/current/user-guide/#writing-tests-parallel-execution" target="_blank" rel="noreferrer">JUnit 5 parallel execution</a></li><li><a href="https://java.testcontainers.org/" target="_blank" rel="noreferrer">Testcontainers for Java</a></li></ul></aside>]]></content:encoded></item><item><title>Virtual Threads Changed My Mental Model: Practical Lessons From I/O Fan-Out</title><link>https://www.imshubh.com/articles/java/virtual-thread-fanout.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/java/virtual-thread-fanout.html</guid><pubDate>Mon, 13 Apr 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Virtual threads simplify I/O fan-out. Learn practical lessons: structured fan-out, back pressure, blocking calls, failure handling, and realistic expectations.</description><category>java</category><category>backend</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">Virtual threads changed how I design I/O fan-out in Java services. As an engineering manager who grew up with fixed thread pools, queue sizing, and saturation metrics, I had muscle memory: “pick a pool size, tune it, protect it.” With virtual threads, I can treat blocking I/O more like straightforward code again—without tying throughput to a small pool.</p>
+        <h3>The failure mode</h3><p>A caller triggers N downstream calls per request (fan-out). With a fixed pool, saturation appears quickly under spikes; with virtual threads, spikes are absorbed but not eliminated. If you translate “we can spawn thousands of threads” into “we don’t need back pressure,” you’ll rediscover failures—just in different places.</p>
+        <h2>What I learned</h2>
+        <h3>Think “task-per-thread” for blocking I/O, not “pool-per-service”</h3><p>Virtual threads make “one virtual thread per blocking task” feasible. You can write linear code for a downstream call and not contort it into callbacks just to avoid blocking. That simplifies failure handling and resource cleanup.</p>
+        <h3>Example fan-out</h3><pre><code>try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+    List&lt;Callable&lt;EvidenceResult&gt;&gt; tasks = sources.stream()
+        .map(source -&gt; (Callable&lt;EvidenceResult&gt;) source::fetchEvidence)
+        .toList();
+    List&lt;Future&lt;EvidenceResult&gt;&gt; futures = executor.invokeAll(tasks);
+    List&lt;EvidenceResult&gt; results = new ArrayList&lt;&gt;(futures.size());
+    for (Future&lt;EvidenceResult&gt; future : futures) {
+        results.add(future.get());
+    }
+    return aggregate(results);
+}</code></pre>
+        <p>This reads like blocking I/O because it is—but with virtual threads, the scheduler multiplexes them efficiently.</p>
+        <h3>Back pressure still matters</h3><p>If downstream services or data sources choke under spikes, virtual threads won’t magically fix it. The caller can spin up many virtual threads, but the destination still has limits. You need timeouts, rate limits, and circuit breakers. You also need to avoid accidental fan-in (e.g., mass aggregation that blocks on slowest responders indefinitely).</p>
+        <h3>CPU-bound work belongs elsewhere</h3><p>Virtual threads help with blocking I/O, not CPU-heavy tasks. If a task saturates CPU, the scheduler can’t help—you need to bound parallelism with a platform-appropriate mechanism (e.g., a limited executor or structured concurrency approach) to avoid oversubscription.</p>
+        <h3>Failure semantics are simpler when code is linear</h3><p>Exception handling in “straight-line” code is clearer than in callback-based designs. You still need to decide whether partial evidence returns a partial result (with Missing/Unverifiable states) or you fail the whole request. Virtual threads don’t make that decision; they just make the code easier to read.</p>
+        <h3>“Thousands of threads” doesn’t mean “no limits”</h3><p>Virtual threads are cheap, but not free. Sockets, file descriptors, and memory buffers are finite. The OS still enforces resource ceilings. Guard your fan-out with sensible limits: per-request caps, per-destination timeouts, and global safety checks.</p>
+        <h3>Observability shifts upstream</h3><p>With fixed pools, saturation appears as queue wait time. With virtual threads, saturation shifts to downstream latency and timeouts. Make sure your metrics capture per-destination latency percentiles and error rates. A spike in virtual-thread creation can be fine if destinations are healthy; it’s not fine if percentiles explode.</p>
+        <h3>Test under synthetic spike and tail latency</h3><p>I haven’t yet measured performance between virtual threads and a fixed pool for the demo. What I do measure is behavior under artificial spikes: do timeouts fire? Does the aggregation return timely partial results with Missing/Unverifiable? Tests simulate slow destinations and verify we don’t hang.</p>
+        <h3>Timeout per downstream call</h3><pre><code>try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+    Future&lt;EvidenceResult&gt; future = executor.submit(source::fetch);
+    try {
+        return future.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+    } catch (TimeoutException timeoutError) {
+        future.cancel(true);
+        return EvidenceResult.unavailable("timeout");
+    }
+}</code></pre>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>Simplicity vs explicit limits: Virtual threads reduce boilerplate, but you still must implement back pressure. Silent defaults can mask saturation until it’s too late.</p>
+        <p>“Everything virtual” vs CPU realities: Virtual threads help with I/O. For CPU-bound work, a bounded executor or workload partitioning is safer.</p>
+        <p>Observability differences: You lose fixed-pool queue metrics and gain per-destination latency metrics. Update dashboards and alerts accordingly.</p>
+        <h3>Failure modes</h3>
+        <p>“Soft hangs”: Aggregation waits on the slowest responder forever. Add timeouts and partial-return logic.</p>
+        <p>“Resource leaks”: Thousands of virtual threads keep sockets open longer than intended. Validate resource cleanup paths.</p>
+        <p>“Oversubscription”: CPU-heavy tasks in virtual threads degrade the whole process. Bound CPU parallelism explicitly.</p>
+        <h2>Try it yourself</h2>
+        <p>Replace a fixed thread pool fan-out with newVirtualThreadPerTaskExecutor() and add per-destination timeouts. Observe behavior under synthetic spikes.</p>
+        <p>Add aggregation logic that treats timeouts as Missing and downstream errors as Unverifiable. Verify exhaustive handling with pattern matching.</p>
+        <p>Measure throughput and p95 latency in a controlled environment to inform whether virtual threads help your workload.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://openjdk.org/jeps/444" target="_blank" rel="noreferrer">Virtual Threads (JEP 444)</a></li><li><a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ExecutorService.html" target="_blank" rel="noreferrer">Java 21 ExecutorService API</a></li></ul></aside>]]></content:encoded></item><item><title>Triage Without Burning Out: Sustainable Patterns for Issues and PRs</title><link>https://www.imshubh.com/articles/github/sustainable-triage.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/github/sustainable-triage.html</guid><pubDate>Thu, 02 Apr 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Reduce burnout with sustainable triage: clear labels, response-time placeholders, friendly declines, and contributor pathways you can maintain.</description><category>github</category><category>opensource</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">Maintaining an open-source project alongside a full-time job means learning to triage sustainably. You can’t answer everything immediately or accept every idea. You can design labeling and response patterns that make your limited time effective — and that keep contributors engaged without exhausting you.</p>
+        <h3>The failure mode</h3><p>You wake up to ten new issues and three PRs. Two are duplicates, three ask for features outside the project scope, and several lack context. You try to answer quickly and get pulled into long threads that don’t move the project forward. A week later, you’re behind, less responsive, and a contributor feels ignored.</p>
+        <h2>What I learned</h2>
+        <h3>Label early, label consistently</h3><p>Set up labels that reflect workflow, not internal discussions: “good first issue,” “help wanted,” “needs reproduction,” “needs test,” “scope discussion,” “declined” (with a short reason). Use them as soon as you read an issue. Labels create a shared vocabulary and make your backlog scannable.</p>
+        <h3>Response-time expectations reduce anxiety</h3><p>State response-time expectations publicly: for example, “New issues are triaged within two business days; PR reviews are typically completed within one week.” Adjust those targets to fit your team. If you’re out-of-office, post a brief note in Discussions or the README. Contributors appreciate clarity.</p>
+        <h3>Friendly declines are a kindness — write them well</h3><p>Declining an idea is not rejecting a person. Use a short, warm template that explains scope, suggests alternatives, and invites contribution along defined paths (e.g., plugins rather than core changes). Label the issue “declined” and close it with the message.</p>
+        <h3>Decline template</h3>
+        <p>Thanks for the idea! For now, this is out of scope for the project.</p>
+        <p>We’re keeping the core lean and recommending plugins for extensions.</p>
+        <p>If you’d like to explore it as a plugin, happy to provide a template link.</p>
+        <h3>Require minimal tests, not maximal rigor</h3><p>For small projects, a minimal test required by the PR template keeps quality up without deterring contributors. Tests should be fast, easy to write, and close to the code change. If a PR lacks tests, add a gentle reminder and label “needs test.”</p>
+        <h3>Batch reviews and avoid context switching</h3><p>Schedule triage windows — twice a week, for example. Batch issue labeling and PR reviews in those windows. It reduces context switching and lets contributors anticipate when they’ll hear back. If needed, add a triage bot that labels based on keywords to reduce manual work.</p>
+        <h3>Document “how to get a fast review”</h3><p>Spell out what gets fast attention: small PRs with tests, clean diffs, and narrow scope; issues with reproductions and logs; ideas aligned with plugin paths. Encourage contributors to write “before/after” summaries in PR descriptions and to link to the relevant part of the code.</p>
+        <h3>Track your backlog and set a capacity</h3><p>If too many issues pile up, prune. Close old issues that lack detail after a friendly ping. Move discussions into one “scope discussion” thread for big feature ideas. Keep your backlog reasonable and honest about capacity.</p>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>Strict labels vs flexibility: Rules reduce effort but can feel rigid. Counterbalance with friendly messages and occasional exceptions.</p>
+        <p>Minimal tests vs depth: Minimal tests ensure basic correctness; complex changes may need deeper coverage. Ask for more when a change warrants it.</p>
+        <p>Batch triage vs real-time responsiveness: Batching reduces burnout; some contributors prefer faster feedback. Make expectations explicit.</p>
+        <h3>Failure modes</h3>
+        <p>“Unlabeled backlog”: Issues pile up without labels; you forget context. Solution: label on first read.</p>
+        <h3>“Harsh declines”</h3><p>A terse “no” closes doors. Solution: a kind template that suggests plugin paths or future reconsideration.</p>
+        <p>“Hidden OOO”: You vanish for a week without notice; contributors lose trust. Solution: brief status notes when you’re unavailable.</p>
+        <h2>Try it yourself</h2>
+        <p>Create and apply a lightweight label set. Add “good first issue” and curate five tasks.</p>
+        <h3>Publish response-time expectations</h3><p>and measure response times over the next month.</p>
+        <p>Adopt a friendly decline template and a short “how to get a fast review” section in CONTRIBUTING.md.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests" target="_blank" rel="noreferrer">GitHub Docs: Issue and pull request templates</a></li><li><a href="https://docs.github.com/en/communities/setting-up-your-project-for-healthy-contributions/creating-a-default-community-health-file" target="_blank" rel="noreferrer">GitHub Docs: Community health files</a></li></ul></aside>]]></content:encoded></item><item><title>Verifiable Doesn’t Mean Verified: Getting Issuer, Holder, and Verifier Right</title><link>https://www.imshubh.com/articles/microsoft/issuer-holder-verifier.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/microsoft/issuer-holder-verifier.html</guid><pubDate>Thu, 02 Apr 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Verifiable credentials can be signed and valid yet still wrong. Learn issuer/holder/verifier roles, failure modes, and checks beyond JSON and signatures.</description><category>identity</category><category>credentials</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">I’m an engineering manager with experience integrating identity-verification flows conceptually aligned with Microsoft Entra Verified ID. One habit that keeps teams honest is repeating the phrase: verifiable doesn’t mean verified. The W3C Verifiable Credentials data model makes claims portable and cryptographically provable, but it doesn’t magically make those claims true, up to date, or appropriate for your use case.</p>
+        <h3>The failure mode</h3><p>A team builds a credential verifier that checks JSON shape and a signature. The code reports “valid.” A downstream feature treats the claim as true. Weeks later, someone discovers the issuer did, in fact, sign the credential, but the subject was not the person currently presenting it, or the credential expired months ago. The failure wasn’t cryptography; it was process: treating “verifiable” as “verified.”</p>
+        <h2>What I learned</h2>
+        <h3>Roles and responsibilities: issuer, holder, verifier</h3>
+        <pre><code>Issuer: Asserts something about a subject (the holder) and signs the assertion. Their trustworthiness is a human, contractual, and policy question, not a purely technical one.
+Holder: Receives and stores the credential; presents it to a verifier. Binding the holder to the subject of the credential (is this person who the claim describes?) is a separate step.
+Verifier: Evaluates signature validity, checks schema, ensures the issuer is trusted for that claim type, confirms the subject binding, interprets policy (expiry, audience, revocation), and decides whether to accept the claim.</code></pre>
+        <h3>Well-formed is necessary but not sufficient</h3><p>A credential can be:</p>
+        <pre><code>Well-formed: It conforms to expected JSON structure.
+Signed: The cryptographic proof validates against the issuer’s public key.
+Trusted: The issuer is recognized and allowed to assert this particular claim type.
+Bound: The subject is provably the presenter.
+Current: It hasn’t expired and isn’t revoked. Only when all are satisfied does “valid” approach “usable.”</code></pre>
+        <h3>Separate signature validation from trust decision</h3><p>Cryptography answers “did the claimed issuer sign this payload?” Trust answers “do we trust this issuer for this claim type right now?” You need both. If the issuer isn’t in your trust registry for the claim being evaluated, the result shouldn’t be “invalid claim,” it should be “untrusted issuer for this policy.”</p>
+        <h3>Subject binding is a first-class step</h3><p>A classic failure mode: someone presents a signed credential about a subject, but the presenter isn’t the subject. In practical flows, the verifier should confirm that the presenter’s wallet or identity key pair matches the credential subject, or use an out-of-band binding method aligned with your policy. If binding is missing, treat the result as “unverifiable” rather than “false.”</p>
+        <h3>Expiry and audience are policy gates, not parsing details</h3><p>Expiry and audience are part of the claim semantics. A credential can be signed and well-formed yet expired (or intended for a different audience). These conditions should result in “policy failure” states distinct from “cryptographic failure.”</p>
+        <h3>Revocation closes the loop</h3><p>Issuance is easy; ensuring the claim is still valid is the hard part. Revocation checks must avoid “phone home” privacy leaks (more in the revocation article below). Even a toy system benefits from an offline revocation list or privacy-preserving status check.</p>
+        <h3>Distinguish “invalid” from “unverifiable”</h3>
+        <h3>Illustrative verification flow</h3><pre><code>from dataclasses import dataclass
+from typing import Literal
+
+Status = Literal["accepted", "unverifiable", "invalid"]
+
+@dataclass(frozen=True)
+class ValidationResult:
+    signature_valid: bool
+    issuer_trusted: bool
+    subject_bound: bool
+    policy_ok: bool
+    status: Status
+
+# Keep proof validation, issuer trust, subject binding, and policy checks separate.
+# The exact proof checks depend on the credential format and verifier library supported by the deployment.</code></pre>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>Strict policy gates vs user friction: Strong audience/expiry checks reduce misuse but can frustrate users who present slightly out-of-date credentials. The fix is short-lived credentials and good UX.</p>
+        <p>Offline trust lists vs dynamic fetch: Offline lists avoid privacy leaks but risk staleness. Consider periodic sync with no per-verification lookups.</p>
+        <p>Subject binding rigor vs simplicity: Strong binding reduces fraud but adds ceremony. Pick the approach that fits your risk.</p>
+        <h3>Failure modes</h3>
+        <p>“Signed, therefore true”: Conflating cryptographic validity with trust. Fix by separating proof validation from issuer trust policy.</p>
+        <p>“Presenter ≠ subject”: Accepting credentials without subject binding. Fix by explicit binding checks.</p>
+        <p>“Policy drift”: Undocumented audience/expiry rules. Fix with centralized policy and tests.</p>
+        <h2>Try it yourself</h2>
+        <p>Implement a verifier that separately evaluates cryptographic proof, issuer trust, subject binding, and policy gates.</p>
+        <p>Return “unverifiable” for missing binding and “invalid” for failed policy (e.g., expiry).</p>
+        <p>Measure performance across well-formed accepts vs policy failures to understand user impact.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://www.w3.org/TR/vc-data-model-2.0/" target="_blank" rel="noreferrer">W3C Verifiable Credentials Data Model v2.0</a></li><li><a href="https://learn.microsoft.com/en-us/entra/verified-id/plan-verification-solution" target="_blank" rel="noreferrer">Microsoft Entra Verified ID verification planning</a></li><li><a href="https://learn.microsoft.com/en-us/entra/verified-id/verifiable-credentials-configure-verifier" target="_blank" rel="noreferrer">Configure a Verified ID verifier</a></li></ul></aside>]]></content:encoded></item><item><title>Don’t Ship What You Haven’t Scanned: Gating Images Before Production</title><link>https://www.imshubh.com/articles/docker/scanning-before-production.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/docker/scanning-before-production.html</guid><pubDate>Sun, 15 Mar 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Build an SBOM, scan each container image, and gate releases on actionable vulnerability severity.</description><category>docker</category><category>containers</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">Images move quickly; vulnerability information changes just as quickly. My baseline is straightforward: make image contents visible, scan before release, gate on actionable findings, and define a narrow exception path with an owner and an expiry.</p>
+        <p>This is not a claim that scanners make an image safe. A scan is one control in a larger process. The goal is to replace last-minute surprises with a repeatable decision before an image reaches production.</p>
+        <h2>Start with an inventory</h2><p>A Software Bill of Materials (SBOM) lists software components included in an image. Generating one during the build gives scanners and reviewers a concrete inventory to inspect. Docker Buildx can attach an SBOM attestation to an image:</p>
+        <pre><code># Build and push to a registry so the SBOM attestation travels with the image.
+docker buildx build \
+  --tag "$IMAGE" \
+  --sbom=true \
+  --push .</code></pre>
+        <p>Build attestations depend on the BuildKit builder and where the image is stored. Verify that the registry contains the SBOM and that your scanner can read it; do not assume a successful command means the inventory is being retained in the place you expect.</p>
+        <h2>Gate on findings the team can act on</h2><p>Pick a severity policy and make it a failing CI step. For example, Trivy can return a non-zero exit status when High or Critical findings are present:</p>
+        <pre><code># IMAGE is the exact tag or digest built by the preceding step.
+trivy image \
+  --exit-code 1 \
+  --severity HIGH,CRITICAL \
+  "$IMAGE"</code></pre>
+        <p>Choose policy with the people who own the service. Severity labels are useful triage signals, but they do not tell you whether a vulnerable code path is reachable in your application. Prioritize fixable findings; keep visibility into the rest and record remediation plans.</p>
+        <h2>Make exceptions narrow and temporary</h2><p>Sometimes a scanner reports a finding with no available fix, or a team can show that a vulnerable path is not reachable in its deployment. If your policy allows an exception, require at least:</p><ul><li>a named owner responsible for revisiting it;</li><li>a short technical justification and the affected image digest;</li><li>a remediation plan or a reason no fix is available;</li><li>an expiry date that triggers re-review.</li></ul><p>An exception should have an end. An expired exception returns to the gate for a fresh decision.</p>
+        <h2>Scan third-party images and every release candidate</h2><p>Review a base image or build tool before first use, prefer trustworthy publishers, and record the digest of the image you evaluated. Scan the image that will actually be released, not only the Dockerfile or an earlier local build. Repeat the scan when rebuilding because packages and advisories change.</p>
+        <h2>Treat scanner failures as operational failures</h2><p>Scanning can fail because a registry is unavailable, an advisory feed cannot be fetched, a token expired, or the runner ran out of disk. These states are different from “the scan completed and found a vulnerability.” Preserve enough CI status and logs to tell which happened, and make sure infrastructure errors cannot turn into a silent pass.</p>
+        <h2>Keep the gate fast enough to keep</h2><p>If every scan takes too long, teams will look for ways around it. Cache what is safe to cache, tune the scanner, and make results easy to understand—but do not quietly skip scanning for small code changes. Also record who approved exceptions and when; keep logs free of credentials and other secrets.</p>
+        <h2>Failure modes to test</h2><ul><li><strong>The gate reports but does not block:</strong> test the pipeline with a known finding and confirm the build fails.</li><li><strong>Advisory access expires:</strong> make registry or scanner authentication failures visible and blocking.</li><li><strong>The SBOM is missing:</strong> treat a missing expected artifact as a failed build, not an empty inventory.</li><li><strong>A clean scan becomes stale:</strong> rebuild and rescan as dependencies or vulnerability data change.</li></ul>
+        <h2>Try it in your pipeline</h2><ol><li>Generate an SBOM for each release image and verify that it is retained.</li><li>Run a vulnerability scan on the exact image tag or digest that will ship.</li><li>Set a failing threshold, such as High and Critical, with a written exception policy.</li><li>Keep scanner outages separate from vulnerability findings in the CI result.</li></ol>
+        <h2>Closing thought</h2><p>A scan is most useful when it changes a release decision. Make image contents visible, agree on what blocks a release, and give every exception an owner and a clock.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.docker.com/build/metadata/attestations/sbom/" target="_blank" rel="noreferrer">Docker SBOM attestations</a></li><li><a href="https://docs.docker.com/build/ci/github-actions/attestations/" target="_blank" rel="noreferrer">Docker SBOM and provenance attestations in GitHub Actions</a></li><li><a href="https://trivy.dev/docs/latest/configuration/others/" target="_blank" rel="noreferrer">Trivy severity filtering and exit codes</a></li></ul></aside>]]></content:encoded></item><item><title>Semantic Versioning Is a Promise, Not a Formality</title><link>https://www.imshubh.com/articles/github/semantic-versioning.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/github/semantic-versioning.html</guid><pubDate>Fri, 13 Mar 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>SemVer is a user promise. Learn to recognize breaking changes, communicate them, write migration notes, and keep releases predictable for small projects.</description><category>github</category><category>opensource</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">Semantic Versioning (SemVer) looks straightforward: MAJOR.MINOR.PATCH. In practice, the hardest part is deciding when a change is breaking. In a small project, breaking changes cost contributors time and confidence. They also generate extra triage work you don’t have time for. For a public API, SemVer is a promise: when a contract change requires action from users, communicate it clearly and choose the appropriate version increment.</p><h3>The failure mode</h3><p>You change an endpoint’s response shape from {type:"present"} to {status:"present"} and add a field. Tests in your project pass because you updated them. A user’s integration breaks silently because they were parsing the old field. You release as a minor bump. Issues pile up. SemVer wasn’t just a label; it was a promise you broke.</p>
+        <h2>What I learned</h2>
+        <h3>Define “breaking” for your project — then honor it</h3><p>For a public API, breaking means any change that requires user action. That includes renames, removals, default behavior changes, stricter validation, and shifts in documented semantics. For plugin contracts, it includes method signatures and return-object fields. Write this down in CONTRIBUTING.md or RELEASE.md.</p>
+        <h3>Use PATCH for fixes, MINOR for additive changes, MAJOR for breaking</h3><p>PATCH: bug fixes that don’t change behavior or contracts. MINOR: new additive features, fields, or optional paths that don’t require code changes from users. MAJOR: anything else. If in doubt, lean toward stricter classification — small projects benefit from conservative signaling.</p>
+        <h3>Keep a changelog that’s useful, not performative</h3><p>A good CHANGELOG.md lists new features, fixes, and breaking changes with clear “migration” steps. Link to PRs and discussions when helpful, but don’t drown readers in noise. Make breaking changes a dedicated section with bullet points and example code.</p>
+        <h3>Changelog entry (example)</h3><pre><code>## [2.0.0] - 2026-02-15
+### Breaking
+- Plugin interface: `evaluate()` return now requires `score_delta`.
+- API response: field `note` renamed to `message`.
+- Migration:
+  - Plugins: provide a score delta when constructing the result.
+  - Clients: read the renamed message field.
+### Added
+- New synthetic evidence source: "activity_count".
+### Fixed
+- Corrected null-handling in JSON serialization for missing evidence.</code></pre>
+        <h3>Automate release notes and tags, but write the words yourself</h3><p>Automated release workflows help: tag versions, publish notes, and attach artifacts. The content of the notes should be authored by you or a maintainer who understands the changes. Meaningful context beats auto-generated lists.</p>
+        <h3>Communicate before you break</h3><p>— deprecation notes and timelines If you plan a breaking change, announce it with a deprecation note. Add warnings to logs, include a deprecation section in the changelog, and post a short explanation in discussions. Offer a migration window (e.g., two minor releases) and stick to it.</p>
+        <h3>Validate SemVer behavior with contract tests</h3><p>Combine SemVer discipline with tests: run a suite that loads the previous minor version’s contracts against the new release where feasible. If tests fail because you changed behavior without bumping MAJOR, you’ll catch it before publishing.</p>
+        <h3>Keep scope under control</h3><p>— fewer breaking changes, batched when necessary Batch breaking changes into a single major release rather than sprinkling them across minors. This helps users plan upgrades and reduces your triage load. Once you ship a major, leave a quiet window before the next one.</p>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>Strict SemVer vs development speed: Bumping MAJOR and writing migration notes take time. They also save user time and reduce issue volume.</p>
+        <p>Deprecation windows vs maintenance overhead: Supporting old paths gives contributors time to adapt. For small projects, choose short, firm windows.</p>
+        <p>Automated release processes vs human judgment: Automation speeds delivery; human-curated notes ensure clarity. Pair them.</p>
+        <h3>Failure modes</h3>
+        <p>“Silent breaking minor”: Change that requires user action shipped as MINOR. It erodes trust and increases support requirements.</p>
+        <p>“Vague changelog”: Readers can’t tell what changed. Solution: explicit “Breaking,” “Added,” “Fixed” sections with migration steps.</p>
+        <p>“SemVer theater”: You declare SemVer, then ignore it in practice. Users stop trusting your version signals. Solution: define rules and follow them.</p>
+        <h2>Try it yourself</h2>
+        <p>Write a short “What counts as breaking” policy tailored to your project and add it to CONTRIBUTING.md.</p>
+        <p>Adopt Keep a Changelog structure and commit to explicit migration notes for breaking changes.</p>
+        <p>Add a contract test suite that runs compatibility checks against the previous minor version. If it fails, reconsider your classification.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://semver.org/" target="_blank" rel="noreferrer">Semantic Versioning 2.0.0</a></li><li><a href="https://keepachangelog.com/en/1.1.0/" target="_blank" rel="noreferrer">Keep a Changelog</a></li><li><a href="https://docs.github.com/en/repositories/releasing-projects-on-github/managing-releases-in-a-repository" target="_blank" rel="noreferrer">GitHub Docs: Managing releases</a></li></ul></aside>]]></content:encoded></item><item><title>Records Aren’t Just Less Typing: Modeling Ambiguity Without Nulls</title><link>https://www.imshubh.com/articles/java/records-sealed-types.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/java/records-sealed-types.html</guid><pubDate>Tue, 03 Mar 2026 12:00:00 -0800</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Modern Java lets you model ambiguity without nulls. Learn records, sealed interfaces, and pattern matching to represent missing and unverifiable states clearly.</description><category>java</category><category>backend</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">I’m an engineering manager with a background in Java backend systems. One lesson that keeps paying dividends is this: ambiguity deserves types, not comments. Nulls and booleans blur meaning. “false,” “zero,” and “we don’t know” are not interchangeable. With modern Java (records, sealed interfaces, pattern matching), I model uncertainty explicitly and make ambiguity impossible to ignore.</p><p>Modern Java can express these outcomes as records and sealed types: Present, Missing, and Unverifiable. The same pattern works in ordinary service domains; it does not depend on a scoring model.</p>
+        <h3>The failure mode</h3><p>You return a number for a score and a boolean “hasEvidence.” A caller subtracts two scores and treats “0” as “no evidence,” then logs an anomaly when “0” appears alongside “hasEvidence=true.” The model caused this. Nulls and booleans encourage shortcuts and misinterpretation.</p>
+        <h2>What I learned</h2>
+        <h3>Use records for immutable, transparent domain data</h3><p>Records let me define concise, immutable carriers without boilerplate. They encourage a bias toward immutability and make the intent clear.</p>
+        <h3>Example response</h3><pre><code>public record AceuResponse(
+ScoreOrUnknown authenticity,
+ScoreOrUnknown credibility,
+ScoreOrUnknown empathy,
+ScoreOrUnknown uniqueness
+) {}
+public sealed interface ScoreOrUnknown permits Score, Missing, Unverifiable {}
+public record Score(double value) implements ScoreOrUnknown {
+public Score {
+if (Double.isNaN(value) || value &lt; 0.0 || value &gt; 1.0) {
+throw new IllegalArgumentException("Score must be [0,1]");
+}
+}
+}
+public record Missing(String reason) implements ScoreOrUnknown {}
+public record Unverifiable(String note) implements ScoreOrUnknown {}</code></pre>
+        <p>Records keep the data small and immutable. The sealed hierarchy enforces the set of states at compile time.</p>
+        <h3>Replace nulls and boolean flags with sealed states</h3><p>The temptation to use Double/Boolean and encode special states with null or false is strong. Resist it. Sealed interfaces make the valid state space explicit and force exhaustive handling. A boolean can’t distinguish “not applicable,” “not yet computed,” and “calculation failed.”</p>
+        <h3>Use pattern matching for exhaustive case handling</h3><p>Pattern matching in switch makes code read like the domain. It also turns omissions into compile errors when you use exhaustive switches.</p>
+        <p>Example handler:</p>
+        <pre><code>public String render(ScoreOrUnknown s) {
+return switch (s) {
+case Score sc          -&gt; "score=" + sc.value();
+case Missing miss      -&gt; "missing=" + miss.reason();
+case Unverifiable unv  -&gt; "unverifiable=" + unv.note();</code></pre>
+        <p>};</p>
+        <h3>}</h3>
+        <p>By handling each case explicitly, I make it impossible to “forget” one or conflate states.</p>
+        <h3>Prefer intent-rich types over ad-hoc maps and strings</h3><p>When a state needs more context (e.g., why data is missing), capture it in the type. Missing(String reason) and Unverifiable(String note) beat opaque strings and comments. If callers need to act differently based on the reason, add a reason code enum to the record.</p>
+        <h3>Keep aggregates typed—don’t flatten too early</h3><p>A response with four dimensions should preserve each dimension’s state. Avoid flattening to a single “overall score.” The minute you collapse, you discard information the caller needs for good decisions. In the demo, each dimension returns a ScoreOrUnknown. Only the caller decides how to combine them, and the compiler forces handling of unknowns.</p>
+        <h3>Embed validation where it belongs</h3><p>Put invariants in the type’s constructor. Scores are [0,1]; reasons should be concise, not multi-paragraph blobs. Records make these guardrails trivial to implement consistently.</p>
+        <h3>Use test fixtures that exercise every branch</h3><p>Define parameterized tests for your sealed states. For each dimension, test Score, Missing, and Unverifiable. Assert that pattern matching hits each branch, and that any new state added later causes compilation failures in exhaustive switches until it’s handled.</p>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>More types vs fewer booleans: Sealed types add structure and a few extra classes. The upside is clarity and compile-time enforcement; the downside is minor boilerplate, which records minimize.</p>
+        <p>Exhaustiveness vs flexibility: Exhaustive switches break on new states until handled. That’s a feature (safety) but can feel strict when you prototype quickly.</p>
+        <p>Text reasons vs structured codes: Free-form strings are easier; structured enums enable programmatic handling. Choose based on how callers use the data.</p>
+        <h3>Failure modes</h3>
+        <h3>“Shadow nulls”</h3><p>A downstream library returns null and you forget to wrap it in a sealed state. Guard external boundaries with adapters.</p>
+        <p>“State leakage”: Someone serializes ScoreOrUnknown to a shape that drops the state label (e.g., value=0.0 only). Add JSON configuration that includes a type field and test the wire format.</p>
+        <p>“Catch-all case”: Using a default branch in pattern matching reintroduces ambiguity. Avoid default; keep exhaustive cases explicit.</p>
+        <h2>Try it yourself</h2>
+        <p>Replace nullable fields for ambiguous states with a sealed interface and record implementations. Add exhaustive pattern matching where you consume them.</p>
+        <p>Write tests that construct each state per dimension and assert wire-format correctness (e.g., JSON includes the state “type”).</p>
+        <p>Audit one path where a null sneaks through and add an adapter to convert it into Missing or Unverifiable with a reason code.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://openjdk.org/jeps/395" target="_blank" rel="noreferrer">Records (JEP 395)</a></li><li><a href="https://openjdk.org/jeps/409" target="_blank" rel="noreferrer">Sealed Classes (JEP 409)</a></li><li><a href="https://openjdk.org/jeps/441" target="_blank" rel="noreferrer">Pattern Matching for switch (JEP 441)</a></li></ul></aside>]]></content:encoded></item><item><title>A Breaking Change in Someone Else’s PR: Guarding Extension Points Without Blocking Contributions</title><link>https://www.imshubh.com/articles/github/plugin-contracts.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/github/plugin-contracts.html</guid><pubDate>Tue, 24 Feb 2026 12:00:00 -0800</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Extension points are fragile. Learn interface versioning, deprecation windows, and contract tests that catch breaking changes in plugin PRs before merge.</description><category>github</category><category>opensource</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">Community projects depend on contributions from people who did not write the original code. That openness creates a compatibility challenge: a change can pass local unit tests while still breaking plugins written against the documented interface. Extensibility needs contract tests and clear versioning.</p><h3>The failure mode</h3><p>A contributor refactors a plugin interface, renaming a method and changing its return shape. Their tests pass. Your CI passes. You merge. One week later, a different contributor’s PR, built on the previous interface, fails unexpectedly. You didn’t catch the breaking change because you had no compatibility tests enforcing the plugin contract.</p>
+        <h2>What I learned</h2>
+        <h3>Treat extension points as public contracts</h3><p>If you support a plugin API, document it as a minimal, stable contract. Keep it small, reduce optional features, and define explicit versioning. Favor additive changes; avoid changing semantics quietly.</p>
+        <h3>Minimal contract (illustrative)</h3><pre><code># your_project/core.py
+from dataclasses import dataclass
+@dataclass(frozen=True)
+class EvidenceResult:
+type: str  # "present" | "missing" | "unverifiable"
+note: str = ""
+score_delta: float = 0.0
+class EvidenceSource:
+name: str
+def evaluate(self, profile: dict) -&gt; EvidenceResult:
+"""
+Input: dictionary of profile fields (synthetic in demo)
+Output: EvidenceResult with type, note, and optional score_delta
+"""
+raise NotImplementedError</code></pre>
+        <h3>Version the interface explicitly</h3><p>Add an interface version constant in the core module. Plugins import and declare the version they target. CI checks that plugin declarations match the core version and that any bump is accompanied by a deprecation window.</p>
+        <p>Versioning example:</p>
+        <pre><code># your_project/core_version.py
+INTERFACE_VERSION = "1.2.0"  # semantic versioned
+# plugin declares support
+SUPPORTED_VERSIONS = {"1.2.0"}  # plugins can add multiple supported versions</code></pre>
+        <p>Deprecation windows — commit to dates and behavior When you change the interface, announce deprecations with a grace window: two minor releases or a set number of weeks. During the window, keep the old behavior working and warn at runtime (without breaking tests). At the end, remove the old path and bump the interface version.</p>
+        <h3>Contract tests in CI</h3><p>Unit tests validate plugin internals. Contract tests validate extension points. Write tests that load every plugin and execute a baseline scenario: call evaluate() with a standard profile, assert return types and fields, and assert compatibility with the current core version. Fail the build on mismatch.</p>
+        <p>Contract test skeleton:</p>
+        <pre><code>import importlib
+
+from your_project.core import EvidenceResult
+from your_project.core_version import INTERFACE_VERSION
+
+PLUGIN_MODULES = ["your_project.plugins.example_plugin"]
+
+def test_all_plugins_implement_contract():
+    for module_name in PLUGIN_MODULES:
+        module = importlib.import_module(module_name)
+        plugin = module.ExamplePlugin()
+        result = plugin.evaluate({"example": True})
+        assert isinstance(result, EvidenceResult)
+        assert result.status in {"present", "missing", "unverifiable"}
+        assert INTERFACE_VERSION in module.SUPPORTED_VERSIONS</code></pre>
+        <p>Your CI should run both unit and contract tests. If the core changes, test the change against every supported plugin. If external plugins live in separate repositories, publish a small test harness they can add to their own CI.</p>
+        <p>Communicate interface changes in release notes Semantic version your interface. A breaking change to the plugin API is a major bump. The release notes should list exactly what changed and a minimal migration example. They should also link deprecation windows and final removal dates.</p>
+        <h3>Example release note</h3><pre><code>## Plugin API 2.0.0 (breaking)
+- Keep the result status field unchanged.
+- Make the score delta field required.
+- Migration: provide a zero delta when a plugin has no score change.
+- Publish a deprecation window and removal date.</code></pre>
+        <p>Keep extension points narrow Every new method or field in a plugin contract increases fragility. Keep it small. If contributors want flexibility, let them model complexity inside their plugin; keep the core contract simple, documented, and testable.</p>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>Strict contract tests vs contributor agility: Some contributors will feel slowed by extra checks. Counterbalance with templates and examples.</p>
+        <p>Deprecation windows vs maintenance overhead: Maintaining old paths for a window adds complexity. Keep windows short and focused for small projects.</p>
+        <h3>Central testing vs distributed plugins</h3><p>If plugins live elsewhere, you can’t run their tests pre-merge. Provide a harness and encourage adoption.</p>
+        <h3>Failure modes</h3>
+        <h3>“Silent break”</h3><p>A contributor changes the contract; unit tests pass; no compatibility suite fails. Solution: contract tests that load plugins and validate the core expectations.</p>
+        <p>“Major bump fatigue”: Frequent major bumps erode trust. Solution: batch breaking changes and make additive changes where possible.</p>
+        <p>“Ambiguous release notes”: Vague notes cause confusion. Solution: concrete migration steps and example code in release notes.</p>
+        <h2>Try it yourself</h2>
+        <p>Add an INTERFACE_VERSION constant and require plugins to declare supported versions.</p>
+        <p>Implement CI contract tests that import and execute all plugins against the core contract.</p>
+        <p>Document a deprecation window policy in CONTRIBUTING.md. Commit to timelines and stick to them.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://semver.org/" target="_blank" rel="noreferrer">Semantic Versioning 2.0.0</a></li><li><a href="https://keepachangelog.com/en/1.1.0/" target="_blank" rel="noreferrer">Keep a Changelog</a></li><li><a href="https://docs.github.com/en/actions/tutorials/build-and-test-code" target="_blank" rel="noreferrer">GitHub Actions: Building and testing</a></li></ul></aside>]]></content:encoded></item><item><title>Benchmarking Honestly: Building a Repeatable, Trustworthy Inference Benchmark</title><link>https://www.imshubh.com/articles/intel/benchmarking-inference.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/intel/benchmarking-inference.html</guid><pubDate>Wed, 28 Jan 2026 12:00:00 -0800</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Build inference benchmarks that report warm-up, latency percentiles, output parity, and hardware conditions.</description><category>intel</category><category>edgeai</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">Benchmarks are easy to fool. Run a handful of requests on a quiet laptop, choose the number that looks good, and almost any model can appear fast. Production has warm-up, load, input variation, and hardware contention. A useful benchmark makes those conditions visible.</p>
+        <p>In <code>aceu-edge-infer</code>, I keep a small harness that compares FP32 and INT8 inference and records latency and output deltas. The sample inputs are synthetic, so its results are method scaffolding—not evidence of production performance. The measurement discipline is what I want the demo to teach.</p>
+        <h2>Decide what question the benchmark answers</h2><p>Are you measuring cold start, steady-state single-request latency, or throughput under concurrent work? Those are different measurements. State the workload, model artifact, runtime and device, input shape, batch size, thread/concurrency settings, and whether preprocessing and post-processing are included.</p>
+        <h2>Warm up—and report cold start separately</h2><p>The first call may include model compilation, memory allocation, cache fill, or runtime initialization. If the question is steady-state latency, run a planned warm-up and keep those samples out of the measured set. If cold start matters to users, report it as its own metric instead of mixing it into steady-state numbers.</p>
+        <h2>Report percentiles as well as averages</h2><p>Users feel slow requests, not just the mean. Report p50, p95, and p99 latency for each model variant, along with the sample count and run duration. Tail percentiles need enough samples to be meaningful; do not imply precision the benchmark cannot support.</p>
+        <h2>Compare the same inputs and check outputs</h2><p>Run the same representative inputs through FP32 and INT8. Compare both the score deltas and task-level decisions. For classification, inspect per-class changes and examples near decision boundaries; a low average absolute difference can still hide an important decision flip.</p>
+        <p>Here is a small summarizer for arrays collected by a benchmark harness. It assumes both latency arrays contain milliseconds and each output array corresponds to the same input order, with one row per request and one column per model output:</p>
+        <pre><code>import numpy as np
+
+
+def latency_summary(samples_ms):
+    values = np.asarray(samples_ms, dtype=np.float64)
+    return {
+        "p50_ms": float(np.percentile(values, 50)),
+        "p95_ms": float(np.percentile(values, 95)),
+        "p99_ms": float(np.percentile(values, 99)),
+    }
+
+
+def parity_summary(outputs_fp32, outputs_int8):
+    fp32 = np.asarray(outputs_fp32, dtype=np.float64)
+    int8 = np.asarray(outputs_int8, dtype=np.float64)
+    per_request_delta = np.mean(np.abs(fp32 - int8), axis=-1)
+    return {
+        "mean_absolute_delta": float(np.mean(per_request_delta)),
+        "p95_absolute_delta": float(np.percentile(per_request_delta, 95)),
+    }</code></pre>
+        <p>These summaries do not replace task-specific evaluation. For example, also record whether top-class predictions or other decision thresholds changed.</p>
+        <h2>Control and record variance</h2><p>Use the same machine and runtime configuration for each comparison. Note background load, CPU power state, affinity or isolation settings if you use them, and any other workload sharing the device. Repeat runs and compare run-to-run variation. If the host cannot be isolated, state that plainly.</p>
+        <p>Use a representative validation set for accuracy and parity. Synthetic inputs are valuable for exercising a harness or pipeline, but they cannot establish how a model behaves on the real input distribution.</p>
+        <h2>Keep calibration and benchmark series distinct</h2><p>Calibration data influences the quantization parameters. Record its source and important characteristics, and keep the evaluation set separate. If calibration changes, treat the quantized model as a new artifact and rerun the full comparison rather than blending results from different model versions.</p>
+        <h2>Make precision and execution path observable</h2><p>If some requests fall back from INT8 to FP32, label them. Do not combine them into one “INT8” result. Emit structured output—JSON works well—with model hashes, precision, device, warm-up configuration, sample count, latency distribution, output deltas, and run metadata.</p>
+        <h2>Trade-offs and failure modes</h2><ul><li><strong>Simple harness vs. realistic load:</strong> a single-request loop is easy to understand, but it does not characterize concurrency or resource contention.</li><li><strong>Synthetic inputs vs. representative data:</strong> synthetic inputs make a repeatable demo; production claims need appropriate evaluation inputs.</li><li><strong>Tail reporting vs. small samples:</strong> percentiles reveal latency spread, but only when there are enough measurements to support them.</li><li><strong>Mixed precision vs. clean comparison:</strong> unreported fallbacks make speed and parity comparisons untrustworthy.</li></ul>
+        <h2>Try it yourself</h2><ol><li>Write down whether you are testing cold start, latency, throughput, or a combination.</li><li>Warm up deliberately and record the sample count and test conditions.</li><li>Report FP32 and INT8 percentiles alongside output-delta and decision-change summaries.</li><li>Repeat on an idle host and under representative load; keep those results separate.</li></ol>
+        <h2>Closing thought</h2><p>Benchmarking honestly is a habit. Warm up, report the distribution, compare outputs, and describe the machine and workload. Then “it’s faster” becomes a claim another engineer can reproduce and assess.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.openvino.ai/2026/get-started/learn-openvino/openvino-samples/throughput-benchmark.html" target="_blank" rel="noreferrer">OpenVINO throughput benchmark sample</a></li><li><a href="https://docs.openvino.ai/2026/about-openvino/performance-benchmarks/performance-benchmarks-faq.html" target="_blank" rel="noreferrer">OpenVINO performance measurement FAQ</a></li><li><a href="https://docs.openvino.ai/2026/openvino-workflow/running-inference/optimize-inference.html" target="_blank" rel="noreferrer">OpenVINO inference optimization guidance</a></li></ul></aside>]]></content:encoded></item><item><title>Contribution Guidelines Nobody Reads: Designing Onboarding That Actually Works</title><link>https://www.imshubh.com/articles/github/contributor-onboarding.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/github/contributor-onboarding.html</guid><pubDate>Fri, 23 Jan 2026 12:00:00 -0800</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Most CONTRIBUTING.md files fail. Build contributor paths that get to a working PR: quickstart scripts, test-first templates, guardrails, and realistic expectations.</description><category>github</category><category>opensource</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">I maintain a small open-source project in my spare time. That means I care about contributor experience, but I don’t have limitless hours to hand-hold. The first hard lesson I learned is that most CONTRIBUTING.md files are performative: polite, informative, and easy to ignore. A good contribution guide should be a conveyor belt — once someone steps on, the belt carries them through setup, a small code change, a test run, and a PR.</p><p>A small open-source project may be maintained with limited time, so contributor experience matters. A tested quickstart, a narrow first change, and clear expectations make it easier for someone to turn an idea into a useful pull request.</p>
+        <h3>The failure mode</h3><p>A new contributor lands on your repo, reads a long CONTRIBUTING.md, and tries to set up the environment. They get halfway through a failing install, lose an hour chasing Python versions, and give up. Their idea never materializes, and you lose a potential collaborator. The contributions that do arrive are sporadic and often misaligned with your project norms.</p>
+        <h2>What I learned</h2>
+        <h3>A “quickstart” that is truly quick</h3><p>The first section of CONTRIBUTING.md should be a script that succeeds on a fresh machine in under 10 minutes. No optional flourishes; no “you can also…” — one path, tested regularly. In a Python project, that means creating an isolated environment, installing exact dependencies, running tests, and starting the server. If you support multiple OSes, state the best-supported environment up front and link alternatives after the main path.</p>
+        <h3>Example quickstart</h3><pre><code># clone + setup
+git clone https://github.com/yourname/your-project &amp;&amp; cd your-project
+python3 -m venv .venv &amp;&amp; source .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+# run tests
+pytest -q
+# start service
+uvicorn app.main:app --host 0.0.0.0 --port 8000</code></pre>
+        <h3>A first PR path that doesn’t require knowing the whole codebase</h3><p>If your project supports plugins, design the first contribution as “add a simple plugin” — a single file with a single function, plus a minimal test. Scaffold the directory structure in the quickstart and provide a template file with TODOs. Make it obvious what a valid plugin looks like and how it integrates.</p>
+        <h3>Minimal plugin template</h3><pre><code># your_project/plugins/example_plugin.py
+from your_project.core import EvidenceSource, EvidenceResult
+class ExamplePlugin(EvidenceSource):
+    name = "example_plugin"
+def evaluate(self, profile: dict) -&gt; EvidenceResult:
+    # TODO: basic rule: if profile has 'example' flag, return a small boost
+if profile.get("example", False):
+    return EvidenceResult.present(score_delta=0.05, note="example flag")
+    return EvidenceResult.missing(reason="no example flag")</code></pre>
+        <h3>Tests are not optional — make them the easiest path</h3><p>Require a test in your PR template, but help contributors succeed by including a ready-made test template that imports the plugin and checks a tiny scenario. Fewer than 20 lines is perfect, and the test should run fast.</p>
+        <h3>PR checklist and matching test</h3><pre><code>### Checklist
+- [ ] Added a test covering the plugin behavior
+- [ ] Ran `pytest -q` locally
+- [ ] Updated plugin docs (one paragraph + example)
+Test template:
+# tests/test_example_plugin.py
+from your_project.plugins.example_plugin import ExamplePlugin
+from your_project.core import EvidenceResult
+def test_example_plugin_with_flag():
+plugin = ExamplePlugin()
+result = plugin.evaluate({"example": True})
+assert isinstance(result, EvidenceResult)
+assert result.type == "present"
+assert result.note == "example flag"</code></pre>
+        <h3>Labeling matters more than exhortations</h3><p>A “good first issue” label is a real signal. Curate it weekly: choose small, well-bounded tasks with a single file change and a single test. Avoid issues that depend on strategic decisions or require deep context. If you don’t have time to curate, do fewer but better — five solid good-first-issues beat twenty vague ones.</p>
+        <h3>“How to ask for help” — define the format, not the channel</h3><p>New contributors often ask for help with missing context. Provide a brief template for help requests: environment, exact command, full error output, and what they already tried. Keep it short and clear. This reduces back-and-forth and helps you respond faster.</p>
+        <pre><code>- OS and Python version:
+- Exact command:
+- Full error output (paste as a code block):
+- What I’ve tried so far:</code></pre>
+        <h3>The social contract: response-time expectations</h3><p>State expected response windows for maintainers. If you maintain the project in spare time, say so. Set realistic targets for issue triage and pull request reviews, then keep them visible. Set expectations, and you’ll reduce anxiety on both sides.</p>
+        <h3>CI that reduces guesswork</h3><p>Your CI should run tests and sanity checks on every PR with clear messages. If a plugin interface requires a test, fail with a helpful note when none is detected. If the project uses a formatting or linting standard, automate the fix script and link it from the failure output.</p>
+        <h2>Trade-offs and failure modes</h2>
+        <h3>Trade-offs</h3>
+        <p>Prescriptive quickstart vs flexibility: You’ll help more contributors by picking one supported path; you’ll disappoint a few who prefer different tools. Document alternatives briefly but keep the main path simple.</p>
+        <p>Template rigor vs contributor creativity: Templates guide good behavior but can feel constraining. Invite advanced contributions after the first PR; keep the first path narrow and friendly.</p>
+        <p>CI strictness vs PR throughput: Strict checks reduce maintainers’ manual work but increase initial friction. Counterbalance with crystal-clear failure messages and one-line fix commands.</p>
+        <h3>Failure modes</h3>
+        <p>“Wall of text”: Long CONTRIBUTING.md that reads more like a policy than a path. Solution: front-load the quickstart and the first PR template; move policies to the bottom.</p>
+        <p>“Passes locally, fails in CI”: Version and environment differences. Solution: pin dependencies, provide a lock or requirements file, and document the supported Python version.</p>
+        <p>“Invisible expectations”: Unstated response windows or required tests. Solution: PR templates and CI checks that make expectations explicit.</p>
+        <h2>Try it yourself</h2>
+        <p>Rewrite the top of your CONTRIBUTING.md into a tested quickstart that succeeds in under 10 minutes.</p>
+        <p>Add a one-file plugin template and a matching test template. Wire CI to require a test for new plugins.</p>
+        <p>Curate five “good first issue” tickets with single-file changes and clear acceptance criteria. Measure issue and review response times, then adjust your maintainer schedule accordingly.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.github.com/en/communities/using-templates-to-encourage-useful-issues-and-pull-requests" target="_blank" rel="noreferrer">GitHub Docs: Issue and pull request templates</a></li><li><a href="https://docs.github.com/en/communities/setting-up-your-project-for-healthy-contributions/creating-a-default-community-health-file" target="_blank" rel="noreferrer">GitHub Docs: Community health files</a></li></ul></aside>]]></content:encoded></item><item><title>Smaller, Quieter, Safer: A Production Image Checklist</title><link>https://www.imshubh.com/articles/docker/production-image-checklist.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/docker/production-image-checklist.html</guid><pubDate>Mon, 12 Jan 2026 12:00:00 -0800</pubDate><dc:creator>Shubham Anandani</dc:creator><description>A practical production Docker image checklist covering multi-stage builds, non-root users, build context, secrets, and health checks.</description><category>docker</category><category>containers</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">A production container should be small enough to move efficiently, quiet enough to operate, and constrained enough to limit avoidable risk. Those outcomes come from simple habits: keep build tools out of the runtime image, use a non-root identity, keep the build context tight, and make health checks cheap.</p>
+        <p>The <code>aceu-trust-demo</code> uses a multi-stage build, a slim base, a non-root user, a health endpoint, and Compose for local runs. The checklist below is designed to make those decisions repeatable.</p>
+        <h2>1. Keep build tools out of the runtime stage</h2><p>Compilers, headers, and test tools belong in a build stage when the running application does not need them. Copy only the installed runtime dependencies and application code into the final stage. A smaller image can reduce transfer time and remove packages the service does not need.</p>
+        <pre><code># syntax=docker/dockerfile:1
+FROM python:3.12-slim AS builder
+WORKDIR /app
+RUN python -m venv /venv
+ENV PATH="/venv/bin:$PATH"
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY aceu ./aceu
+
+FROM python:3.12-slim AS runtime
+RUN useradd --uid 10001 --create-home appuser
+WORKDIR /app
+COPY --from=builder --chown=10001:10001 /venv /venv
+COPY --from=builder --chown=10001:10001 /app/aceu ./aceu
+ENV PATH="/venv/bin:$PATH" \
+    PYTHONDONTWRITEBYTECODE=1
+USER 10001
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD python -c 'import urllib.request; urllib.request.urlopen("http://localhost:8000/health", timeout=2)' || exit 1
+CMD ["uvicorn", "aceu.app:app", "--host", "0.0.0.0", "--port", "8000"]</code></pre>
+        <p>Check the actual base image and application requirements before using this verbatim. For example, a health endpoint must exist and return a failing status when the process is unhealthy.</p>
+        <h2>2. Choose a base image for the runtime</h2><p>A minimal base can reduce unnecessary packages, but it may omit a system library your app needs. Add required runtime packages explicitly, then measure the result. Pick an image the team can patch and operate; “smallest possible” is not the only goal.</p>
+        <h2>3. Run as a non-root user with a known UID</h2><p>Use an explicit user ID and make sure files copied into the image are readable by that user. If a writeable directory is needed, grant access only to that path. Fix ownership in the Dockerfile instead of switching back to root when a permissions error appears.</p>
+        <h2>4. Keep the build context narrow</h2><p>Docker can only build from the context it receives. Exclude local caches, virtual environments, repository history, and secrets with a <code>.dockerignore</code> file:</p>
+        <pre><code>__pycache__/
+*.py[cod]
+.env
+.git/
+node_modules/
+venv/
+.venv/
+dist/
+build/</code></pre>
+        <p>Review <code>COPY</code> statements as carefully as ignore rules. Do not copy test fixtures or private configuration into the runtime image unless the application needs them.</p>
+        <h2>5. Keep secrets out of image layers</h2><p>Do not place credentials in Dockerfile <code>ARG</code> or <code>ENV</code> instructions, and do not copy secret files into a layer. Prefer platform-managed runtime secrets. When a build genuinely needs a secret, use BuildKit’s secret mount rather than baking it into the image.</p>
+        <h2>6. Check for weakened isolation and noisy health checks</h2><p>Review Dockerfiles and deployment manifests for settings that weaken isolation, such as an unconfined seccomp profile. Keep health checks bounded and inexpensive; an overly aggressive check can add load or mark a service unhealthy during a temporary resource spike. Set log levels intentionally so normal operation does not bury useful signals.</p>
+        <h2>Trade-offs and failure modes</h2><ul><li><strong>Slim image vs. hidden dependencies:</strong> add the libraries you need, then verify the runtime stage starts and serves its critical paths.</li><li><strong>Non-root vs. file permissions:</strong> set ownership during build and grant write access only where needed.</li><li><strong>Health checks vs. extra load:</strong> probe a fast path and use a reasonable timeout and interval.</li><li><strong>Runtime secrets vs. rotation work:</strong> secure injection adds operational responsibilities, so document ownership and rotation clearly.</li></ul>
+        <p>Common surprises include a credential accidentally left in an image layer, a slim runtime missing a required shared library, or a non-root process unable to read a root-owned file. A deliberate image review catches these before deployment.</p>
+        <h2>Try it on your next image</h2><ol><li>Separate build and runtime stages, then compare the resulting image size.</li><li>Run the application under a non-root UID and verify file access.</li><li>Add a <code>.dockerignore</code> file and inspect the build context.</li><li>Add a CI lint step for known unsafe Dockerfile or manifest settings.</li></ol>
+        <h2>Closing thought</h2><p>A smaller, quieter, safer image is easier to move and less likely to surprise the team in production. The demo remains illustrative; the container practices are the reusable part.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.docker.com/build/building/best-practices/" target="_blank" rel="noreferrer">Docker build best practices</a></li><li><a href="https://docs.docker.com/build/building/multi-stage/" target="_blank" rel="noreferrer">Docker multi-stage builds</a></li><li><a href="https://docs.docker.com/build/building/secrets/" target="_blank" rel="noreferrer">Build secrets with Docker</a></li></ul></aside>]]></content:encoded></item><item><title>The Conversion Gap: From ONNX Export to an Optimized Runtime Format</title><link>https://www.imshubh.com/articles/intel/conversion-gap.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/intel/conversion-gap.html</guid><pubDate>Sat, 27 Dec 2025 12:00:00 -0800</pubDate><dc:creator>Shubham Anandani</dc:creator><description>A practical path from ONNX to OpenVINO IR: inspect operators, handle conversion gaps, and validate output parity.</description><category>intel</category><category>edgeai</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">Training and production are different environments. Exporting a model to ONNX is a useful boundary, but a production runtime still needs to understand the graph, shapes, operators, and precision choices. Conversion friction is easier to handle when it is planned for instead of discovered at release time.</p>
+        <p>In <code>aceu-edge-infer</code>, I convert a lightweight classifier from ONNX for use with OpenVINO. One custom activation exposed an operator gap and required a conservative CPU fallback. The demo’s ACE-U output is illustrative, not an evaluation of real people; the model-delivery practices here are the focus.</p>
+        <h2>Check the graph before you convert</h2><p>Inspect the ONNX graph, its opset, input names, and shapes. Look for custom operators and operations that may not be supported by the runtime version or target device. If the model has dynamic dimensions, decide which shapes production must support and test those explicitly.</p>
+        <p>OpenVINO can convert supported ONNX models to IR, and it can also read ONNX directly at runtime. Conversion is useful when you want a prepared artifact and predictable model-load behavior; first confirm the format is supported and that conversion solves a real deployment need.</p>
+        <h2>Use the current conversion API</h2><p>For a supported ONNX model, the OpenVINO Python API can convert and save an IR artifact:</p>
+        <pre><code>import openvino as ov
+from pathlib import Path
+
+model = ov.convert_model("models/classifier.onnx")
+output = Path("build/ir_fp32/classifier.xml")
+output.parent.mkdir(parents=True, exist_ok=True)
+ov.save_model(model, output)</code></pre>
+        <p>The saved IR consists of an XML graph and a weights file. Alternatively, the <code>ovc</code> command-line tool can convert supported input models. Keep the exact command or script, OpenVINO version, input shapes, and conversion logs with the build so another engineer can reproduce it.</p>
+        <h2>Read conversion errors as signals</h2><ul><li><strong>Unsupported or partially supported operators:</strong> check the runtime’s supported operations and determine whether a supported equivalent preserves behavior.</li><li><strong>Shape inference failures:</strong> inspect dynamic dimensions and provide explicit input shapes only when they match the model’s intended use.</li><li><strong>Precision-specific differences:</strong> validate the FP32 conversion first; quantization adds a separate source of numerical change.</li><li><strong>Custom layers:</strong> decide early whether to replace, isolate, or route around the operation.</li></ul>
+        <h2>Choose a fallback deliberately</h2><p>If an operator cannot use the preferred execution path, there are several options:</p><ul><li>Replace it with a supported equivalent, then measure output parity and confirm the change fits the model’s accuracy budget.</li><li>Keep a documented CPU implementation for the unsupported portion when the runtime and architecture support that boundary.</li><li>Split a larger graph into a supported model and a small, explicit post-processing step in application code.</li></ul><p>Do not label a fallback as “optimized” without measurement. Surface the selected runtime path in logs or response metadata, and make clear whether the service can continue safely when the preferred path is unavailable.</p>
+        <h2>Validate outputs before optimizing precision</h2><p>Create a golden evaluation set and compare the source ONNX model with the converted FP32 model first. Define acceptance criteria that fit the task—for example, maximum per-class delta or mean absolute error. If outputs differ, compare intermediate tensors where possible to locate the first divergence.</p><p>Only after conversion parity is understood should you evaluate INT8. This keeps operator-conversion differences separate from quantization differences and makes failures much easier to diagnose.</p>
+        <h2>Make conversion part of the build</h2><p>Script input shapes, conversion flags, substitutions, and output paths. Version IR artifacts with the model and code revision that produced them; record file hashes and conversion logs rather than overwriting a vague <code>latest</code> artifact. Run conversion in CI when the model, conversion script, or runtime version changes.</p>
+        <h2>Trade-offs and failure modes</h2><ul><li><strong>Operator replacement vs. behavioral fidelity:</strong> an equivalent-looking function can change output; verify parity against the task’s acceptance criteria.</li><li><strong>CPU fallback vs. uniform execution:</strong> a fallback can preserve service behavior but adds a path to test and monitor.</li><li><strong>Fast manual fix vs. reproducibility:</strong> one-off flags may unblock a conversion, while a scripted fix makes future builds repeatable.</li></ul><p>A model that converts and runs can still produce different outputs. A fallback that is not disclosed can make performance results misleading. A runtime update can change what converts successfully, so keep conversion inside the change-review process.</p>
+        <h2>Try it yourself</h2><ol><li>Inventory operators, opset, shapes, and custom layers in your ONNX file.</li><li>Convert to IR with a scripted, versioned command and retain its logs.</li><li>Compare outputs on a golden set before you introduce quantization.</li><li>Document and test every fallback path, including how the service reports it.</li></ol>
+        <h2>Closing thought</h2><p>The conversion gap is manageable when operator compatibility, model parity, and fallbacks are treated as product requirements. Script the path, version what it creates, and validate the outputs before optimizing further.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.openvino.ai/2026/openvino-workflow/model-preparation/convert-model-to-ir.html" target="_blank" rel="noreferrer">Convert supported models to OpenVINO IR</a></li><li><a href="https://docs.openvino.ai/2026/openvino-workflow/model-preparation/setting-input-shapes.html" target="_blank" rel="noreferrer">Set and validate model input shapes</a></li><li><a href="https://onnx.ai/onnx/operators/" target="_blank" rel="noreferrer">ONNX operator specifications</a></li></ul></aside>]]></content:encoded></item><item><title>Faster Isn’t Free: The Real Trade-offs of Quantizing a Model from FP32 to INT8</title><link>https://www.imshubh.com/articles/intel/quantization-tradeoffs.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/intel/quantization-tradeoffs.html</guid><pubDate>Sun, 23 Nov 2025 12:00:00 -0800</pubDate><dc:creator>Shubham Anandani</dc:creator><description>How to evaluate INT8 quantization honestly by measuring latency, output fidelity, calibration coverage, and production risk.</description><category>intel</category><category>edgeai</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">I’ve shipped CPU-only inference, and I’ve also declined to ship a “faster” model when the trade-off did not hold up. Quantizing a model from FP32 to INT8 can help meet latency or memory goals. It can also change outputs in ways that matter to the people relying on them.</p>
+        <p>In my public demo, <code>aceu-edge-infer</code>, I use a small ONNX classifier converted to OpenVINO IR and maintain FP32 and INT8 variants. The service reports which precision it used. It returns four ACE-U dimensions—Authenticity, Credibility, Empathy, and Uniqueness—but these are illustrative outputs from a demo, not validated judgments of real people. The engineering questions are the useful part.</p>
+        <h2>Why quantization can help—and why it changes behavior</h2><p>Quantization represents selected model weights and activations using lower-precision values. With fewer bits to move and process, an inference path may use less memory and run faster on compatible hardware. The actual speedup depends on the model, operators, runtime, and target device; INT8 is not a universal fast switch.</p>
+        <p>Lower precision also introduces rounding. Small changes in early layers can flow through later layers, and a score close to a decision threshold may move across it. Some operators quantize cleanly; others may need different quantization settings, to remain in higher precision, or to run through a fallback path.</p>
+        <h2>Look for where the errors gather</h2><p>Aggregate accuracy can hide concentrated regressions. Compare FP32 and INT8 outputs by class and by meaningful input slice. Inspect examples near decision boundaries, rare patterns, and values near the extremes of the calibration distribution. A useful audit asks not only “How much did the average score move?” but also “Where did the model change its decision?”</p>
+        <h2>Calibrate on data that resembles use</h2><p>Post-training quantization uses calibration samples to estimate ranges for activations. If the samples do not resemble the inputs the service will see, those ranges can be a poor fit. Include representative cases and the edge cases you care about. When real data cannot be used, diverse synthetic examples can help exercise the pipeline, but they do not replace evaluation on an appropriate held-out set.</p>
+        <p>A minimal OpenVINO/NNCF sketch looks like this. <code>calibration_samples</code> must yield preprocessed examples in the model’s expected input format:</p>
+        <pre><code>import nncf
+import openvino as ov
+
+core = ov.Core()
+model = core.read_model("model_fp32.xml")
+calibration_dataset = nncf.Dataset(calibration_samples)
+
+model_int8 = nncf.quantize(model, calibration_dataset)
+ov.save_model(model_int8, "model_int8.xml")</code></pre>
+        <p>This produces a quantized model; it does not establish that the model is accurate enough for a particular use. Keep calibration data and evaluation data separate, and record the evaluation results alongside the model artifact.</p>
+        <h2>Measure more than a mean</h2><ul><li><strong>Latency distribution:</strong> report p50, p95, and p99 for both precisions. A mean alone can hide a worse tail.</li><li><strong>Output deltas:</strong> compare score changes and decision changes across the evaluation set.</li><li><strong>Warm-up:</strong> exclude initialization and compilation work from steady-state measurements, but report cold-start behavior separately if it matters in production.</li><li><strong>Representative conditions:</strong> use the same device, request shape, batch size, concurrency, and preprocessing path.</li></ul>
+        <p>The demo contains a small harness that runs synthetic requests against both variants. Its results are scaffolding until measured on an appropriate workload; synthetic measurements should never be presented as production performance.</p>
+        <h2>Know when not to ship INT8</h2><p>If the latency improvement is marginal while the output changes affect a high-importance class, the trade-off may be negative. For sensitive applications, stability can matter more than a modest speed gain. Compare other options too: batching, request scheduling, a different CPU pool, or optimizing a costly preprocessing step may achieve the goal with less model-level change.</p>
+        <h2>Make precision visible and roll out in steps</h2><p>Record the precision and execution device in service logs or response metadata so a change is diagnosable. Keep the public response contract minimal and avoid exposing sensitive implementation details.</p><p>Before a full rollout, run FP32 and INT8 in shadow for a representative sample and alert on meaningful divergence. If one slice regresses, route it back to FP32 or disable the INT8 path while you investigate. Maintaining both variants adds operational work, but gives the team a controlled recovery option.</p>
+        <h2>Try it yourself</h2><ol><li>Build FP32 and INT8 variants and disclose the precision used for each request.</li><li>Measure warm and cold paths separately, then report latency percentiles and output-delta distributions.</li><li>Evaluate by class and edge-case slice, not only by aggregate accuracy.</li><li>Run a shadow comparison and define in advance what divergence will trigger a rollback.</li></ol>
+        <h2>Closing thought</h2><p>Quantization is powerful, but faster is not free. Percentiles, output deltas, and slice-level evaluation tell you whether INT8 belongs in the production path—or whether FP32 is the more responsible choice.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.openvino.ai/2026/openvino-workflow/model-optimization-guide/quantizing-models-post-training.html" target="_blank" rel="noreferrer">OpenVINO post-training quantization overview</a></li><li><a href="https://docs.openvino.ai/2026/openvino-workflow/model-optimization-guide/quantizing-models-post-training/basic-quantization-flow.html" target="_blank" rel="noreferrer">NNCF basic quantization flow and calibration datasets</a></li><li><a href="https://docs.openvino.ai/2026/openvino-workflow/running-inference/inference-devices-and-modes/cpu-device.html" target="_blank" rel="noreferrer">OpenVINO CPU device and supported inference precisions</a></li></ul></aside>]]></content:encoded></item><item><title>Same Dockerfile, Different Build: Reproducible Container Builds</title><link>https://www.imshubh.com/articles/docker/reproducible-container-builds.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/docker/reproducible-container-builds.html</guid><pubDate>Fri, 14 Nov 2025 12:00:00 -0800</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Pin dependencies, use lock files, and verify container artifacts to make local and cloud builds more reproducible.</description><category>docker</category><category>containers</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">I once pushed a change after a healthy local run of <code>aceu-trust-demo</code>. The cloud build resolved a newer FastAPI version—0.142.2 instead of 0.141.1 locally—and pulled an additional package, <code>opentelemetry-api</code>. The Dockerfile was the same; the dependency ranges were not locked.</p>
+        <p>That kind of drift is easy to miss. A repeatable build takes more than a Dockerfile: it needs a locked dependency graph, a deliberate base-image update policy, and a way to inspect the artifact that actually shipped.</p>
+        <h2>Why “same Dockerfile” can produce a different image</h2><p>Version ranges allow resolvers to choose newer compatible releases. A mutable base-image tag can also point to a newer image later. Build caches may keep an older layer locally while CI fetches fresh inputs. The source recipe is unchanged, but the resolved inputs differ.</p>
+        <h2>Lock the dependency graph</h2><p>Use exact direct-dependency pins and commit a lock file that records the resolved transitive versions. Where the package manager supports it, include hashes and install in locked mode. A short input file might look like this:</p>
+        <pre><code># requirements.in — human-maintained direct dependencies
+fastapi==0.141.1
+uvicorn==0.30.1
+
+# Resolve and lock transitive dependencies, including hashes.
+pip-compile --generate-hashes --output-file requirements.txt requirements.in</code></pre>
+        <p>Commit both files. Install from the generated lock in CI rather than re-resolving ranges during every image build:</p>
+        <pre><code>pip install --require-hashes -r requirements.txt</code></pre>
+        <p>Pins make change deliberate; they do not remove the need to update packages for fixes.</p>
+        <h2>Choose tags or digests deliberately</h2><p>Tags are convenient and can move to newer images. Digests identify a specific image immutably. A digest gives a reproducible base, but it will not advance to security fixes on its own—you must monitor updates and refresh it deliberately.</p>
+        <pre><code># Illustrative digest placeholder: replace with a verified digest
+FROM python:3.12-slim@sha256:&lt;verified-digest&gt;</code></pre>
+        <p>If you use tags, track when they change and refresh the base during scheduled builds. <code>--pull</code> tells Docker to attempt to pull referenced images before the build:</p>
+        <pre><code>docker build --pull --tag aceu-trust-demo:main .</code></pre>
+        <h2>Make updates reviewable</h2><p>Use a dependency update bot or scheduled update pull requests, then gate those changes with tests and image scanning. For production-critical dependencies, document which updates need an explicit reviewer. Prefer a visible, tested update over a silent change arriving through a floating version range.</p>
+        <h2>Keep registry access safe and documented</h2><p>CI needs a clear path to authenticate, tag, and push. Store credentials in the CI secret manager, use a short-lived token where available, and send passwords over standard input instead of exposing them in command arguments:</p>
+        <pre><code># REGISTRY_USER and REGISTRY_TOKEN come from the CI secret store.
+printf '%s' "$REGISTRY_TOKEN" | docker login "$REGISTRY_HOST" \
+  --username "$REGISTRY_USER" --password-stdin
+
+IMAGE="$REGISTRY_HOST/aceu-trust-demo:$GIT_SHA"
+docker build --pull --tag "$IMAGE" .
+docker push "$IMAGE"</code></pre>
+        <p>Document who owns the credentials, how rotation works, and what a failed login looks like. Never print secret values into build logs.</p>
+        <h2>Compare artifacts when behavior changes</h2><p>If local and cloud behavior diverge, inspect the image’s package inventory or generate an SBOM. Compare the resolved versions and base-image digest, then decide whether to re-lock, refresh the image, or accept the change with an appropriate test update. Looking at the built artifact beats guessing from the Dockerfile alone.</p>
+        <h2>Trade-offs and failure modes</h2><ul><li><strong>Exact pins vs. security updates:</strong> pins improve repeatability, while scheduled updates and scans keep them current.</li><li><strong>Tags vs. digests:</strong> tags are easier to refresh; digests make the selected base explicit and immutable.</li><li><strong>Locks vs. setup time:</strong> generating a lock adds a step, but saves time when builds need to be compared.</li><li><strong>Registry authentication:</strong> expired tokens or changed scopes should produce an explicit CI failure, not a misleading successful pipeline.</li></ul>
+        <h2>Try it in your pipeline</h2><ol><li>Replace floating version ranges with exact direct pins and commit a full lock file.</li><li>Pick a base-image policy: tag plus scheduled refresh, or digest plus an explicit update cadence.</li><li>Build with <code>--pull</code> when you want CI to check for updated base images.</li><li>Record the image tag or digest produced by CI and inspect its packages when behavior changes.</li></ol>
+        <h2>Closing thought</h2><p>“Same Dockerfile” rarely guarantees “same runtime.” Lock files, explicit base-image policy, and artifact inspection turn hidden drift into a change the team can review.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.docker.com/reference/cli/docker/buildx/build/" target="_blank" rel="noreferrer">Docker Buildx build options, including <code>--pull</code> and SBOM attestations</a></li><li><a href="https://docs.docker.com/reference/cli/docker/image/pull/#pull-an-image-by-digest-immutable-identifier" target="_blank" rel="noreferrer">Pulling an image by immutable digest</a></li><li><a href="https://pip-tools.readthedocs.io/en/latest/" target="_blank" rel="noreferrer">pip-tools documentation for Python dependency locking</a></li></ul></aside>]]></content:encoded></item><item><title>Running Is Not Ready: Operating Containerized Services</title><link>https://www.imshubh.com/articles/docker/running-is-not-ready.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/docker/running-is-not-ready.html</guid><pubDate>Tue, 23 Sep 2025 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Separate startup, readiness, and liveness signals to make container rollouts safer and easier to recover.</description><category>docker</category><category>containers</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">One of the most reliable lessons from operating containerized services is simple: <strong>running is not ready.</strong> A process can be alive, a port can be open, and yet the service may not be able to handle real traffic. Treat startup, readiness, and liveness as separate concerns, verify each one deliberately, and design rollouts with recovery in mind.</p>
+          <p>This article uses a small public demo, <code>aceu-trust-demo</code>, as a running example. It uses a multi-stage image, a non-root user, a health endpoint, and a container deployment behind external HTTPS ingress. Its ACE-U output is illustrative and based on synthetic evidence; it is not a validated assessment of real people. The operational lessons apply more broadly.</p>
+          <h2>The “green” deployment that still fails</h2>
+          <p>A deployment reports “running” and the dashboard looks healthy, but requests time out. A dependency is still warming up. The process is alive, so the liveness signal stays green; the service is simply not ready to serve traffic yet. The failure began when one signal was expected to answer two different questions.</p>
+          <h2>Give each signal one job</h2>
+          <h3>Startup: has initialization finished?</h3><p>Startup covers work such as loading configuration, opening required connections, or priming a cache. Slow startup should not be mistaken for a dead process.</p>
+          <h3>Readiness: can this instance take traffic now?</h3><p>Readiness is a promise to callers. Keep it false until the dependencies required for the service’s critical path are available. A TCP connection alone may not be enough if the application depends on a loaded index or credentials.</p>
+          <h3>Liveness: is the process stuck in a state that needs a restart?</h3><p>Liveness should detect an unrecoverable condition, such as a deadlock. It should not fail merely because a downstream system is briefly unavailable: repeatedly restarting healthy processes can amplify an outage.</p>
+          <p>Docker’s <code>HEALTHCHECK</code> records a container health state. It does not, by itself, define how a particular load balancer or orchestrator routes traffic. In Kubernetes, configure startup, readiness, and liveness probes for their distinct purposes.</p>
+          <h3>A bounded Docker health check</h3><p>If Python is already part of the runtime image, a tiny local endpoint check avoids adding a separate <code>curl</code> package just for health status:</p>
+          <pre><code>HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD python -c 'import urllib.request; urllib.request.urlopen("http://localhost:8000/health", timeout=2)' || exit 1</code></pre>
+          <p>Keep this endpoint cheap and local. Put stricter dependency checks in a separate readiness endpoint, then configure your platform to use that endpoint to gate traffic.</p>
+          <h2>Roll out in stages and predefine rollback</h2><p>Do not move all traffic at once. Start with a small cohort, hold it under real load for a defined soak period, then expand. Write the rollback condition before the release—for example, a measured latency threshold sustained for a defined duration, or an error rate that crosses a set limit. The thresholds should come from the service’s baseline and risk profile, not be guessed after the rollout starts.</p>
+          <h2>Shut down gracefully</h2><p>When a platform scales down an idle container, the process may receive <code>SIGTERM</code>. Stop accepting new work, let in-flight requests finish within a deadline, close outbound clients, flush metrics, and exit. Treat <code>SIGKILL</code> as the forced fallback. Without a drain period, a routine scale-down can become partial writes, dangling sessions, or noisy retries.</p>
+          <h2>Make the dependency chain visible</h2><p>Under pressure, teams often blame the topmost service. Keep a runbook that follows dependencies below the application: runtime, network, storage, cache or index, and external services. Document how each layer fails and how to check it without adding load. Infrastructure problems such as CPU starvation, memory pressure, or network saturation can surface as application timeouts and backpressure.</p>
+          <p>A green health endpoint can also miss a heavy or rarely used path. Pair alerts with lightweight, non-sensitive transition logs such as <code>ready=false reason=index_warming</code> and <code>ready=true checks=passed</code>. A weekly on-call handoff—what broke, the likely cause, and which mitigation helped—turns recurring cold starts and slow dependency warm-ups into work the team can fix.</p>
+          <h2>Trade-offs to make explicit</h2><ul><li><strong>Strict readiness vs. first-green speed:</strong> better gating can delay traffic, while reducing user-facing failures.</li><li><strong>Longer soak vs. delivery pace:</strong> more observation lowers rollout risk but delays full exposure.</li><li><strong>Graceful drain vs. implementation effort:</strong> draining takes work; skipping it risks incomplete operations.</li><li><strong>Frequent liveness checks vs. flapping:</strong> overly sensitive checks can restart a service during resource spikes and worsen an incident.</li></ul>
+          <h2>Try it in your service</h2><ol><li>Add a separate <code>/ready</code> endpoint that checks the critical dependency before returning success.</li><li>Write down a staged rollout, soak period, and rollback trigger before your next release.</li><li>Handle <code>SIGTERM</code> by draining requests and closing resources cleanly.</li><li>Extend your runbook with infrastructure checks and first suspects for latency spikes.</li></ol>
+          <h2>Closing thought</h2><p>Separating startup, readiness, and liveness reduces confusion during incidents and helps limit their blast radius. The demo illustrates the distinction with a local health endpoint and a reversible deployment path. Its ACE-U dimensions—Authenticity, Credibility, Empathy, and Uniqueness—remain conceptual in this context, not a judgment of real people.</p>
+          <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.docker.com/reference/dockerfile/#healthcheck" target="_blank" rel="noreferrer">Dockerfile <code>HEALTHCHECK</code> reference</a></li><li><a href="https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/" target="_blank" rel="noreferrer">Kubernetes startup, readiness, and liveness probes</a></li></ul></aside>]]></content:encoded></item></channel></rss>
