@@ -7,6 +7,7 @@ import csv
 import html
 import json
 import re
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from datetime import date, datetime, time, timezone
@@ -539,7 +540,7 @@ def validate(articles: list[dict]) -> list[str]:
         parser = StrictArticleParser()
         try:
             parser.feed((ROOT / name).read_text(encoding="utf-8")); parser.close()
-            if not {("application/rss+xml", BASE_URL + "rss.xml"), ("application/atom+xml", BASE_URL + "atom.xml")}.issubset(set(parser.alternates)):
+            if not {("application/rss+xml", "/rss.xml"), ("application/atom+xml", BASE_URL + "atom.xml")}.issubset(set(parser.alternates)):
                 errors.append(f"{name}: missing RSS or Atom alternate link")
         except OSError as exc:
             errors.append(f"{name}: missing or invalid HTML: {exc}")
@@ -597,8 +598,14 @@ def add_feed_alternates() -> None:
         text = path.read_text()
         for feed in ("rss", "atom"):
             href = BASE_URL + feed + ".xml"
-            tag = f'<link rel="alternate" type="application/{"rss+xml" if feed == "rss" else "atom+xml"}" title="{feed.upper()}" href="{href}" />'
-            if tag in text:
+            media_type = "application/" + ("rss+xml" if feed == "rss" else "atom+xml")
+            tag = f'<link rel="alternate" type="{media_type}" title="{feed.upper()}" href="{href}" />'
+            already_present = any(
+                "alternate" in dict(re.findall(r'''([\w:-]+)\s*=\s*["'](.*?)["']''', link, re.I | re.S)).get("rel", "").lower().split()
+                and dict(re.findall(r'''([\w:-]+)\s*=\s*["'](.*?)["']''', link, re.I | re.S)).get("type", "").lower() == media_type
+                for link in re.findall(r"<link\b[^>]*>", text, re.I | re.S)
+            )
+            if tag in text or already_present:
                 continue
             text = text.replace("</head>", "    " + tag + "\n  </head>", 1)
         path.write_text(text)
@@ -731,6 +738,8 @@ def main() -> int:
         print("Validation failed:\n- " + "\n- ".join(errors), file=sys.stderr)
         return 1
     print(f"Validated {len(articles)} articles, dates, pages, and feeds.")
+    if args.command == "build":
+        subprocess.run([sys.executable, str(ROOT / "scripts/seo.py")], check=True)
     return 0
 
 
