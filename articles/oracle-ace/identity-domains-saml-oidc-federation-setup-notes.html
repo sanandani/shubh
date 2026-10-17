@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="What I configure first so an external identity provider works cleanly with OCI." />
+    <title>Identity Domains: SAML/OIDC federation setup notes — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/oracle-ace/identity-domains-saml-oidc-federation-setup-notes.html" />
+    <meta property="article:published_time" content="2025-11-09T12:00:00-08:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Identity Domains: SAML/OIDC federation setup notes" />
+    <meta property="og:description" content="What I configure first so an external identity provider works cleanly with OCI." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/oracle-ace/identity-domains-saml-oidc-federation-setup-notes.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="oracleace" />
+    <meta property="article:tag" content="oci" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Identity Domains: SAML/OIDC federation setup notes","datePublished":"2025-11-09T12:00:00-08:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"What I configure first so an external identity provider works cleanly with OCI.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/oracle-ace/identity-domains-saml-oidc-federation-setup-notes.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#oracle-ace">← Oracle ACE articles</a>
+      <header class="article-document-header"><p class="kicker">ACE-U field notes</p><h1>Identity Domains: SAML/OIDC federation setup notes</h1><p class="article-deck">What I configure first so an external identity provider works cleanly with OCI.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2025-11-09T12:00:00-08:00">Published November 9, 2025</time><span>·</span><span>3 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+<p>Most teams already have an identity provider such as Entra ID (formerly Azure AD) or Okta, and nobody wants a second set of passwords for the cloud console. Federation solves that, but a careless setup can lock out administrators or leave group membership drifting away from what the IdP says.</p>
+<p>I wanted a repeatable order of operations that keeps a way back in at every step.</p>
+<h2>Options and trade-offs</h2>
+<ul><li>Console setup: straightforward and visible, and it needs careful mapping and testing.</li><li>API or automation: repeatable, but there are more moving parts to get wrong the first time.</li><li>Default sign-on and IdP policies versus custom rules: the defaults are a fine start, but confirm what they do to administrators before you rely on them.</li></ul>
+<h2>My recommendation</h2>
+<p>Use the Identity Domains flow with a SAML identity provider. Exchange metadata, decide which assertion attribute identifies the user, map IdP groups to IAM groups, and test with a staged non-admin account before an administrator. Change federation and MFA separately so a problem can be traced to one change.</p>
+<h2>Worked example</h2>
+<p>The sequence I follow in the Console. It is a checklist, not a script, because the exact screens differ a little between tenancies.</p>
+<pre><code>1. Keep a local break-glass admin that does NOT use the new IdP.
+2. Identity Domains &gt; Security &gt; Identity providers &gt; Add SAML IdP.
+   - Upload the IdP metadata XML (or enter the endpoints and signing cert).
+   - Choose the attribute that carries the username (NameID or email).
+3. Export the domain's service provider metadata and import it into the IdP.
+4. Map IdP groups to IAM groups (group mapping / JIT provisioning).
+5. Add the IdP to an identity provider policy rule and activate it.
+6. Test: non-admin user first, then an admin. Confirm group-based access.
+7. Record the metadata expiry date and who owns the mapping table.</code></pre>
+<p>For Entra ID the pattern is the same. You create an enterprise application, upload the service provider metadata, download the federation metadata XML and import it into the domain. OIDC-based identity providers follow the same ideas, with a client ID and secret in place of metadata files.</p>
+<h2>Checklist</h2>
+<ol><li>Keep a break-glass local administrator outside federation.</li><li>Document the group mappings and name an owner for each.</li><li>Test a non-admin sign-in before you test an admin sign-in.</li><li>Watch for attribute mismatches, and fix the mapping instead of widening a policy.</li><li>Track the IdP signing certificate expiry and the metadata refresh process.</li><li>Do not change federation and MFA policy in the same maintenance window.</li></ol>
+<h2>Where this doesn&#x27;t apply</h2>
+<p>A very small tenancy with no external IdP is better off with local users and a strong sign-on policy. Federation adds value when there is already an identity source to follow.</p>
+<h2>One honest limitation</h2>
+<p>An expired or rotated IdP certificate can break sign-in without warning. I keep a calendar entry for it and a short, written refresh procedure.</p>
+<h2>Sources</h2>
+<ul><li>OCI Documentation: Federating with Identity Domains (SAML identity providers)</li><li>OCI Documentation: Identity Provider Policies in Identity Domains</li><li>OCI Documentation: Manually Federating Your Tenancy</li></ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

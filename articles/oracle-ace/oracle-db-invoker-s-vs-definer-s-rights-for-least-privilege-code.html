@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A simple rule of thumb for choosing AUTHID, with two small procedures that show the difference." />
+    <title>Oracle DB: invoker&#x27;s vs definer&#x27;s rights for least-privilege code — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/oracle-ace/oracle-db-invoker-s-vs-definer-s-rights-for-least-privilege-code.html" />
+    <meta property="article:published_time" content="2026-05-21T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Oracle DB: invoker&#x27;s vs definer&#x27;s rights for least-privilege code" />
+    <meta property="og:description" content="A simple rule of thumb for choosing AUTHID, with two small procedures that show the difference." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/oracle-ace/oracle-db-invoker-s-vs-definer-s-rights-for-least-privilege-code.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="oracleace" />
+    <meta property="article:tag" content="oci" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Oracle DB: invoker's vs definer's rights for least-privilege code","datePublished":"2026-05-21T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"A simple rule of thumb for choosing AUTHID, with two small procedures that show the difference.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/oracle-ace/oracle-db-invoker-s-vs-definer-s-rights-for-least-privilege-code.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#oracle-ace">← Oracle ACE articles</a>
+      <header class="article-document-header"><p class="kicker">ACE-U field notes</p><h1>Oracle DB: invoker&#x27;s vs definer&#x27;s rights for least-privilege code</h1><p class="article-deck">A simple rule of thumb for choosing AUTHID, with two small procedures that show the difference.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-05-21T12:00:00-07:00">Published May 21, 2026</time><span>·</span><span>3 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+<p>PL/SQL runs with one of two sets of privileges: the owner&#x27;s (definer&#x27;s rights) or the caller&#x27;s (invoker&#x27;s rights). Choosing the wrong one is how a harmless helper procedure ends up with far more reach than anyone intended.</p>
+<p>I wanted a decision path I can apply in seconds and defend in a code review.</p>
+<h2>Options and trade-offs</h2>
+<ul><li>Definer&#x27;s rights (AUTHID DEFINER, the default): privileges come from the owner. Callers need only EXECUTE, and the risk is an owner with broad privileges.</li><li>Invoker&#x27;s rights (AUTHID CURRENT_USER): the code works within the caller&#x27;s own privileges, which suits shared code across schemas or tenants. Callers need access to every object it touches.</li></ul>
+<h2>My recommendation</h2>
+<p>Make shared, reusable code invoker&#x27;s rights, so it can never do more than the person calling it. Use definer&#x27;s rights for a small number of deliberate entry points that expose one action without handing out table privileges, and restrict who may call them.</p>
+<h2>Worked example</h2>
+<p>An invoker&#x27;s rights procedure resolves unqualified names at run time in the caller&#x27;s schema, so it reads the caller&#x27;s own orders table.</p>
+<pre><code>CREATE OR REPLACE PROCEDURE app_util.list_my_orders
+  AUTHID CURRENT_USER
+AS
+BEGIN
+  FOR r IN (SELECT order_id, status FROM orders) LOOP
+    DBMS_OUTPUT.PUT_LINE(r.order_id || ' ' || r.status);
+  END LOOP;
+END;
+/</code></pre>
+<p>A definer&#x27;s rights entry point is the opposite. It performs one privileged action on the owner&#x27;s data, and ACCESSIBLE BY restricts which program units may call it.</p>
+<pre><code>CREATE OR REPLACE PROCEDURE app_admin.close_period (p_period IN NUMBER)
+  AUTHID DEFINER
+  ACCESSIBLE BY (PACKAGE app_api.billing)
+AS
+BEGIN
+  UPDATE fiscal_periods SET status = 'CLOSED' WHERE period_id = p_period;
+END;
+/
+GRANT EXECUTE ON app_admin.close_period TO billing_role;</code></pre>
+<p>A few facts that help in practice. Roles are disabled inside definer&#x27;s rights code, so the owner needs direct grants. Since Oracle Database 12c, an invoker&#x27;s rights unit can use the caller&#x27;s privileges only if its owner has the INHERIT PRIVILEGES privilege on the caller, or INHERIT ANY PRIVILEGES. Anonymous blocks run with the privileges of whoever executes them.</p>
+<h2>Checklist</h2>
+<ol><li>Decide who should own the effective privileges before writing the code.</li><li>For invoker&#x27;s rights, confirm callers have the object privileges the code needs.</li><li>Keep definer&#x27;s rights units small, and keep the owner&#x27;s privileges minimal.</li><li>Use ACCESSIBLE BY to limit callers of sensitive procedures.</li><li>Document entry points and who calls them, and audit executions.</li><li>Review dynamic SQL, because it resolves names at run time.</li></ol>
+<h2>Where this doesn&#x27;t apply</h2>
+<p>Anonymous blocks already behave like invoker&#x27;s rights, so the choice does not apply to them.</p>
+<h2>One honest limitation</h2>
+<p>Invoker&#x27;s rights with static SQL expects matching objects to exist for the owner at compile time and for the caller at run time. Plan schema design so those differences do not produce subtle errors.</p>
+<h2>Sources</h2>
+<ul><li>Oracle Database PL/SQL Language Reference: Invoker&#x27;s Rights and Definer&#x27;s Rights (AUTHID Property)</li><li>Oracle Database Security Guide: Managing Security for Definer&#x27;s Rights and Invoker&#x27;s Rights</li><li>Oracle Database PL/SQL Language Reference: ACCESSIBLE BY Clause</li></ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

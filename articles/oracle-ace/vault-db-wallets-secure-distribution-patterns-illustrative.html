@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Generating an Autonomous Database wallet, keeping it in Vault, and rebuilding it only where it is needed." />
+    <title>Vault + DB wallets: secure distribution patterns (illustrative) — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/oracle-ace/vault-db-wallets-secure-distribution-patterns-illustrative.html" />
+    <meta property="article:published_time" content="2026-02-15T12:00:00-08:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Vault + DB wallets: secure distribution patterns (illustrative)" />
+    <meta property="og:description" content="Generating an Autonomous Database wallet, keeping it in Vault, and rebuilding it only where it is needed." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/oracle-ace/vault-db-wallets-secure-distribution-patterns-illustrative.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="oracleace" />
+    <meta property="article:tag" content="oci" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Vault + DB wallets: secure distribution patterns (illustrative)","datePublished":"2026-02-15T12:00:00-08:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"Generating an Autonomous Database wallet, keeping it in Vault, and rebuilding it only where it is needed.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/oracle-ace/vault-db-wallets-secure-distribution-patterns-illustrative.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#oracle-ace">← Oracle ACE articles</a>
+      <header class="article-document-header"><p class="kicker">ACE-U field notes</p><h1>Vault + DB wallets: secure distribution patterns (illustrative)</h1><p class="article-deck">Generating an Autonomous Database wallet, keeping it in Vault, and rebuilding it only where it is needed.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-02-15T12:00:00-08:00">Published February 15, 2026</time><span>·</span><span>3 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+<p>Mutual TLS to Autonomous Database needs a wallet. In practice that wallet ends up in a chat thread, in a repo, or baked into a container image, and rotating it means finding every copy.</p>
+<p>I wanted the wallet to have one home, a controlled way out, and a short life on disk.</p>
+<h2>Options and trade-offs</h2>
+<ul><li>Copying the wallet files around: fast, hard to rotate and hard to audit.</li><li>Wallet files as Vault secrets: access is governed by IAM and logged. The files need encoding and a rebuild step.</li><li>Server-authenticated TLS without a wallet: fewer artifacts. It depends on the database allowing TLS connections without mTLS.</li></ul>
+<h2>My recommendation</h2>
+<p>Generate the wallet from the database service, store its files as Vault secrets, and let the runtime principal read them at startup. The application recreates the files in a protected directory, sets TNS_ADMIN, and connects through the TNS alias.</p>
+<h2>Worked example</h2>
+<p>Generate the wallet and push the files into Vault. The CLI needs base64 content, while the Console encodes plain text for you.</p>
+<pre><code>oci db autonomous-database generate-wallet \
+  --autonomous-database-id &lt;db_ocid&gt; \
+  --file wallet.zip \
+  --password "&lt;wallet_password&gt;"
+ 
+unzip wallet.zip -d wallet
+base64 -w0 wallet/cwallet.sso &gt; cwallet.sso.b64
+ 
+oci vault secret create-base64 \
+  --compartment-id &lt;compartment_ocid&gt; \
+  --vault-id &lt;vault_ocid&gt; \
+  --key-id &lt;symmetric_key_ocid&gt; \
+  --secret-name db_wallet_cwallet_sso \
+  --secret-content-content "$(cat cwallet.sso.b64)" \
+  --secret-content-stage CURRENT</code></pre>
+<p>Repeat for the other files the connection needs, usually tnsnames.ora, sqlnet.ora and ojdbc.properties. At startup, the app reads each secret, decodes it and writes it into a directory only its own user can access. The sketch below shows the permission handling.</p>
+<pre><code>Path dir = Files.createTempDirectory("wallet",
+    PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rwx------")));
+for (var e : walletSecrets.entrySet()) {          // name -&gt; base64 content
+    Files.write(dir.resolve(e.getKey()), Base64.getDecoder().decode(e.getValue()));
+}
+// start the JVM or pool with -Doracle.net.tns_admin=&lt;dir&gt; or TNS_ADMIN=&lt;dir&gt;</code></pre>
+<p>The ojdbc.properties file that ships in the wallet refers to the TNS_ADMIN directory for its wallet location, so it works unchanged when you rebuild the directory.</p>
+<h2>Checklist</h2>
+<ol><li>Generate the wallet from the database service and track when it expires.</li><li>Store each file as a secret, using base64 for CLI and API paths.</li><li>Give the runtime principal read access to those secrets only.</li><li>Rebuild the wallet directory at runtime with owner-only permissions, and never bake it into an image.</li><li>Confirm the server certificate name check is on, and log wallet reads.</li><li>Keep the previous secret version for a short time in case rotation goes wrong.</li></ol>
+<h2>Where this doesn&#x27;t apply</h2>
+<p>If your policy allows server-authenticated TLS, you may not need a wallet at all. That removes the distribution problem entirely.</p>
+<h2>One honest limitation</h2>
+<p>Wallets are multi-file, and the cleanup of temporary files is easy to forget. Test the rebuild path and the deletion path as carefully as the connection itself.</p>
+<h2>Sources</h2>
+<ul><li>OCI Documentation: Downloading Client Credentials (Wallets) for Autonomous Database</li><li>OCI CLI Reference: oci vault secret create-base64</li><li>OCI Documentation: Connecting with JDBC and a Wallet</li></ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

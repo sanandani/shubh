@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A small set of audit policies that gives you useful events without drowning in noise." />
+    <title>Unified Auditing: practical policies and trail hygiene — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/oracle-ace/unified-auditing-practical-policies-and-trail-hygiene.html" />
+    <meta property="article:published_time" content="2026-07-04T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Unified Auditing: practical policies and trail hygiene" />
+    <meta property="og:description" content="A small set of audit policies that gives you useful events without drowning in noise." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/oracle-ace/unified-auditing-practical-policies-and-trail-hygiene.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="oracleace" />
+    <meta property="article:tag" content="oci" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Unified Auditing: practical policies and trail hygiene","datePublished":"2026-07-04T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"A small set of audit policies that gives you useful events without drowning in noise.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/oracle-ace/unified-auditing-practical-policies-and-trail-hygiene.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#oracle-ace">← Oracle ACE articles</a>
+      <header class="article-document-header"><p class="kicker">ACE-U field notes</p><h1>Unified Auditing: practical policies and trail hygiene</h1><p class="article-deck">A small set of audit policies that gives you useful events without drowning in noise.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-07-04T12:00:00-07:00">Published July 4, 2026</time><span>·</span><span>3 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+<p>Auditing everything produces a trail nobody reads. Auditing nothing leaves you guessing after an incident. Traditional auditing was also split across several places, which made it hard to search.</p>
+<p>Unified Auditing puts events in one trail. My question was which policies to switch on first, and how to keep that trail from filling a tablespace.</p>
+<h2>Options and trade-offs</h2>
+<ul><li>Predefined policies such as ORA_SECURECONFIG and ORA_LOGIN_LOGOUT: quick wins, and worth enabling selectively.</li><li>Custom policies with BY, EXCEPT and WHEN: precise, and they need testing so they do not create blind spots.</li><li>Mirroring to syslog: improves integrity checking, and adds infrastructure to run.</li></ul>
+<h2>My recommendation</h2>
+<p>Enable a small number of predefined policies as a baseline, then add custom policies for the actions that matter, such as privileged schema changes and key management. Schedule purging, and use the audit management package instead of deleting rows by hand.</p>
+<h2>Worked example</h2>
+<p>Start by enabling the baseline policies and confirming they are active:</p>
+<pre><code>AUDIT POLICY ORA_SECURECONFIG;
+AUDIT POLICY ORA_LOGIN_LOGOUT;
+ 
+SELECT policy_name FROM audit_unified_enabled_policies;</code></pre>
+<p>Add custom policies for high-value actions. The EXCEPT clause keeps a batch account from flooding the trail.</p>
+<pre><code>CREATE AUDIT POLICY ddl_pol PRIVILEGES CREATE ANY TABLE, DROP ANY TABLE;
+AUDIT POLICY ddl_pol EXCEPT app_batch;
+ 
+CREATE AUDIT POLICY keymgmt_pol ACTIONS ADMINISTER KEY MANAGEMENT;
+AUDIT POLICY keymgmt_pol;
+ 
+CREATE AUDIT POLICY hr_fail_pol ACTIONS SELECT ON hr.employees;
+AUDIT POLICY hr_fail_pol WHENEVER NOT SUCCESSFUL;</code></pre>
+<p>Keep the trail healthy by archiving and purging through DBMS_AUDIT_MGMT:</p>
+<pre><code>BEGIN
+  DBMS_AUDIT_MGMT.SET_LAST_ARCHIVE_TIMESTAMP(
+    audit_trail_type  =&gt; DBMS_AUDIT_MGMT.AUDIT_TRAIL_UNIFIED,
+    last_archive_time =&gt; SYSTIMESTAMP - INTERVAL '90' DAY);
+  DBMS_AUDIT_MGMT.CLEAN_AUDIT_TRAIL(
+    audit_trail_type        =&gt; DBMS_AUDIT_MGMT.AUDIT_TRAIL_UNIFIED,
+    use_last_arch_timestamp =&gt; TRUE);
+END;
+/</code></pre>
+<p>Only run the purge after you have exported what you need to keep. For stronger integrity, mirror selected events to syslog so a privileged database user cannot quietly erase the only copy.</p>
+<h2>Checklist</h2>
+<ol><li>Turn on the secure configuration and login policies first.</li><li>Write named policies for privileged and high-value actions.</li><li>Use EXCEPT and WHEN to cut noise from known service accounts.</li><li>Mirror critical events to syslog or an external system.</li><li>Purge only with DBMS_AUDIT_MGMT, after archiving.</li><li>Document who owns each policy and how long events are kept.</li></ol>
+<h2>Where this doesn&#x27;t apply</h2>
+<p>If a central audit platform already collects database events, coordinate scopes with it so you do not store everything twice.</p>
+<h2>One honest limitation</h2>
+<p>Broad policies create a lot of data very quickly. Start narrow, look at what you actually collect for a week, and widen only where the gaps are real.</p>
+<h2>Sources</h2>
+<ul><li>Oracle Database Security Guide: Configuring Audit Policies</li><li>Oracle Database SQL Language Reference: CREATE AUDIT POLICY (Unified Auditing)</li><li>Oracle Database PL/SQL Packages Reference: DBMS_AUDIT_MGMT</li></ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

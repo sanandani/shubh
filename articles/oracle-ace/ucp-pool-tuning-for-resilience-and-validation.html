@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="The handful of Universal Connection Pool settings I change first, and the arithmetic behind the sizes." />
+    <title>UCP pool tuning for resilience and validation — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/oracle-ace/ucp-pool-tuning-for-resilience-and-validation.html" />
+    <meta property="article:published_time" content="2026-09-18T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="UCP pool tuning for resilience and validation" />
+    <meta property="og:description" content="The handful of Universal Connection Pool settings I change first, and the arithmetic behind the sizes." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/oracle-ace/ucp-pool-tuning-for-resilience-and-validation.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="oracleace" />
+    <meta property="article:tag" content="oci" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"UCP pool tuning for resilience and validation","datePublished":"2026-09-18T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"The handful of Universal Connection Pool settings I change first, and the arithmetic behind the sizes.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/oracle-ace/ucp-pool-tuning-for-resilience-and-validation.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#oracle-ace">← Oracle ACE articles</a>
+      <header class="article-document-header"><p class="kicker">ACE-U field notes</p><h1>UCP pool tuning for resilience and validation</h1><p class="article-deck">The handful of Universal Connection Pool settings I change first, and the arithmetic behind the sizes.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-09-18T12:00:00-07:00">Published September 18, 2026</time><span>·</span><span>3 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+<p>UCP has dozens of properties, and the defaults work. What I wanted was predictable behavior under stress: callers that fail fast instead of hanging, bad connections that are caught before they reach the application, and a pool that does not quietly use up the database&#x27;s session budget.</p>
+<h2>Options and trade-offs</h2>
+<ul><li>A small pool with a modest maximum: gentle on the database, and it may add latency while the pool warms up.</li><li>A larger minimum or initial size: faster first requests, and idle sessions you are paying for.</li><li>Validation on borrow: safer, with a small cost on each borrow. A short trust window reduces that cost.</li></ul>
+<h2>My recommendation</h2>
+<p>Set the minimum and maximum sizes on purpose, turn on validation on borrow with a short trust window, and give callers a wait timeout. Then measure and adjust. Change one property at a time, so you know which change helped.</p>
+<h2>Worked example</h2>
+<p>Start from the database&#x27;s limit and work backwards. If a database can comfortably serve 200 sessions for this application and you run 8 service instances, a maximum of 20 per instance already reaches 160, which leaves room for failover and administration.</p>
+<pre><code>PoolDataSource pds = PoolDataSourceFactory.getPoolDataSource();
+pds.setConnectionFactoryClassName("oracle.jdbc.pool.OracleDataSource");
+pds.setURL("&lt;jdbc_url&gt;");
+pds.setUser(System.getenv("DB_USER"));
+pds.setPassword(System.getenv("DB_PASSWORD"));
+ 
+// Sizing
+pds.setInitialPoolSize(2);
+pds.setMinPoolSize(2);
+pds.setMaxPoolSize(20);
+ 
+// Resilience
+pds.setValidateConnectionOnBorrow(true);
+pds.setSecondsToTrustIdleConnection(5);   // skip re-validation for 5 s
+pds.setConnectionWaitTimeout(3);          // seconds a caller waits for a connection
+pds.setInactiveConnectionTimeout(300);    // release idle connections after 5 min</code></pre>
+<p>To watch the pool, log the borrowed and available counts on a timer, or expose them through JMX:</p>
+<pre><code>log.info("ucp borrowed={} available={}",
+         pds.getBorrowedConnectionsCount(),
+         pds.getAvailableConnectionsCount());</code></pre>
+<p>If borrowed stays close to the maximum and callers start timing out, the first suspect is a slow query or a leaked connection, not the pool size.</p>
+<h2>Checklist</h2>
+<ol><li>Derive the maximum from the database&#x27;s session budget and the number of instances.</li><li>Turn on validation on borrow, and use a short trust window if the overhead matters.</li><li>Set a connection wait timeout so callers cannot hang.</li><li>Log or export the borrowed, available and waiting counts.</li><li>Test failover and a database restart.</li><li>Revisit sizes after load testing, in small steps.</li></ol>
+<h2>Where this doesn&#x27;t apply</h2>
+<p>Large Oracle RAC deployments that rely on Fast Application Notification and replay need high-availability features configured, and that is a separate tuning exercise.</p>
+<h2>One honest limitation</h2>
+<p>Validation costs a little on every borrow. Only widen the trust window after the basic reliability picture is clear, or you may hide the very failures you wanted to catch.</p>
+<h2>Sources</h2>
+<ul><li>Oracle Universal Connection Pool Developer&#x27;s Guide: Setting Connection Pool Properties</li><li>Oracle UCP Java API Reference: PoolDataSource</li><li>Oracle UCP Developer&#x27;s Guide: Monitoring the Pool with JMX</li></ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

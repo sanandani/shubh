@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Using compartment and tag rules so only the instances you intend can assume a group&#x27;s permissions." />
+    <title>Dynamic groups with tag-based scoping (illustrative patterns) — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/oracle-ace/dynamic-groups-with-tag-based-scoping-illustrative-patterns.html" />
+    <meta property="article:published_time" content="2025-10-02T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Dynamic groups with tag-based scoping (illustrative patterns)" />
+    <meta property="og:description" content="Using compartment and tag rules so only the instances you intend can assume a group&#x27;s permissions." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/oracle-ace/dynamic-groups-with-tag-based-scoping-illustrative-patterns.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="oracleace" />
+    <meta property="article:tag" content="oci" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Dynamic groups with tag-based scoping (illustrative patterns)","datePublished":"2025-10-02T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"Using compartment and tag rules so only the instances you intend can assume a group's permissions.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/oracle-ace/dynamic-groups-with-tag-based-scoping-illustrative-patterns.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#oracle-ace">← Oracle ACE articles</a>
+      <header class="article-document-header"><p class="kicker">ACE-U field notes</p><h1>Dynamic groups with tag-based scoping (illustrative patterns)</h1><p class="article-deck">Using compartment and tag rules so only the instances you intend can assume a group&#x27;s permissions.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2025-10-02T12:00:00-07:00">Published October 2, 2025</time><span>·</span><span>3 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+<p>A dynamic group rule that says &quot;every instance in compartment X&quot; is easy to write and easy to regret. The day someone launches a test box or a bastion in that compartment, it silently picks up the same permissions as your production services.</p>
+<p>I wanted membership that is predictable and explainable: this instance is in the group because it is in this compartment and carries this tag.</p>
+<h2>Options and trade-offs</h2>
+<ul><li>Compartment-only rules: simple, with broad membership that grows by accident.</li><li>Instance OCID rules: exact, but you edit the rule every time an instance is replaced.</li><li>Compartment plus tag rules: precise enough for most teams, as long as tagging is governed.</li></ul>
+<h2>My recommendation</h2>
+<p>I combine a compartment OCID with a defined tag namespace, key and value, joined with ALL so both conditions must be true. Then I treat the tag like an access-control input and restrict who can apply it. Without that last step, anyone who can tag an instance can effectively add it to the group.</p>
+<h2>Worked example</h2>
+<p>A rule that requires both the compartment and the tag. The tag here uses a namespace called department and a key called runtime.</p>
+<pre><code>ALL {instance.compartment.id = '&lt;apps_compartment_ocid&gt;',
+     tag.department.runtime.value = 'payments'}</code></pre>
+<p>When a group should cover two compartments, use ANY around the compartment checks and keep the tag condition outside it:</p>
+<pre><code>ALL {
+  ANY {instance.compartment.id = '&lt;apps_compartment_ocid&gt;',
+       instance.compartment.id = '&lt;shared_compartment_ocid&gt;'},
+  tag.department.runtime.value = 'payments'
+}</code></pre>
+<p>The Console rule builder covers the simple cases, but you will type tag rules by hand. Changes to a rule or to a tag are not instant, so I verify the effective membership rather than assuming it, and I keep the rule text in version control next to the policy it supports.</p>
+<h2>Checklist</h2>
+<ol><li>Define the tag namespace, key and allowed values before writing the rule.</li><li>Use ALL so the compartment and the tag must both match.</li><li>Limit who may apply or change the tag through IAM.</li><li>Keep the rule text and the reason for it in version control.</li><li>Plan for a delay after rule or tag changes, and verify membership before cutting over.</li><li>Re-check the effective membership after each deployment.</li></ol>
+<h2>Where this doesn&#x27;t apply</h2>
+<p>Short-lived experiments are better served by an instance-specific rule, or by a throwaway compartment that will be deleted. A tagging scheme is overhead you do not need there.</p>
+<h2>One honest limitation</h2>
+<p>The delay before membership changes take effect can surprise a rollout. I stage the change, test that the policy works for the new instances, and only then retire the old rule.</p>
+<h2>Sources</h2>
+<ul><li>OCI Documentation: Managing Dynamic Groups (matching rules)</li><li>OCI Documentation: Tagging Overview</li><li>OCI Documentation: Calling Services from an Instance</li></ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

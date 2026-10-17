@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="How I turn on MFA without locking the administrators out of their own console." />
+    <title>Identity Domains: MFA policies and admin-safe rollout — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/oracle-ace/identity-domains-mfa-policies-and-admin-safe-rollout.html" />
+    <meta property="article:published_time" content="2025-12-16T12:00:00-08:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Identity Domains: MFA policies and admin-safe rollout" />
+    <meta property="og:description" content="How I turn on MFA without locking the administrators out of their own console." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/oracle-ace/identity-domains-mfa-policies-and-admin-safe-rollout.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="oracleace" />
+    <meta property="article:tag" content="oci" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Identity Domains: MFA policies and admin-safe rollout","datePublished":"2025-12-16T12:00:00-08:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"How I turn on MFA without locking the administrators out of their own console.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/oracle-ace/identity-domains-mfa-policies-and-admin-safe-rollout.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#oracle-ace">← Oracle ACE articles</a>
+      <header class="article-document-header"><p class="kicker">ACE-U field notes</p><h1>Identity Domains: MFA policies and admin-safe rollout</h1><p class="article-deck">How I turn on MFA without locking the administrators out of their own console.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2025-12-16T12:00:00-08:00">Published December 16, 2025</time><span>·</span><span>3 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+<p>Turning on MFA is the right call, and it is also the change most likely to produce a locked-out admin at 5 p.m. on a Friday. Automation that signs in as a user can break as well.</p>
+<p>My goal was a rollout order that protects administrators first, leaves one deliberate escape hatch while things settle, and then closes that hatch.</p>
+<h2>Options and trade-offs</h2>
+<ul><li>Default MFA settings alone: simple, but they may not cover administrator-specific rules, so validate which factors are really enabled.</li><li>Custom sign-on policies: fine-grained control by group and application, at the cost of more configuration.</li><li>The pre-seeded console security policy: a good starting point aimed at administrators. It still needs testing and a plan for exceptions.</li></ul>
+<h2>My recommendation</h2>
+<p>Enable the factors first, including a phishing-resistant one such as FIDO2 or a passkey. Then enforce through a sign-on policy with the administrator rule at the top and an all-users rule beneath it. Exempt one administrator temporarily, confirm everyone else can sign in, and remove the exemption quickly.</p>
+<h2>Worked example</h2>
+<p>The rollout order I use. Rule order matters, because sign-on rules are evaluated from the top.</p>
+<pre><code>1. Enable factors: FIDO2/passkey, mobile app notification/passcode.
+   Generate a bypass code and store it somewhere offline.
+2. Open the sign-on policy for the console (or create one).
+3. Rule 1 (top):  group = Administrators  -&gt; require MFA
+   Rule 2:        all users                -&gt; require MFA
+4. Exclude ONE named admin while you test. Keep a second session open.
+5. Sign in with a private browser window as an admin and as a normal user.
+6. Remove the exclusion. Re-test enrollment and re-authentication.
+7. Confirm service accounts and automation use API keys or a client
+   application, not interactive user sign-in.</code></pre>
+<p>Before you flip enforcement, check that you can still reach the tenancy through a path that does not depend on the new rule, such as a confidential application that calls the REST API.</p>
+<h2>Checklist</h2>
+<ol><li>Enable phishing-resistant factors, and keep a bypass code stored offline.</li><li>Put the administrator rule first, then the all-users rule.</li><li>Exclude a single administrator temporarily, and remove that exclusion on a set date.</li><li>Test enrollment and re-authentication in a private window.</li><li>Write the support steps for a user who loses their device.</li><li>Watch sign-in failures for the first few days and adjust.</li></ol>
+<h2>Where this doesn&#x27;t apply</h2>
+<p>Non-interactive automation should not go through user MFA. Give it API keys, instance principals or a client application with its own controls.</p>
+<h2>One honest limitation</h2>
+<p>Each additional factor adds friction at sign-in and at recovery. I weigh how easy it is to enroll and recover against the security gain, especially for infrequent users.</p>
+<h2>Sources</h2>
+<ul><li>OCI Documentation: Managing Multifactor Authentication in Identity Domains</li><li>OCI Documentation: Managing Sign-On Policies</li><li>OCI Documentation: Security Policy for OCI Console</li></ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

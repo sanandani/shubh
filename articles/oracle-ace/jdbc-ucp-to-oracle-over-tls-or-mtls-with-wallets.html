@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="My baseline for connecting a Java application to Autonomous Database or another Oracle service securely." />
+    <title>JDBC/UCP to Oracle over TLS or mTLS with wallets — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/oracle-ace/jdbc-ucp-to-oracle-over-tls-or-mtls-with-wallets.html" />
+    <meta property="article:published_time" content="2026-08-11T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="JDBC/UCP to Oracle over TLS or mTLS with wallets" />
+    <meta property="og:description" content="My baseline for connecting a Java application to Autonomous Database or another Oracle service securely." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/oracle-ace/jdbc-ucp-to-oracle-over-tls-or-mtls-with-wallets.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="oracleace" />
+    <meta property="article:tag" content="oci" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"JDBC/UCP to Oracle over TLS or mTLS with wallets","datePublished":"2026-08-11T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"My baseline for connecting a Java application to Autonomous Database or another Oracle service securely.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/oracle-ace/jdbc-ucp-to-oracle-over-tls-or-mtls-with-wallets.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#oracle-ace">← Oracle ACE articles</a>
+      <header class="article-document-header"><p class="kicker">ACE-U field notes</p><h1>JDBC/UCP to Oracle over TLS or mTLS with wallets</h1><p class="article-deck">My baseline for connecting a Java application to Autonomous Database or another Oracle service securely.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-08-11T12:00:00-07:00">Published August 11, 2026</time><span>·</span><span>3 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+<p>A Java application needs to talk to a database, and the connection should be encrypted, should check it is talking to the right server, and should not carry a password in the source. Those three requirements are simple to state and easy to get partly wrong.</p>
+<p>I wanted one baseline that I can adjust upward to mutual TLS when a policy asks for it, without relying on settings that change from driver version to driver version.</p>
+<h2>Options and trade-offs</h2>
+<ul><li>Plain TCP with a username and password: simplest, with no transport protection and no server identity check.</li><li>Server-authenticated TLS: protects traffic and verifies the server, with fewer files to handle. Many services allow it.</li><li>Mutual TLS with a wallet: the client proves itself too. You need the wallet and a safe way to deliver it.</li></ul>
+<h2>My recommendation</h2>
+<p>Default to TLS, and use mTLS with a wallet when policy requires client authentication. For Autonomous Database, use the TNS alias from the wallet&#x27;s tnsnames.ora. Keep the password out of code by injecting it at start-up, and keep the pool conservative.</p>
+<h2>Worked example</h2>
+<p>With a wallet, point the driver at the directory that holds it and use the alias as the connection target. The ojdbc.properties file in the wallet supplies the wallet location.</p>
+<pre><code>// TNS_ADMIN is set outside the code (environment or -Doracle.net.tns_admin)
+PoolDataSource pds = PoolDataSourceFactory.getPoolDataSource();
+pds.setConnectionFactoryClassName("oracle.jdbc.pool.OracleDataSource");
+pds.setURL("jdbc:oracle:thin:@dbname_high");   // alias from tnsnames.ora
+pds.setUser(System.getenv("DB_USER"));
+pds.setPassword(System.getenv("DB_PASSWORD"));  // injected, not hard-coded
+pds.setMinPoolSize(2);
+pds.setMaxPoolSize(10);
+pds.setValidateConnectionOnBorrow(true);</code></pre>
+<p>Then prove that the connection really is encrypted, instead of assuming it:</p>
+<pre><code>try (var c = pds.getConnection();
+     var s = c.createStatement();
+     var rs = s.executeQuery(
+        "SELECT sys_context('USERENV','NETWORK_PROTOCOL') FROM dual")) {
+    rs.next();
+    System.out.println(rs.getString(1));   // expect: tcps
+}</code></pre>
+<p>The aliases in a downloaded wallet normally include a server certificate name check. Leave it on. If you use an auto-login wallet file with an older driver, you may also need the Oracle PKI jars on the classpath, so check the driver documentation for the version you run.</p>
+<h2>Checklist</h2>
+<ol><li>Fetch the wallet securely, set TNS_ADMIN, and keep the files out of source control.</li><li>Use UCP with modest minimum and maximum sizes, and validate on borrow.</li><li>Choose TLS by default and mTLS only when required.</li><li>Inject database credentials from a secret store at start-up.</li><li>Keep the server certificate name check enabled.</li><li>Log connection failures and test a failover before go-live.</li></ol>
+<h2>Where this doesn&#x27;t apply</h2>
+<p>Old drivers that lack the TLS features you need should be upgraded first. Databases from other vendors use different drivers and different security models.</p>
+<h2>One honest limitation</h2>
+<p>Wallets add operational work, such as delivery, rotation and cleanup. Treat the wallet like any other secret and automate its life cycle before the first rotation, not after.</p>
+<h2>Sources</h2>
+<ul><li>Oracle JDBC Developer&#x27;s Guide: Client-Side Security Features</li><li>Oracle Universal Connection Pool Developer&#x27;s Guide: Setting Connection Pool Properties</li><li>Oracle Autonomous Database Documentation: Connect with JDBC Thin and a Wallet</li></ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

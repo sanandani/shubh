@@ -4,13 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Writing by Shubham Anandani on professional identity, applied AI, and engineering leadership." />
-    <meta name="theme-color" content="#f8f5ef" />
+    <meta name="theme-color" content="#181a36" />
     <title>Writing — Shubham Anandani</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css" />
     <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="assets/icon.svg" />
       <link rel="alternate" type="application/rss+xml" title="RSS" href="/rss.xml" />
       <link rel="alternate" type="application/atom+xml" title="ATOM" href="https://www.imshubh.com/atom.xml" />
     <link rel="canonical" href="https://www.imshubh.com/blog.html" />
@@ -18,16 +19,20 @@
   <body class="blog-page">
     <header class="site-header">
       <div class="brand-block">
-        <a class="brand" href="index.html#top" aria-label="Home">imshubh<span>.</span></a>
+        <a class="brand" href="/#top" aria-label="Home">imshubh<span>.</span></a>
         <p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p>
       </div>
       <nav aria-label="Primary navigation">
-        <a href="index.html#about">About</a>
-        <a href="index.html#outcomes">Impact</a>
-        <a href="index.html#research">Research</a>
-        <a href="blog.html">Writing</a>
+        <a href="/#about">About</a>
+        <a href="/#practice">What I do</a>
+        <a href="/#recognition">Recognition</a>
+        <a href="/#research">Research</a>
+        <a href="/#outcomes">Impact</a>
+        <a href="/#community">Community</a>
+        <a href="/blog.html" class="active">Writing</a>
+        <a href="/#connect">Connect</a>
       </nav>
-      <a class="menu-link" href="mailto:shubhamanandani@gmail.com">Connect<span>↗</span></a>
+      <a class="menu-link" href="/#connect">Connect<span>↗</span></a>
     </header>
 
     <main>
@@ -38,7 +43,7 @@
         <div class="blog-author">
           <img src="assets/shubham-anandani.jpg" alt="Portrait of Shubham Anandani" />
           <div><strong>Shubham Anandani</strong><span>Engineering leader · LinkedIn · Seattle</span></div>
-          <span class="blog-author-count">ARTICLES <b>25</b></span>
+          <span class="blog-author-count">ARTICLES <b>41</b></span>
         </div>
       </section>
 
@@ -51,6 +56,7 @@
           <a href="#microsoft">Microsoft <span class="topic-count">5</span></a>
           <a href="#java">Java <span class="topic-count">5</span></a>
           <a href="#github">GitHub <span class="topic-count">5</span></a>
+          <a href="#oracle-ace">Oracle ACE <span class="topic-count">16</span></a>
           <div class="blog-aside-note"><span>✳</span><p>Have a question or a topic in mind?</p><a href="mailto:shubhamanandani@gmail.com">Get in touch ↗</a></div>
         </aside>
 
@@ -101,14 +107,32 @@
               <a class="docker-article-card" href="articles/github/sustainable-triage.html"><span class="docker-index">04</span><div><div class="article-meta"><span>MAINTAINER HEALTH</span><time datetime="2026-04-02">APR 02, 2026</time></div><h3>Triage Without Burning Out: Sustainable Patterns for Issues and PRs</h3><p>Labeling, response-time expectations, and healthy “no” decisions for a maintainer with finite time.</p><span class="read-time">READ ARTICLE ↗</span></div></a>
               <a class="docker-article-card" href="articles/github/welcoming-plugin-api.html"><span class="docker-index">05</span><div><div class="article-meta"><span>PLUGIN DESIGN</span><time datetime="2026-07-20">JUL 20, 2026</time></div><h3>Designing for Other People’s Code: A Plugin API That Welcomes Contributions</h3><p>Make extensions safe and approachable with narrow interfaces, complete examples, and isolated execution for untrusted code.</p><span class="read-time">READ ARTICLE ↗</span></div></a>
             </div></section>
+          <section class="docker-archive" id="oracle-ace" aria-labelledby="oracle-ace-heading"><div class="docker-heading"><div><p class="kicker">Oracle ACE / field notes</p><h2 id="oracle-ace-heading">Oracle ACE<br /><em>writing.</em></h2></div><span class="docker-count">16 ARTICLES</span></div><div class="docker-article-list">
+              <a class="docker-article-card" href="articles/oracle-ace/using-oci-instance-principals-without-leaking-credentials.html"><span class="docker-index">01</span><div><div class="article-meta"><span>ORACLE ACE</span><time datetime="2025-08-19">AUG 19, 2025</time></div><h3>Using OCI Instance Principals without leaking credentials</h3><p>How I let workloads call OCI APIs with no API keys on disk, and keep the blast radius small.</p><span class="read-time">3 MIN READ ↗</span></div></a>
+              <a class="docker-article-card" href="articles/oracle-ace/least-privilege-iam-policies-for-workloads-compartment-first.html"><span class="docker-index">02</span><div><div class="article-meta"><span>ORACLE ACE</span><time datetime="2025-09-26">SEP 26, 2025</time></div><h3>Least-privilege IAM policies for workloads (compartment-first)</h3><p>The policy patterns I reach for to keep OCI access narrow, readable and easy to audit.</p><span class="read-time">3 MIN READ ↗</span></div></a>
+              <a class="docker-article-card" href="articles/oracle-ace/dynamic-groups-with-tag-based-scoping-illustrative-patterns.html"><span class="docker-index">03</span><div><div class="article-meta"><span>ORACLE ACE</span><time datetime="2025-10-02">OCT 02, 2025</time></div><h3>Dynamic groups with tag-based scoping (illustrative patterns)</h3><p>Using compartment and tag rules so only the instances you intend can assume a group&#x27;s permissions.</p><span class="read-time">3 MIN READ ↗</span></div></a>
+              <a class="docker-article-card" href="articles/oracle-ace/identity-domains-saml-oidc-federation-setup-notes.html"><span class="docker-index">04</span><div><div class="article-meta"><span>ORACLE ACE</span><time datetime="2025-11-09">NOV 09, 2025</time></div><h3>Identity Domains: SAML/OIDC federation setup notes</h3><p>What I configure first so an external identity provider works cleanly with OCI.</p><span class="read-time">3 MIN READ ↗</span></div></a>
+              <a class="docker-article-card" href="articles/oracle-ace/identity-domains-mfa-policies-and-admin-safe-rollout.html"><span class="docker-index">05</span><div><div class="article-meta"><span>ORACLE ACE</span><time datetime="2025-12-16">DEC 16, 2025</time></div><h3>Identity Domains: MFA policies and admin-safe rollout</h3><p>How I turn on MFA without locking the administrators out of their own console.</p><span class="read-time">3 MIN READ ↗</span></div></a>
+              <a class="docker-article-card" href="articles/oracle-ace/practical-secrets-with-oci-vault-creation-rotation-and-usage.html"><span class="docker-index">06</span><div><div class="article-meta"><span>ORACLE ACE</span><time datetime="2026-01-23">JAN 23, 2026</time></div><h3>Practical secrets with OCI Vault: creation, rotation, and usage</h3><p>Storing application credentials in Vault and rotating them without writing custom scripts everywhere.</p><span class="read-time">3 MIN READ ↗</span></div></a>
+              <a class="docker-article-card" href="articles/oracle-ace/vault-db-wallets-secure-distribution-patterns-illustrative.html"><span class="docker-index">07</span><div><div class="article-meta"><span>ORACLE ACE</span><time datetime="2026-02-15">FEB 15, 2026</time></div><h3>Vault + DB wallets: secure distribution patterns (illustrative)</h3><p>Generating an Autonomous Database wallet, keeping it in Vault, and rebuilding it only where it is needed.</p><span class="read-time">3 MIN READ ↗</span></div></a>
+              <a class="docker-article-card" href="articles/oracle-ace/ocir-basics-push-pull-private-repos-auth-tokens.html"><span class="docker-index">08</span><div><div class="article-meta"><span>ORACLE ACE</span><time datetime="2026-03-07">MAR 07, 2026</time></div><h3>OCIR basics: push/pull, private repos, auth tokens</h3><p>The registry commands I actually run, and the small details that cause most login failures.</p><span class="read-time">3 MIN READ ↗</span></div></a>
+              <a class="docker-article-card" href="articles/oracle-ace/minimal-java-container-on-oci-with-tls-to-db.html"><span class="docker-index">09</span><div><div class="article-meta"><span>ORACLE ACE</span><time datetime="2026-04-14">APR 14, 2026</time></div><h3>Minimal Java container on OCI with TLS to DB</h3><p>A small, locked-down Java service on an Ampere A1 instance, talking to Oracle Database over TLS.</p><span class="read-time">3 MIN READ ↗</span></div></a>
+              <a class="docker-article-card" href="articles/oracle-ace/oracle-db-invoker-s-vs-definer-s-rights-for-least-privilege-code.html"><span class="docker-index">10</span><div><div class="article-meta"><span>ORACLE ACE</span><time datetime="2026-05-21">MAY 21, 2026</time></div><h3>Oracle DB: invoker&#x27;s vs definer&#x27;s rights for least-privilege code</h3><p>A simple rule of thumb for choosing AUTHID, with two small procedures that show the difference.</p><span class="read-time">3 MIN READ ↗</span></div></a>
+              <a class="docker-article-card" href="articles/oracle-ace/tde-quickstart-and-keystore-hygiene.html"><span class="docker-index">11</span><div><div class="article-meta"><span>ORACLE ACE</span><time datetime="2026-06-28">JUN 28, 2026</time></div><h3>TDE quickstart and keystore hygiene</h3><p>Turning on Transparent Data Encryption for an Oracle database, and keeping the keystore from becoming an outage.</p><span class="read-time">3 MIN READ ↗</span></div></a>
+              <a class="docker-article-card" href="articles/oracle-ace/unified-auditing-practical-policies-and-trail-hygiene.html"><span class="docker-index">12</span><div><div class="article-meta"><span>ORACLE ACE</span><time datetime="2026-07-04">JUL 04, 2026</time></div><h3>Unified Auditing: practical policies and trail hygiene</h3><p>A small set of audit policies that gives you useful events without drowning in noise.</p><span class="read-time">3 MIN READ ↗</span></div></a>
+              <a class="docker-article-card" href="articles/oracle-ace/jdbc-ucp-to-oracle-over-tls-or-mtls-with-wallets.html"><span class="docker-index">13</span><div><div class="article-meta"><span>ORACLE ACE</span><time datetime="2026-08-11">AUG 11, 2026</time></div><h3>JDBC/UCP to Oracle over TLS or mTLS with wallets</h3><p>My baseline for connecting a Java application to Autonomous Database or another Oracle service securely.</p><span class="read-time">3 MIN READ ↗</span></div></a>
+              <a class="docker-article-card" href="articles/oracle-ace/ucp-pool-tuning-for-resilience-and-validation.html"><span class="docker-index">14</span><div><div class="article-meta"><span>ORACLE ACE</span><time datetime="2026-09-18">SEP 18, 2026</time></div><h3>UCP pool tuning for resilience and validation</h3><p>The handful of Universal Connection Pool settings I change first, and the arithmetic behind the sizes.</p><span class="read-time">3 MIN READ ↗</span></div></a>
+              <a class="docker-article-card" href="articles/oracle-ace/ai-language-and-vision-secure-triage-pipelines-illustrative.html"><span class="docker-index">15</span><div><div class="article-meta"><span>ORACLE ACE</span><time datetime="2026-10-10">OCT 10, 2026</time></div><h3>AI Language and Vision: secure triage pipelines (illustrative)</h3><p>Wiring OCI Language and Vision into a document triage flow while keeping personal data out of places it should not be.</p><span class="read-time">3 MIN READ ↗</span></div></a>
+              <a class="docker-article-card" href="articles/oracle-ace/compartment-design-and-movement-policy-implications.html"><span class="docker-index">16</span><div><div class="article-meta"><span>ORACLE ACE</span><time datetime="2026-10-16">OCT 16, 2026</time></div><h3>Compartment design and movement: policy implications</h3><p>How I structure compartments so access stays predictable when one has to move.</p><span class="read-time">3 MIN READ ↗</span></div></a>
+            </div></section>
         </div>
       </section>
     </main>
 
     <footer>
-      <a class="brand" href="index.html#top">imshubh<span>.</span></a>
+      <a class="brand" href="/#top">imshubh<span>.</span></a>
       <span>© <span id="year"></span> Shubham Anandani</span>
-      <span><a href="index.html">Home</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span>
+      <span>Product leadership · research · credible systems.</span>
     </footer>
     <script src="script.js"></script>
   </body>

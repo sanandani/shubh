@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="How I structure compartments so access stays predictable when one has to move." />
+    <title>Compartment design and movement: policy implications — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/oracle-ace/compartment-design-and-movement-policy-implications.html" />
+    <meta property="article:published_time" content="2026-10-16T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Compartment design and movement: policy implications" />
+    <meta property="og:description" content="How I structure compartments so access stays predictable when one has to move." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/oracle-ace/compartment-design-and-movement-policy-implications.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="oracleace" />
+    <meta property="article:tag" content="oci" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Compartment design and movement: policy implications","datePublished":"2026-10-16T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"How I structure compartments so access stays predictable when one has to move.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/oracle-ace/compartment-design-and-movement-policy-implications.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#oracle-ace">← Oracle ACE articles</a>
+      <header class="article-document-header"><p class="kicker">ACE-U field notes</p><h1>Compartment design and movement: policy implications</h1><p class="article-deck">How I structure compartments so access stays predictable when one has to move.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-10-16T12:00:00-07:00">Published October 16, 2026</time><span>·</span><span>3 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+<p>Compartments split resources and policy scope, and the layout you choose on day one is hard to change quietly. When a compartment moves, the set of policies that apply to it can change with it, and people can gain or lose access without anyone editing a statement.</p>
+<p>I wanted a hierarchy that makes moves boring and lets me check the result afterwards.</p>
+<h2>Options and trade-offs</h2>
+<ul><li>A flat design: simple, with few movement cases and limited delegation.</li><li>A hierarchical design: flexible, with inherited access, and it needs careful names and ownership.</li><li>Policies attached at a shared ancestor: they adjust automatically when a descendant moves under the same ancestor, and lower-level policies may need manual edits.</li></ul>
+<h2>My recommendation</h2>
+<p>Use a clear hierarchy with named owners, and attach policies at an ancestor that will survive the moves you expect. After any move, verify access from the point of view of the people involved and fix anything that attached lower down.</p>
+<h2>Worked example</h2>
+<p>Take a move from A:B:C to A:D. Policies written at A, the common ancestor, keep working and update their path references. A policy attached inside B that named C by path no longer matches its target, and the access it granted disappears until someone rewrites it.</p>
+<pre><code># Attached at A (the shared ancestor): survives the move
+Allow group TeamA-Admins to manage all-resources in compartment A:Prod
+Allow group TeamA-Users  to use instance-family in compartment A:Dev
+ 
+# Attached inside A:B and naming C by path: must be reviewed after the move
+Allow group TeamC to use instance-family in compartment A:B:C</code></pre>
+<p>Before a move, list the policies that mention the compartment and note which ancestor each is attached to. After the move, check access with a test user for each group. Quotas and budgets are set per compartment, so confirm them too.</p>
+<h2>Checklist</h2>
+<ol><li>Define the hierarchy, names and owners before creating compartments.</li><li>Attach policies at ancestors that will not move.</li><li>Before a move, list the policies that reference the compartment.</li><li>After a move, test access for every affected group.</li><li>Use quotas and budgets at the compartment level as guardrails.</li><li>Avoid duplicate compartment names under the same parent.</li></ol>
+<h2>Where this doesn&#x27;t apply</h2>
+<p>Security zones have their own rules, and a move that crosses a zone boundary is restricted. Manage those through the Security Zones service.</p>
+<h2>One honest limitation</h2>
+<p>Changes in implicit access are easy to miss. Treat a move as a planned change with a validation step afterwards, and do not call it finished until you have checked.</p>
+<h2>Sources</h2>
+<ul><li>OCI Documentation: Managing Compartments (moving a compartment)</li><li>OCI Documentation: Policy Syntax (compartment paths)</li><li>OCI Documentation: Compartment Quotas and Budgets</li></ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

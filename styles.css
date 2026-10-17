@@ -532,7 +532,7 @@ footer .brand {
   transform: translateY(-2px);
 }
 
-.blog-page .site-header nav a[href="blog.html"] {
+.blog-page .site-header nav a.active {
   border-bottom: 1px solid var(--coral);
 }
 
