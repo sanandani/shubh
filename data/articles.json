@@ -5,7 +5,7 @@
     "page": "articles/docker/docker-in-ci.html",
     "url": "https://www.imshubh.com/articles/docker/docker-in-ci.html",
     "published": "2026-05-23T12:00:00-07:00",
-    "summary": "Understand Docker-in-Docker trade-offs, protect daemon access, and make container-dependent CI tests fail closed.",
+    "summary": "Why teams use DinD, what daemon access exposes, and how to make container tests reliable.",
     "tags": [
       "docker",
       "containers"
@@ -29,7 +29,7 @@
     "page": "articles/docker/production-image-checklist.html",
     "url": "https://www.imshubh.com/articles/docker/production-image-checklist.html",
     "published": "2026-01-12T12:00:00-08:00",
-    "summary": "A practical production Docker image checklist covering multi-stage builds, non-root users, build context, secrets, and health checks.",
+    "summary": "A practical checklist for multi-stage builds, least privilege, and predictable runtime behavior.",
     "tags": [
       "docker",
       "containers"
@@ -53,7 +53,7 @@
     "page": "articles/docker/reproducible-container-builds.html",
     "url": "https://www.imshubh.com/articles/docker/reproducible-container-builds.html",
     "published": "2025-11-14T12:00:00-08:00",
-    "summary": "Pin dependencies, use lock files, and verify container artifacts to make local and cloud builds more reproducible.",
+    "summary": "Pin it, lock it, and verify what you actually built—across local and cloud.",
     "tags": [
       "docker",
       "containers"
@@ -77,7 +77,7 @@
     "page": "articles/docker/running-is-not-ready.html",
     "url": "https://www.imshubh.com/articles/docker/running-is-not-ready.html",
     "published": "2025-09-23T12:00:00-07:00",
-    "summary": "Separate startup, readiness, and liveness signals to make container rollouts safer and easier to recover.",
+    "summary": "Why startup, readiness, and liveness are different—and how to keep rollouts reversible when real systems fail.",
     "tags": [
       "docker",
       "containers"
@@ -101,7 +101,7 @@
     "page": "articles/docker/scanning-before-production.html",
     "url": "https://www.imshubh.com/articles/docker/scanning-before-production.html",
     "published": "2026-03-15T12:00:00-07:00",
-    "summary": "Build an SBOM, scan each container image, and gate releases on actionable vulnerability severity.",
+    "summary": "SBOMs, severity gates, workable exceptions, and practical CI steps for container image scanning.",
     "tags": [
       "docker",
       "containers"
@@ -120,12 +120,12 @@
     "archive_order": 4
   },
   {
-    "title": "Contribution Guidelines Nobody Reads: Designing Onboarding That Actually Works",
+    "title": "Contribution Guidelines Nobody Reads",
     "slug": "contributor-onboarding",
     "page": "articles/github/contributor-onboarding.html",
     "url": "https://www.imshubh.com/articles/github/contributor-onboarding.html",
     "published": "2026-01-23T12:00:00-08:00",
-    "summary": "Most CONTRIBUTING.md files fail. Build contributor paths that get to a working PR: quickstart scripts, test-first templates, guardrails, and realistic expectations.",
+    "summary": "Practical contributor onboarding that turns “I tried” into a working PR: quickstarts, guardrails, and code paths that are hard to misuse.",
     "tags": [
       "github",
       "opensource"
@@ -144,12 +144,12 @@
     "archive_order": 7
   },
   {
-    "title": "A Breaking Change in Someone Else’s PR: Guarding Extension Points Without Blocking Contributions",
+    "title": "A Breaking Change in Someone Else’s PR",
     "slug": "plugin-contracts",
     "page": "articles/github/plugin-contracts.html",
     "url": "https://www.imshubh.com/articles/github/plugin-contracts.html",
     "published": "2026-02-24T12:00:00-08:00",
-    "summary": "Extension points are fragile. Learn interface versioning, deprecation windows, and contract tests that catch breaking changes in plugin PRs before merge.",
+    "summary": "When a plugin interface change passes CI and breaks downstream work, you need versioning, deprecation windows, and contract tests.",
     "tags": [
       "github",
       "opensource"
@@ -173,7 +173,7 @@
     "page": "articles/github/semantic-versioning.html",
     "url": "https://www.imshubh.com/articles/github/semantic-versioning.html",
     "published": "2026-03-13T12:00:00-07:00",
-    "summary": "SemVer is a user promise. Learn to recognize breaking changes, communicate them, write migration notes, and keep releases predictable for small projects.",
+    "summary": "For small projects, getting “breaking” right matters. When you change behavior, communicate clearly and follow your own rules.",
     "tags": [
       "github",
       "opensource"
@@ -197,7 +197,7 @@
     "page": "articles/github/sustainable-triage.html",
     "url": "https://www.imshubh.com/articles/github/sustainable-triage.html",
     "published": "2026-04-02T12:00:00-07:00",
-    "summary": "Reduce burnout with sustainable triage: clear labels, response-time placeholders, friendly declines, and contributor pathways you can maintain.",
+    "summary": "Labeling, response-time expectations, and healthy “no” decisions for a maintainer with finite time.",
     "tags": [
       "github",
       "opensource"
@@ -216,12 +216,12 @@
     "archive_order": 10
   },
   {
-    "title": "Designing for Other People’s Code: A Plugin API That Welcomes Contributions",
+    "title": "Designing for Other People’s Code",
     "slug": "welcoming-plugin-api",
     "page": "articles/github/welcoming-plugin-api.html",
     "url": "https://www.imshubh.com/articles/github/welcoming-plugin-api.html",
     "published": "2026-07-20T12:00:00-07:00",
-    "summary": "Design plugin APIs for contributors: small contracts, example-led docs, and sandboxing that keeps core stable and safe.",
+    "summary": "Make extension safe and approachable: narrow interfaces, documentation-by-example, and sandboxed execution for contributed code.",
     "tags": [
       "github",
       "opensource"
@@ -240,12 +240,12 @@
     "archive_order": 12
   },
   {
-    "title": "Benchmarking Honestly: Building a Repeatable, Trustworthy Inference Benchmark",
+    "title": "Benchmarking Inference Honestly",
     "slug": "benchmarking-inference",
     "page": "articles/intel/benchmarking-inference.html",
     "url": "https://www.imshubh.com/articles/intel/benchmarking-inference.html",
     "published": "2026-01-28T12:00:00-08:00",
-    "summary": "Build inference benchmarks that report warm-up, latency percentiles, output parity, and hardware conditions.",
+    "summary": "Warmups, percentiles, variance isolation, and why “it’s faster” is rarely the whole story.",
     "tags": [
       "intel",
       "edgeai"
@@ -269,7 +269,7 @@
     "page": "articles/intel/conversion-gap.html",
     "url": "https://www.imshubh.com/articles/intel/conversion-gap.html",
     "published": "2025-12-27T12:00:00-08:00",
-    "summary": "A practical path from ONNX to OpenVINO IR: inspect operators, handle conversion gaps, and validate output parity.",
+    "summary": "Bridging the distance between a training-framework export and production inference.",
     "tags": [
       "intel",
       "edgeai"
@@ -288,12 +288,12 @@
     "archive_order": 7
   },
   {
-    "title": "CPU-Only, By Design: Building an Edge-AI Service Without Assuming Accelerators",
+    "title": "CPU-Only Edge AI, By Design",
     "slug": "cpu-only-edge-ai",
     "page": "articles/intel/cpu-only-edge-ai.html",
     "url": "https://www.imshubh.com/articles/intel/cpu-only-edge-ai.html",
     "published": "2026-05-15T12:00:00-07:00",
-    "summary": "Design edge inference services for CPU-only environments with explicit hardware assumptions, real fallbacks, and predictable degradation.",
+    "summary": "Fallbacks, graceful degradation, and clear hardware assumptions that won’t surprise the next engineer.",
     "tags": [
       "intel",
       "edgeai"
@@ -312,12 +312,12 @@
     "archive_order": 12
   },
   {
-    "title": "Packaging Inference for Production: A Checklist for Shipping an Optimized-Model Service",
+    "title": "Packaging Inference for Production",
     "slug": "production-inference-packaging",
     "page": "articles/intel/production-inference-packaging.html",
     "url": "https://www.imshubh.com/articles/intel/production-inference-packaging.html",
     "published": "2026-07-23T12:00:00-07:00",
-    "summary": "A production checklist for OpenVINO inference services: reproducible conversion, versioned artifacts, visible precision, and tested fallbacks.",
+    "summary": "Reproducible conversion, versioned artifacts, visible precision, and tested fallbacks—before you press “deploy.”",
     "tags": [
       "intel",
       "edgeai"
@@ -336,12 +336,12 @@
     "archive_order": 14
   },
   {
-    "title": "Faster Isn’t Free: The Real Trade-offs of Quantizing a Model from FP32 to INT8",
+    "title": "Faster Isn’t Free: Quantizing FP32 to INT8",
     "slug": "quantization-tradeoffs",
     "page": "articles/intel/quantization-tradeoffs.html",
     "url": "https://www.imshubh.com/articles/intel/quantization-tradeoffs.html",
     "published": "2025-11-23T12:00:00-08:00",
-    "summary": "How to evaluate INT8 quantization honestly by measuring latency, output fidelity, calibration coverage, and production risk.",
+    "summary": "How I approach quantization without fooling myself—what gets faster, what can get worse, and when I decide not to ship it.",
     "tags": [
       "intel",
       "edgeai"
@@ -360,12 +360,12 @@
     "archive_order": 6
   },
   {
-    "title": "Designing for Partial Data: Distinguishing “We Don’t Know” From “False”",
+    "title": "Designing for Partial Data: Unknown vs False",
     "slug": "java-partial-data",
     "page": "articles/java/java-partial-data.html",
     "url": "https://www.imshubh.com/articles/java/java-partial-data.html",
     "published": "2026-08-22T12:00:00-07:00",
-    "summary": "Model “unknown” separately from “false.” Learn sealed types, exhaustive pattern matching, and propagation rules that preserve meaning end to end.",
+    "summary": "Sealed types and exhaustive pattern matching keep “unknown” distinct from “zero” throughout a service.",
     "tags": [
       "java",
       "backend"
@@ -384,12 +384,12 @@
     "archive_order": 14
   },
   {
-    "title": "Flaky Tests Are a Concurrency Bug: Fixing Shared State Under Parallel Execution",
+    "title": "Flaky Tests Are a Concurrency Bug",
     "slug": "parallel-test-state",
     "page": "articles/java/parallel-test-state.html",
     "url": "https://www.imshubh.com/articles/java/parallel-test-state.html",
     "published": "2026-05-15T12:00:00-07:00",
-    "summary": "Flaky tests often signal shared state bugs. Learn to diagnose parallel execution issues, isolate fixtures, and design for deterministic test behavior.",
+    "summary": "When tests fail intermittently, look for shared mutable fixtures—then fix the design, not just the test runner.",
     "tags": [
       "java",
       "backend"
@@ -413,7 +413,7 @@
     "page": "articles/java/records-sealed-types.html",
     "url": "https://www.imshubh.com/articles/java/records-sealed-types.html",
     "published": "2026-03-03T12:00:00-08:00",
-    "summary": "Modern Java lets you model ambiguity without nulls. Learn records, sealed interfaces, and pattern matching to represent missing and unverifiable states clearly.",
+    "summary": "How I use records, sealed interfaces, and pattern matching to model “present,” “missing,” and “unverifiable” — and force callers to handle every case.",
     "tags": [
       "java",
       "backend"
@@ -432,12 +432,12 @@
     "archive_order": 6
   },
   {
-    "title": "Reproducible Java Builds: Pinning, Locking, and Clean-Room Verification",
+    "title": "Reproducible Java Builds",
     "slug": "reproducible-java-builds",
     "page": "articles/java/reproducible-java-builds.html",
     "url": "https://www.imshubh.com/articles/java/reproducible-java-builds.html",
     "published": "2026-07-12T12:00:00-07:00",
-    "summary": "Catch Java build drift before production: dependency pins, lock files, digest references, and clean-room rebuild verification in CI.",
+    "summary": "“It built on my machine” still happens. Here’s how I pin versions, lock dependencies, and verify reproducibility in CI.",
     "tags": [
       "java",
       "backend"
@@ -456,12 +456,12 @@
     "archive_order": 12
   },
   {
-    "title": "Virtual Threads Changed My Mental Model: Practical Lessons From I/O Fan-Out",
+    "title": "Virtual Threads: Practical Lessons for I/O Fan-Out",
     "slug": "virtual-thread-fanout",
     "page": "articles/java/virtual-thread-fanout.html",
     "url": "https://www.imshubh.com/articles/java/virtual-thread-fanout.html",
     "published": "2026-04-13T12:00:00-07:00",
-    "summary": "Virtual threads simplify I/O fan-out. Learn practical lessons: structured fan-out, back pressure, blocking calls, failure handling, and realistic expectations.",
+    "summary": "Moving an I/O-bound fan-out to virtual threads: what became simpler, what didn’t, and how my thread-pool instincts had to evolve.",
     "tags": [
       "java",
       "backend"
@@ -485,7 +485,7 @@
     "page": "articles/microsoft/credential-revocation.html",
     "url": "https://www.imshubh.com/articles/microsoft/credential-revocation.html",
     "published": "2026-08-25T12:00:00-07:00",
-    "summary": "Revocation checks must avoid “phone home” privacy leaks. Learn lists vs status endpoints, holder stapling, caching, and short-lived credentials.",
+    "summary": "Issuing is easy; keeping credentials current without leaking who asked is the challenge.",
     "tags": [
       "identity",
       "credentials"
@@ -509,7 +509,7 @@
     "page": "articles/microsoft/fair-credential-verifiers.html",
     "url": "https://www.imshubh.com/articles/microsoft/fair-credential-verifiers.html",
     "published": "2026-05-30T12:00:00-07:00",
-    "summary": "Conflating “missing” with “false” creates bias. Learn a verifier design that separates unverifiable from invalid and protects downstream decisions.",
+    "summary": "Why missing evidence should be “unverifiable,” not “invalid,” and how collapsing those states leads to unfair outcomes.",
     "tags": [
       "identity",
       "credentials"
@@ -533,7 +533,7 @@
     "page": "articles/microsoft/identity-scale-to-zero.html",
     "url": "https://www.imshubh.com/articles/microsoft/identity-scale-to-zero.html",
     "published": "2026-06-25T12:00:00-07:00",
-    "summary": "Scale-to-zero is great until it isn’t. Learn cold start costs, idle savings, and when identity verifiers need warm instances for predictable latency.",
+    "summary": "Lessons from scale-to-zero containers: cold starts, idle billing, and when latency-sensitive verifiers should stay “warm.”",
     "tags": [
       "identity",
       "credentials"
@@ -552,12 +552,12 @@
     "archive_order": 10
   },
   {
-    "title": "Verifiable Doesn’t Mean Verified: Getting Issuer, Holder, and Verifier Right",
+    "title": "Verifiable Doesn’t Mean Verified",
     "slug": "issuer-holder-verifier",
     "page": "articles/microsoft/issuer-holder-verifier.html",
     "url": "https://www.imshubh.com/articles/microsoft/issuer-holder-verifier.html",
     "published": "2026-04-02T12:00:00-07:00",
-    "summary": "Verifiable credentials can be signed and valid yet still wrong. Learn issuer/holder/verifier roles, failure modes, and checks beyond JSON and signatures.",
+    "summary": "A practical walk through verifiable credentials where “well-formed JSON” and “cryptographically signed” still aren’t the same as “true.”",
     "tags": [
       "identity",
       "credentials"
@@ -576,12 +576,12 @@
     "archive_order": 8
   },
   {
-    "title": "Keys Don’t Belong in the Image: Secret Management for Credential Signing",
+    "title": "Keys Don’t Belong in the Image",
     "slug": "signing-key-management",
     "page": "articles/microsoft/signing-key-management.html",
     "url": "https://www.imshubh.com/articles/microsoft/signing-key-management.html",
     "published": "2026-07-12T12:00:00-07:00",
-    "summary": "Keep signing keys out of images. Learn managed secret stores, rotation, mounts, and CI/scan steps that catch accidental key bake-ins before deploy.",
+    "summary": "Managed secret stores, rotation, and guarding against the “oops, we baked a key” failure mode.",
     "tags": [
       "identity",
       "credentials"
@@ -984,7 +984,7 @@
     "archive_order": 16
   },
   {
-    "title": "Starting a local data pipeline in the right order, on a laptop that stays usable",
+    "title": "Starting a Local Data Pipeline in the Right Order",
     "slug": "starting-a-local-data-pipeline-in-the-right-order",
     "page": "articles/docker/starting-a-local-data-pipeline-in-the-right-order.html",
     "url": "https://www.imshubh.com/articles/docker/starting-a-local-data-pipeline-in-the-right-order.html",
@@ -1008,7 +1008,7 @@
     "archive_order": 106
   },
   {
-    "title": "Faster Docker builds for a Java service: context, layers and cache mounts",
+    "title": "Faster Docker Builds for Java Services",
     "slug": "faster-docker-builds-for-a-java-service",
     "page": "articles/docker/faster-docker-builds-for-a-java-service.html",
     "url": "https://www.imshubh.com/articles/docker/faster-docker-builds-for-a-java-service.html",
@@ -1032,7 +1032,7 @@
     "archive_order": 107
   },
   {
-    "title": "Building multi-architecture images when your laptop is arm64 and your servers are x86",
+    "title": "Building Multi-Architecture Images for Mixed Systems",
     "slug": "building-multi-architecture-images",
     "page": "articles/docker/building-multi-architecture-images.html",
     "url": "https://www.imshubh.com/articles/docker/building-multi-architecture-images.html",
@@ -1128,7 +1128,7 @@
     "archive_order": 111
   },
   {
-    "title": "Tags, digests and promotion: how an image should travel from commit to production",
+    "title": "Tags, Digests, and Promotion",
     "slug": "tags-digests-and-promotion",
     "page": "articles/docker/tags-digests-and-promotion.html",
     "url": "https://www.imshubh.com/articles/docker/tags-digests-and-promotion.html",
@@ -1152,7 +1152,7 @@
     "archive_order": 112
   },
   {
-    "title": "Debugging a container that gives you nothing: exit codes, thread dumps and ephemeral tools",
+    "title": "Debugging Minimal Containers: Exit Codes and Thread Dumps",
     "slug": "debugging-minimal-containers",
     "page": "articles/docker/debugging-minimal-containers.html",
     "url": "https://www.imshubh.com/articles/docker/debugging-minimal-containers.html",
@@ -1176,7 +1176,7 @@
     "archive_order": 113
   },
   {
-    "title": "From docker compose up to a public URL: ports, health and scale-to-zero",
+    "title": "From Compose to a Public URL: Ports, Health, and Scale-to-Zero",
     "slug": "from-compose-up-to-a-public-url",
     "page": "articles/docker/from-compose-up-to-a-public-url.html",
     "url": "https://www.imshubh.com/articles/docker/from-compose-up-to-a-public-url.html",
@@ -1200,7 +1200,7 @@
     "archive_order": 114
   },
   {
-    "title": "Restart-safe stream jobs in containers: checkpoints and idempotent writes",
+    "title": "Restart-Safe Stream Jobs: Checkpoints and Idempotent Writes",
     "slug": "restart-safe-stream-jobs-in-containers",
     "page": "articles/docker/restart-safe-stream-jobs-in-containers.html",
     "url": "https://www.imshubh.com/articles/docker/restart-safe-stream-jobs-in-containers.html",
@@ -1224,7 +1224,7 @@
     "archive_order": 115
   },
   {
-    "title": "Java 8 to 17 in a Multi-Module Build: Migrate Producers Without Breaking Consumers",
+    "title": "Java 8 to 17 in a Multi-Module Build",
     "slug": "java-8-to-17-in-a-multi-module-build-migrate-producers-without-breaking-consumers",
     "page": "articles/java/java-8-to-17-in-a-multi-module-build-migrate-producers-without-breaking-consumers.html",
     "url": "https://www.imshubh.com/articles/java/java-8-to-17-in-a-multi-module-build-migrate-producers-without-breaking-consumers.html",
@@ -1302,7 +1302,7 @@
     "archive_order": 3
   },
   {
-    "title": "Error Modeling in a Java REST Service: Translate Exceptions Without Changing the Wire Contract",
+    "title": "Error Modeling in a Java REST Service",
     "slug": "error-modeling-in-a-java-rest-service-translate-exceptions-without-changing-the-wire-contract",
     "page": "articles/java/error-modeling-in-a-java-rest-service-translate-exceptions-without-changing-the-wire-contract.html",
     "url": "https://www.imshubh.com/articles/java/error-modeling-in-a-java-rest-service-translate-exceptions-without-changing-the-wire-contract.html",
@@ -1328,7 +1328,7 @@
     "archive_order": 4
   },
   {
-    "title": "Java Records and Jackson: Null Safety, Schema Evolution, and Round-Trip Tests",
+    "title": "Java Records and Jackson: Null Safety and Schema Evolution",
     "slug": "java-records-and-jackson-null-safety-schema-evolution-and-round-trip-tests",
     "page": "articles/java/java-records-and-jackson-null-safety-schema-evolution-and-round-trip-tests.html",
     "url": "https://www.imshubh.com/articles/java/java-records-and-jackson-null-safety-schema-evolution-and-round-trip-tests.html",
@@ -1581,7 +1581,7 @@
     "page": "articles/microsoft/graph-event-grid-for-lifecycle-events.html",
     "url": "https://www.imshubh.com/articles/microsoft/graph-event-grid-for-lifecycle-events.html",
     "published": "2025-12-27T12:00:00-08:00",
-    "summary": "Receiving tenant-wide identity change notifications at scale with Microsoft Graph and Event Grid partner topics, including the renewal events that people forget.",
+    "summary": "Receiving tenant-wide identity change notifications at scale with Microsoft Graph and Event Grid partner topics, including the renewal events that people…",
     "tags": [
       "microsoft"
     ],
@@ -1765,7 +1765,7 @@
     "page": "articles/github/dependabot-and-security-advisories-tame-the-update-flood.html",
     "url": "https://www.imshubh.com/articles/github/dependabot-and-security-advisories-tame-the-update-flood.html",
     "published": "2025-12-21T12:00:00-08:00",
-    "summary": "How to combine grouped Dependabot updates, safe auto-merge, code owners and advisories so dependencies stay current without drowning reviewers or merging risk blindly.",
+    "summary": "How to combine grouped Dependabot updates, safe auto-merge, code owners and advisories so dependencies stay current without drowning reviewers or merging risk…",
     "tags": [
       "github"
     ],
@@ -1806,7 +1806,7 @@
     "archive_order": 11
   },
   {
-    "title": "Codespaces Without Surprise Bills: Devcontainers, Prebuilds, and Policies",
+    "title": "Codespaces Without Surprise Bills",
     "slug": "codespaces-without-surprise-bills-devcontainers-prebuilds-and-policies",
     "page": "articles/github/codespaces-without-surprise-bills-devcontainers-prebuilds-and-policies.html",
     "url": "https://www.imshubh.com/articles/github/codespaces-without-surprise-bills-devcontainers-prebuilds-and-policies.html",
@@ -1944,12 +1944,12 @@
     "archive_order": 3
   },
   {
-    "title": "Taking Cold Starts Out of the Request Path: Compiled-Model Caching in OpenVINO",
+    "title": "Compiled-Model Caching in OpenVINO",
     "slug": "taking-cold-starts-out-of-the-request-path-compiled-model-caching-in-openvino",
     "page": "articles/intel/taking-cold-starts-out-of-the-request-path-compiled-model-caching-in-openvino.html",
     "url": "https://www.imshubh.com/articles/intel/taking-cold-starts-out-of-the-request-path-compiled-model-caching-in-openvino.html",
     "published": "2025-10-20T12:00:00-07:00",
-    "summary": "How compiled-model caching works, how to confirm a device supports it, how it interacts with AUTO and the NPU, and how to measure cold start against cache import honestly.",
+    "summary": "How compiled-model caching works, how to confirm a device supports it, how it interacts with AUTO and the NPU, and how to measure cold start against cache…",
     "tags": [
       "intel",
       "openvino"
@@ -1970,7 +1970,7 @@
     "date": "2025-10-20"
   },
   {
-    "title": "Cache Correctness in Practice: Verifying That a Warm Start Gives the Same Answers",
+    "title": "Cache Correctness: Verifying Warm Starts",
     "slug": "cache-correctness-in-practice-verifying-that-a-warm-start-gives-the-same-answers",
     "page": "articles/intel/cache-correctness-in-practice-verifying-that-a-warm-start-gives-the-same-answers.html",
     "url": "https://www.imshubh.com/articles/intel/cache-correctness-in-practice-verifying-that-a-warm-start-gives-the-same-answers.html",
@@ -1996,12 +1996,12 @@
     "date": "2026-02-27"
   },
   {
-    "title": "AUTO vs Explicit Devices vs HETERO: Choosing a Device Strategy in OpenVINO",
+    "title": "AUTO vs Explicit Devices vs HETERO in OpenVINO",
     "slug": "auto-vs-explicit-devices-vs-hetero-choosing-a-device-strategy-in-openvino",
     "page": "articles/intel/auto-vs-explicit-devices-vs-hetero-choosing-a-device-strategy-in-openvino.html",
     "url": "https://www.imshubh.com/articles/intel/auto-vs-explicit-devices-vs-hetero-choosing-a-device-strategy-in-openvino.html",
     "published": "2026-03-03T12:00:00-08:00",
-    "summary": "A practical comparison of three ways to choose where OpenVINO runs a model, what AUTO actually does at startup, and a test that shows which strategy holds up on your machine.",
+    "summary": "A practical comparison of three ways to choose where OpenVINO runs a model, what AUTO actually does at startup, and a test that shows which strategy holds up…",
     "tags": [
       "intel",
       "openvino"
@@ -2022,12 +2022,12 @@
     "date": "2026-03-03"
   },
   {
-    "title": "Continuous Batching, Prefix Caching, and KV Cache Sizing in OpenVINO Model Server",
+    "title": "Continuous Batching and KV Cache Sizing in OpenVINO Model Server",
     "slug": "continuous-batching-prefix-caching-and-kv-cache-sizing-in-openvino-model-server",
     "page": "articles/intel/continuous-batching-prefix-caching-and-kv-cache-sizing-in-openvino-model-server.html",
     "url": "https://www.imshubh.com/articles/intel/continuous-batching-prefix-caching-and-kv-cache-sizing-in-openvino-model-server.html",
     "published": "2026-04-10T12:00:00-07:00",
-    "summary": "The Model Server options that control prompt reuse and KV-cache memory, example commands from its documentation, and a measurement plan for choosing values you can defend.",
+    "summary": "The Model Server options that control prompt reuse and KV-cache memory, example commands from its documentation, and a measurement plan for choosing values…",
     "tags": [
       "intel",
       "openvino"
@@ -2048,7 +2048,7 @@
     "date": "2026-04-10"
   },
   {
-    "title": "KV Cache Governance: Setting, Watching, and Bounding LLM Memory in OpenVINO Model Server",
+    "title": "KV Cache Governance: Bound LLM Memory in OpenVINO Model Server",
     "slug": "kv-cache-governance-setting-watching-and-bounding-llm-memory-in-openvino-model-server",
     "page": "articles/intel/kv-cache-governance-setting-watching-and-bounding-llm-memory-in-openvino-model-server.html",
     "url": "https://www.imshubh.com/articles/intel/kv-cache-governance-setting-watching-and-bounding-llm-memory-in-openvino-model-server.html",
@@ -2079,7 +2079,7 @@
     "page": "articles/intel/device-settings-through-wrappers-onnx-runtime-and-openvino.html",
     "url": "https://www.imshubh.com/articles/intel/device-settings-through-wrappers-onnx-runtime-and-openvino.html",
     "published": "2026-06-24T12:00:00-07:00",
-    "summary": "How the OpenVINO execution provider for ONNX Runtime selects devices, how provider options pass per-device properties and a cache directory, and a probe that records what your installed versions accept.",
+    "summary": "How the OpenVINO execution provider for ONNX Runtime selects devices, how provider options pass per-device properties and a cache directory, and a probe that…",
     "tags": [
       "intel",
       "openvino"
@@ -2105,7 +2105,7 @@
     "page": "articles/intel/npu-readiness-a-pre-ship-checklist-for-intel-core-ultra.html",
     "url": "https://www.imshubh.com/articles/intel/npu-readiness-a-pre-ship-checklist-for-intel-core-ultra.html",
     "published": "2025-08-01T12:00:00-07:00",
-    "summary": "A checklist built from the OpenVINO NPU documentation and plugin README: platform and driver, static shapes, compiled-model caching, and how to list the properties your driver exposes.",
+    "summary": "A checklist built from the OpenVINO NPU documentation and plugin README: platform and driver, static shapes, compiled-model caching, and how to list the…",
     "tags": [
       "intel",
       "openvino"
@@ -2152,7 +2152,7 @@
     "date": "2025-06-08"
   },
   {
-    "title": "Vision-Language Models: Designing a Memory and Latency Test for Video Inputs",
+    "title": "Vision-Language Models: Memory and Latency Testing",
     "slug": "vision-language-models-designing-a-memory-and-latency-test-for-video-inputs",
     "page": "articles/intel/vision-language-models-designing-a-memory-and-latency-test-for-video-inputs.html",
     "url": "https://www.imshubh.com/articles/intel/vision-language-models-designing-a-memory-and-latency-test-for-video-inputs.html",
@@ -2178,12 +2178,12 @@
     "date": "2025-07-15"
   },
   {
-    "title": "A Playbook for GenAI Latency on Intel Hardware: Budgets, Policies, and Defaults",
+    "title": "A Playbook for GenAI Latency on Intel Hardware",
     "slug": "a-playbook-for-genai-latency-on-intel-hardware-budgets-policies-and-defaults",
     "page": "articles/intel/a-playbook-for-genai-latency-on-intel-hardware-budgets-policies-and-defaults.html",
     "url": "https://www.imshubh.com/articles/intel/a-playbook-for-genai-latency-on-intel-hardware-budgets-policies-and-defaults.html",
     "published": "2025-08-22T12:00:00-07:00",
-    "summary": "A decision framework for latency and memory budgets and for defaults on caching, device selection, and KV-cache limits, with the evidence recorded for each default.",
+    "summary": "A decision framework for latency and memory budgets and for defaults on caching, device selection, and KV-cache limits, with the evidence recorded for each…",
     "tags": [
       "intel",
       "openvino"

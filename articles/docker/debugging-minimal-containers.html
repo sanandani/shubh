@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="How I diagnose a failing Java container without baking a shell and a toolbox into the production image." />
-    <title>Debugging a container that gives you nothing: exit codes, thread dumps and ephemeral tools — Shubham Anandani</title>
+    <title>Debugging Minimal Containers: Exit Codes and Thread Dumps | imshubh.com</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
@@ -12,8 +12,11 @@
     <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
     <link rel="canonical" href="https://www.imshubh.com/articles/docker/debugging-minimal-containers.html" />
     <meta property="article:published_time" content="2026-08-13T12:00:00-07:00" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Debugging Minimal Containers: Exit Codes and Thread Dumps" />
+    <meta name="twitter:description" content="How I diagnose a failing Java container without baking a shell and a toolbox into the production image." />
     <meta property="og:type" content="article" />
-    <meta property="og:title" content="Debugging a container that gives you nothing: exit codes, thread dumps and ephemeral tools" />
+    <meta property="og:title" content="Debugging Minimal Containers: Exit Codes and Thread Dumps" />
     <meta property="og:description" content="How I diagnose a failing Java container without baking a shell and a toolbox into the production image." />
     <meta property="og:url" content="https://www.imshubh.com/articles/docker/debugging-minimal-containers.html" />
     <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
@@ -22,12 +25,12 @@
     <meta property="article:tag" content="containers" />
     <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
     <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
-    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "Article", "headline": "Debugging a container that gives you nothing: exit codes, thread dumps and ephemeral tools", "datePublished": "2026-08-13T12:00:00-07:00", "author": {"@type": "Person", "name": "Shubham Anandani", "url": "https://www.imshubh.com/"}, "image": "https://www.imshubh.com/assets/shubham-anandani.jpg"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Debugging Minimal Containers: Exit Codes and Thread Dumps","datePublished":"2026-08-13T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"How I diagnose a failing Java container without baking a shell and a toolbox into the production image."}</script>
   </head>
   <body class="blog-page article-page">
     <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
     <main><article class="article-document"><a class="article-back" href="../../blog.html#docker">← Docker articles</a>
-      <header class="article-document-header"><p class="kicker">ACE-U field notes</p><h1>Debugging a container that gives you nothing: exit codes, thread dumps and ephemeral tools</h1><p class="article-deck">How I diagnose a failing Java container without baking a shell and a toolbox into the production image.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-08-13T12:00:00-07:00">Published August 13, 2026</time><span>·</span><span>5 min read</span></div></header>
+      <header class="article-document-header"><p class="kicker">ACE-U field notes</p><h1>Debugging Minimal Containers: Exit Codes and Thread Dumps</h1><p class="article-deck">How I diagnose a failing Java container without baking a shell and a toolbox into the production image.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-08-13T12:00:00-07:00">Published August 13, 2026</time><span>·</span><span>5 min read</span></div></header>
       <div class="article-prose"><h2>Problem</h2>
         <p>A container fails and all you get is an exit code and perhaps a log line. The tempting response is to add a shell, curl, a debugger and a package manager to the image so that next time you can look around. That is the wrong trade. Production images should be small and boring, and your tools should arrive only when needed and leave no trace.</p>
         <h2>Options and trade-offs</h2>
@@ -76,7 +79,7 @@ docker logs --tail 200 api</code></pre>
         <h2>One honest limitation</h2>
         <p>An outside container can see the network and volumes but not the process's memory. Heap dumps are sensitive too, since they can contain secrets, so store them carefully and delete them quickly.</p>
         <h2>Sources</h2>
-        <ul><li>Docker Docs: docker container logs</li><li>Docker Docs: docker container kill (signals)</li><li>Oracle Java Documentation: Troubleshooting guide (thread dumps and heap dumps)</li></ul></div>
+        <ul><li><a href="https://docs.docker.com/reference/cli/docker/container/logs/" target="_blank" rel="noreferrer">Docker Docs: docker container logs</a></li><li>Docker Docs: docker container kill (signals)</li><li>Oracle Java Documentation: Troubleshooting guide (thread dumps and heap dumps)</li></ul></div>
       <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
     </article></main>
     <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>

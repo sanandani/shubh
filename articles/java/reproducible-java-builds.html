@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Catch Java build drift before production: dependency pins, lock files, digest references, and clean-room rebuild verification in CI." />
-    <title>Reproducible Java Builds: Pinning, Locking, and Clean-Room Verification — Shubham Anandani</title>
+    <meta name="description" content="“It built on my machine” still happens. Here’s how I pin versions, lock dependencies, and verify reproducibility in CI." />
+    <title>Reproducible Java Builds | imshubh.com</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
@@ -12,9 +12,12 @@
     <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
     <link rel="canonical" href="https://www.imshubh.com/articles/java/reproducible-java-builds.html" />
     <meta property="article:published_time" content="2026-07-12T12:00:00-07:00" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Reproducible Java Builds" />
+    <meta name="twitter:description" content="“It built on my machine” still happens. Here’s how I pin versions, lock dependencies, and verify reproducibility in CI." />
     <meta property="og:type" content="article" />
-    <meta property="og:title" content="Reproducible Java Builds: Pinning, Locking, and Clean-Room Verification" />
-    <meta property="og:description" content="Catch Java build drift before production: dependency pins, lock files, digest references, and clean-room rebuild verification in CI." />
+    <meta property="og:title" content="Reproducible Java Builds" />
+    <meta property="og:description" content="“It built on my machine” still happens. Here’s how I pin versions, lock dependencies, and verify reproducibility in CI." />
     <meta property="og:url" content="https://www.imshubh.com/articles/java/reproducible-java-builds.html" />
     <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
     <meta property="article:author" content="Shubham Anandani" />
@@ -22,12 +25,12 @@
     <meta property="article:tag" content="backend" />
     <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
     <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Reproducible Java Builds: Pinning, Locking, and Clean-Room Verification","datePublished":"2026-07-12T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"Catch Java build drift before production: dependency pins, lock files, digest references, and clean-room rebuild verification in CI.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/java/reproducible-java-builds.html"}}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Reproducible Java Builds","datePublished":"2026-07-12T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"“It built on my machine” still happens. Here’s how I pin versions, lock dependencies, and verify reproducibility in CI.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/java/reproducible-java-builds.html"}}</script>
   </head>
   <body class="blog-page article-page">
     <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
     <main><article class="article-document"><a class="article-back" href="../../blog.html#java">← Java articles</a>
-      <header class="article-document-header"><p class="kicker">Java / JVM / Build Systems</p><h1>Reproducible Java Builds: Pinning, Locking, and Clean-Room Verification</h1><p class="article-deck">“It built on my machine” still happens. Here’s how I pin versions, lock dependencies, and verify reproducibility in CI.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-07-12T12:00:00-07:00">Published July 12, 2026</time><span>·</span><span>5 min read</span></div></header>
+      <header class="article-document-header"><p class="kicker">Java / JVM / Build Systems</p><h1>Reproducible Java Builds</h1><p class="article-deck">“It built on my machine” still happens. Here’s how I pin versions, lock dependencies, and verify reproducibility in CI.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-07-12T12:00:00-07:00">Published July 12, 2026</time><span>·</span><span>5 min read</span></div></header>
       <div class="article-prose"><p class="article-lede">I’ve seen Java builds succeed locally and differ in CI—transitive dependencies float, plugin versions advance, or caches hide changes. Reproducibility takes intention: pin versions, use lock files, and verify clean-room rebuilds. In a Java build, dependency locks and clean CI environments help reveal resolution drift before artifacts are released.</p><h3>The failure mode</h3><p>You set versions in pom.xml but leave transitive ranges unconstrained. Locally, a cached artifact hides a minor release; in CI, it resolves a new version. Behavior changes. The fix is not “rerun until green.” It’s making builds deterministic and verifying them under clean conditions.</p>
         <h2>What I learned</h2>
         <h3>Pin dependencies and plugins explicitly</h3><p>Use dependencyManagement to pin versions of critical dependencies and plugins. Avoid wildcard ranges. If you depend on a BOM (bill of materials), understand what it pins and add explicit versions for anything critical that the BOM leaves flexible.</p>

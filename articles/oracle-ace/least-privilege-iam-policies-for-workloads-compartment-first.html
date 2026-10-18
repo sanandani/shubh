@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="The policy patterns I reach for to keep OCI access narrow, readable and easy to audit." />
-    <title>Least-privilege IAM policies for workloads (compartment-first) — Shubham Anandani</title>
+    <title>Least-privilege IAM policies for workloads (compartment-first) | imshubh.com</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
@@ -12,6 +12,9 @@
     <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
     <link rel="canonical" href="https://www.imshubh.com/articles/oracle-ace/least-privilege-iam-policies-for-workloads-compartment-first.html" />
     <meta property="article:published_time" content="2025-09-26T12:00:00-07:00" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Least-privilege IAM policies for workloads (compartment-first)" />
+    <meta name="twitter:description" content="The policy patterns I reach for to keep OCI access narrow, readable and easy to audit." />
     <meta property="og:type" content="article" />
     <meta property="og:title" content="Least-privilege IAM policies for workloads (compartment-first)" />
     <meta property="og:description" content="The policy patterns I reach for to keep OCI access narrow, readable and easy to audit." />
@@ -22,7 +25,7 @@
     <meta property="article:tag" content="oci" />
     <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
     <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Least-privilege IAM policies for workloads (compartment-first)","datePublished":"2025-09-26T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"The policy patterns I reach for to keep OCI access narrow, readable and easy to audit.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/oracle-ace/least-privilege-iam-policies-for-workloads-compartment-first.html"}}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Least-privilege IAM policies for workloads (compartment-first)","datePublished":"2025-09-26T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"The policy patterns I reach for to keep OCI access narrow, readable and easy to audit.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/oracle-ace/least-privilege-iam-policies-for-workloads-compartment-first.html"}}</script>
   </head>
   <body class="blog-page article-page">
     <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
@@ -56,7 +59,7 @@ Allow group platform-admins to read policies in compartment apps</code></pre>
 <h2>One honest limitation</h2>
 <p>Narrow policies mean more statements, and more statements need maintenance. A naming convention and a template for new compartments, set up early, keep that from becoming the bottleneck.</p>
 <h2>Sources</h2>
-<ul><li>OCI Documentation: Policy Syntax</li><li>OCI Documentation: Policy Reference (verbs and resource families)</li><li>OCI Documentation: Managing Compartments</li></ul></div>
+<ul><li>OCI Documentation: Policy Syntax</li><li>OCI Documentation: Policy Reference (verbs and resource families)</li><li><a href="https://docs.oracle.com/en-us/iaas/Content/Identity/compartments/managingcompartments.htm" target="_blank" rel="noreferrer">OCI Documentation: Managing Compartments</a></li></ul></div>
       <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
     </article></main>
     <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>

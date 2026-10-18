@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="How to add signed build provenance and SBOM attestations to a release, so anyone downstream can check what was built, from which commit, by which workflow." />
-    <title>Ship verifiable releases with GitHub artifact attestations — Shubham Anandani</title>
+    <title>Ship verifiable releases with GitHub artifact attestations | imshubh.com</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
@@ -12,6 +12,9 @@
     <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
     <link rel="canonical" href="https://www.imshubh.com/articles/github/ship-verifiable-releases-with-github-artifact-attestations.html" />
     <meta property="article:published_time" content="2025-10-26T12:00:00-07:00" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Ship verifiable releases with GitHub artifact attestations" />
+    <meta name="twitter:description" content="How to add signed build provenance and SBOM attestations to a release, so anyone downstream can check what was built, from which commit, by which workflow." />
     <meta property="og:type" content="article" />
     <meta property="og:title" content="Ship verifiable releases with GitHub artifact attestations" />
     <meta property="og:description" content="How to add signed build provenance and SBOM attestations to a release, so anyone downstream can check what was built, from which commit, by which workflow." />
@@ -21,7 +24,7 @@
     <meta property="article:tag" content="github" />
     <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
     <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Ship verifiable releases with GitHub artifact attestations","datePublished":"2025-10-26T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"How to add signed build provenance and SBOM attestations to a release, so anyone downstream can check what was built, from which commit, by which workflow.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/github/ship-verifiable-releases-with-github-artifact-attestations.html"}}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Ship verifiable releases with GitHub artifact attestations","datePublished":"2025-10-26T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"How to add signed build provenance and SBOM attestations to a release, so anyone downstream can check what was built, from which commit, by which workflow.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/github/ship-verifiable-releases-with-github-artifact-attestations.html"}}</script>
   </head>
   <body class="blog-page article-page">
     <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
@@ -138,11 +141,11 @@ gh attestation verify oci://ghcr.io/OWNER/REPO:v1.0.0 --repo OWNER/REPO</code></
         <p>Provenance is necessary but not sufficient. A signed statement that a workflow built a file does not make the build hermetic or reproducible, and a compromised workflow produces a perfectly valid attestation. Higher assurance depends on build isolation and organizational policy, which the SLSA levels describe.</p>
         <h2>Sources</h2>
         <ul>
-        <li>Artifact attestations — https://docs.github.com/en/actions/concepts/security/artifact-attestations</li>
-        <li>actions/attest-build-provenance — https://github.com/actions/attest-build-provenance</li>
-        <li>actions/attest-sbom — https://github.com/actions/attest-sbom</li>
-        <li>Verifying attestations offline — https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/verifying-attestations-offline</li>
-        <li>SLSA specification, build levels — https://slsa.dev/spec/v1.0/levels</li>
+        <li>Artifact attestations — <a href="https://docs.github.com/en/actions/concepts/security/artifact-attestations" target="_blank" rel="noreferrer">https://docs.github.com/en/actions/concepts/security/artifact-attestations</a></li>
+        <li>actions/attest-build-provenance — <a href="https://github.com/actions/attest-build-provenance" target="_blank" rel="noreferrer">https://github.com/actions/attest-build-provenance</a></li>
+        <li>actions/attest-sbom — <a href="https://github.com/actions/attest-sbom" target="_blank" rel="noreferrer">https://github.com/actions/attest-sbom</a></li>
+        <li>Verifying attestations offline — <a href="https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/verifying-attestations-offline" target="_blank" rel="noreferrer">https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/verifying-attestations-offline</a></li>
+        <li>SLSA specification, build levels — <a href="https://slsa.dev/spec/v1.0/levels" target="_blank" rel="noreferrer">https://slsa.dev/spec/v1.0/levels</a></li>
         <p>---</p>
         </ul></div>
       <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>

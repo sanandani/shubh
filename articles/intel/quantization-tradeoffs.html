@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="How to evaluate INT8 quantization honestly by measuring latency, output fidelity, calibration coverage, and production risk." />
-    <title>Faster Isn’t Free: The Real Trade-offs of Quantizing a Model from FP32 to INT8 — Shubham Anandani</title>
+    <meta name="description" content="How I approach quantization without fooling myself—what gets faster, what can get worse, and when I decide not to ship it." />
+    <title>Faster Isn’t Free: Quantizing FP32 to INT8 | imshubh.com</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
@@ -12,9 +12,12 @@
     <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
     <link rel="canonical" href="https://www.imshubh.com/articles/intel/quantization-tradeoffs.html" />
     <meta property="article:published_time" content="2025-11-23T12:00:00-08:00" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Faster Isn’t Free: Quantizing FP32 to INT8" />
+    <meta name="twitter:description" content="How I approach quantization without fooling myself—what gets faster, what can get worse, and when I decide not to ship it." />
     <meta property="og:type" content="article" />
-    <meta property="og:title" content="Faster Isn’t Free: The Real Trade-offs of Quantizing a Model from FP32 to INT8" />
-    <meta property="og:description" content="How to evaluate INT8 quantization honestly by measuring latency, output fidelity, calibration coverage, and production risk." />
+    <meta property="og:title" content="Faster Isn’t Free: Quantizing FP32 to INT8" />
+    <meta property="og:description" content="How I approach quantization without fooling myself—what gets faster, what can get worse, and when I decide not to ship it." />
     <meta property="og:url" content="https://www.imshubh.com/articles/intel/quantization-tradeoffs.html" />
     <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
     <meta property="article:author" content="Shubham Anandani" />
@@ -22,12 +25,12 @@
     <meta property="article:tag" content="edgeai" />
     <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
     <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Faster Isn’t Free: The Real Trade-offs of Quantizing a Model from FP32 to INT8","datePublished":"2025-11-23T12:00:00-08:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"How to evaluate INT8 quantization honestly by measuring latency, output fidelity, calibration coverage, and production risk.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/intel/quantization-tradeoffs.html"}}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Faster Isn’t Free: Quantizing FP32 to INT8","datePublished":"2025-11-23T12:00:00-08:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"How I approach quantization without fooling myself—what gets faster, what can get worse, and when I decide not to ship it.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/intel/quantization-tradeoffs.html"}}</script>
   </head>
   <body class="blog-page article-page">
     <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
     <main><article class="article-document"><a class="article-back" href="../../blog.html#intel">← Intel articles</a>
-      <header class="article-document-header"><p class="kicker">Intel / Model optimization</p><h1>Faster Isn’t Free: The Real Trade-offs of Quantizing a Model from FP32 to INT8</h1><p class="article-deck">How I approach quantization without fooling myself—what gets faster, what can get worse, and when I decide not to ship it.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2025-11-23T12:00:00-08:00">Published November 23, 2025</time><span>·</span><span>5 min read</span></div></header>
+      <header class="article-document-header"><p class="kicker">Intel / Model optimization</p><h1>Faster Isn’t Free: Quantizing FP32 to INT8</h1><p class="article-deck">How I approach quantization without fooling myself—what gets faster, what can get worse, and when I decide not to ship it.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2025-11-23T12:00:00-08:00">Published November 23, 2025</time><span>·</span><span>5 min read</span></div></header>
       <div class="article-prose"><p class="article-lede">I’ve shipped CPU-only inference, and I’ve also declined to ship a “faster” model when the trade-off did not hold up. Quantizing a model from FP32 to INT8 can help meet latency or memory goals. It can also change outputs in ways that matter to the people relying on them.</p>
         <p>In my public demo, <code>aceu-edge-infer</code>, I use a small ONNX classifier converted to OpenVINO IR and maintain FP32 and INT8 variants. The service reports which precision it used. It returns four ACE-U dimensions—Authenticity, Credibility, Empathy, and Uniqueness—but these are illustrative outputs from a demo, not validated judgments of real people. The engineering questions are the useful part.</p>
         <h2>Why quantization can help—and why it changes behavior</h2><p>Quantization represents selected model weights and activations using lower-precision values. With fewer bits to move and process, an inference path may use less memory and run faster on compatible hardware. The actual speedup depends on the model, operators, runtime, and target device; INT8 is not a universal fast switch.</p>

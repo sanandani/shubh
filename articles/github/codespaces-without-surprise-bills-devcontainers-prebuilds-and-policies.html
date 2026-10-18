@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="How to use devcontainers and prebuilds for fast contributor setup, and how to set machine limits, retention, and spending caps so costs stay predictable." />
-    <title>Codespaces Without Surprise Bills: Devcontainers, Prebuilds, and Policies — Shubham Anandani</title>
+    <title>Codespaces Without Surprise Bills | imshubh.com</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
@@ -12,8 +12,11 @@
     <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
     <link rel="canonical" href="https://www.imshubh.com/articles/github/codespaces-without-surprise-bills-devcontainers-prebuilds-and-policies.html" />
     <meta property="article:published_time" content="2026-08-15T12:00:00-07:00" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Codespaces Without Surprise Bills" />
+    <meta name="twitter:description" content="How to use devcontainers and prebuilds for fast contributor setup, and how to set machine limits, retention, and spending caps so costs stay predictable." />
     <meta property="og:type" content="article" />
-    <meta property="og:title" content="Codespaces Without Surprise Bills: Devcontainers, Prebuilds, and Policies" />
+    <meta property="og:title" content="Codespaces Without Surprise Bills" />
     <meta property="og:description" content="How to use devcontainers and prebuilds for fast contributor setup, and how to set machine limits, retention, and spending caps so costs stay predictable." />
     <meta property="og:url" content="https://www.imshubh.com/articles/github/codespaces-without-surprise-bills-devcontainers-prebuilds-and-policies.html" />
     <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
@@ -21,12 +24,12 @@
     <meta property="article:tag" content="github" />
     <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
     <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Codespaces Without Surprise Bills: Devcontainers, Prebuilds, and Policies","datePublished":"2026-08-15T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"How to use devcontainers and prebuilds for fast contributor setup, and how to set machine limits, retention, and spending caps so costs stay predictable.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/github/codespaces-without-surprise-bills-devcontainers-prebuilds-and-policies.html"}}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Codespaces Without Surprise Bills","datePublished":"2026-08-15T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"How to use devcontainers and prebuilds for fast contributor setup, and how to set machine limits, retention, and spending caps so costs stay predictable.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/github/codespaces-without-surprise-bills-devcontainers-prebuilds-and-policies.html"}}</script>
   </head>
   <body class="blog-page article-page">
     <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
     <main><article class="article-document"><a class="article-back" href="../../blog.html#github">← GitHub articles</a>
-      <header class="article-document-header"><p class="kicker">Codespaces can turn a days-long setup into a short one. Its metered billing needs the same attention as any other cloud resource.</p><h1>Codespaces Without Surprise Bills: Devcontainers, Prebuilds, and Policies</h1><p class="article-deck">How to use devcontainers and prebuilds for fast contributor setup, and how to set machine limits, retention, and spending caps so costs stay predictable.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-08-15T12:00:00-07:00">Published August 15, 2026</time><span>·</span><span>3 min read</span></div></header>
+      <header class="article-document-header"><p class="kicker">Codespaces can turn a days-long setup into a short one. Its metered billing needs the same attention as any other cloud resource.</p><h1>Codespaces Without Surprise Bills</h1><p class="article-deck">How to use devcontainers and prebuilds for fast contributor setup, and how to set machine limits, retention, and spending caps so costs stay predictable.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-08-15T12:00:00-07:00">Published August 15, 2026</time><span>·</span><span>3 min read</span></div></header>
       <div class="article-prose"><h2>Problem</h2>
         <p>Codespaces is fast to start and well integrated with GitHub, but it is metered. Compute is billed by the hour, and storage is billed by the gigabyte-month. Stopped codespaces can keep accruing storage until they are deleted. Personal accounts and organizations have different included quotas, so check the billing page for your account type.</p>
         <h2>Options and trade-offs</h2>

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="How to turn CodeQL from a report you read after the merge into a gate that blocks risky changes, using rulesets, required checks and code owners." />
-    <title>Code scanning and rulesets: make a green check mean something — Shubham Anandani</title>
+    <title>Code scanning and rulesets: make a green check mean something | imshubh.com</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
@@ -12,6 +12,9 @@
     <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
     <link rel="canonical" href="https://www.imshubh.com/articles/github/code-scanning-and-rulesets-make-a-green-check-mean-something.html" />
     <meta property="article:published_time" content="2025-11-23T12:00:00-08:00" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Code scanning and rulesets: make a green check mean something" />
+    <meta name="twitter:description" content="How to turn CodeQL from a report you read after the merge into a gate that blocks risky changes, using rulesets, required checks and code owners." />
     <meta property="og:type" content="article" />
     <meta property="og:title" content="Code scanning and rulesets: make a green check mean something" />
     <meta property="og:description" content="How to turn CodeQL from a report you read after the merge into a gate that blocks risky changes, using rulesets, required checks and code owners." />
@@ -21,7 +24,7 @@
     <meta property="article:tag" content="github" />
     <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
     <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Code scanning and rulesets: make a green check mean something","datePublished":"2025-11-23T12:00:00-08:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"How to turn CodeQL from a report you read after the merge into a gate that blocks risky changes, using rulesets, required checks and code owners.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/github/code-scanning-and-rulesets-make-a-green-check-mean-something.html"}}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Code scanning and rulesets: make a green check mean something","datePublished":"2025-11-23T12:00:00-08:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"How to turn CodeQL from a report you read after the merge into a gate that blocks risky changes, using rulesets, required checks and code owners.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/github/code-scanning-and-rulesets-make-a-green-check-mean-something.html"}}</script>
   </head>
   <body class="blog-page article-page">
     <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
@@ -130,11 +133,11 @@ jobs:
         <p>A severity gate catches what the scanner finds, and scanners miss things. The gate also creates pressure to dismiss alerts rather than fix them, so review dismissals as carefully as you review merges.</p>
         <h2>Sources</h2>
         <ul>
-        <li>Code scanning merge protection — https://docs.github.com/en/code-security/concepts/code-scanning/merge-protection</li>
-        <li>Available rules for rulesets — https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets</li>
-        <li>About code owners — https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners</li>
-        <li>REST API for repository rules — https://docs.github.com/en/rest/repos/rules</li>
-        <li>Configuring default setup for code scanning — https://docs.github.com/en/code-security/code-scanning/enabling-code-scanning/configuring-default-setup-for-code-scanning</li>
+        <li>Code scanning merge protection — <a href="https://docs.github.com/en/code-security/concepts/code-scanning/merge-protection" target="_blank" rel="noreferrer">https://docs.github.com/en/code-security/concepts/code-scanning/merge-protection</a></li>
+        <li>Available rules for rulesets — <a href="https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets" target="_blank" rel="noreferrer">https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets</a></li>
+        <li>About code owners — <a href="https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners" target="_blank" rel="noreferrer">https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners</a></li>
+        <li>REST API for repository rules — <a href="https://docs.github.com/en/rest/repos/rules" target="_blank" rel="noreferrer">https://docs.github.com/en/rest/repos/rules</a></li>
+        <li>Configuring default setup for code scanning — <a href="https://docs.github.com/en/code-security/code-scanning/enabling-code-scanning/configuring-default-setup-for-code-scanning" target="_blank" rel="noreferrer">https://docs.github.com/en/code-security/code-scanning/enabling-code-scanning/configuring-default-setup-for-code-scanning</a></li>
         <p>---</p>
         </ul></div>
       <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>

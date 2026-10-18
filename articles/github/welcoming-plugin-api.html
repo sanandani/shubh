@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Design plugin APIs for contributors: small contracts, example-led docs, and sandboxing that keeps core stable and safe." />
-    <title>Designing for Other People’s Code: A Plugin API That Welcomes Contributions — Shubham Anandani</title>
+    <meta name="description" content="Make extension safe and approachable: narrow interfaces, documentation-by-example, and sandboxed execution for contributed code." />
+    <title>Designing for Other People’s Code | imshubh.com</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
@@ -12,9 +12,12 @@
     <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
     <link rel="canonical" href="https://www.imshubh.com/articles/github/welcoming-plugin-api.html" />
     <meta property="article:published_time" content="2026-07-20T12:00:00-07:00" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Designing for Other People’s Code" />
+    <meta name="twitter:description" content="Make extension safe and approachable: narrow interfaces, documentation-by-example, and sandboxed execution for contributed code." />
     <meta property="og:type" content="article" />
-    <meta property="og:title" content="Designing for Other People’s Code: A Plugin API That Welcomes Contributions" />
-    <meta property="og:description" content="Design plugin APIs for contributors: small contracts, example-led docs, and sandboxing that keeps core stable and safe." />
+    <meta property="og:title" content="Designing for Other People’s Code" />
+    <meta property="og:description" content="Make extension safe and approachable: narrow interfaces, documentation-by-example, and sandboxed execution for contributed code." />
     <meta property="og:url" content="https://www.imshubh.com/articles/github/welcoming-plugin-api.html" />
     <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
     <meta property="article:author" content="Shubham Anandani" />
@@ -22,12 +25,12 @@
     <meta property="article:tag" content="opensource" />
     <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
     <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Designing for Other People’s Code: A Plugin API That Welcomes Contributions","datePublished":"2026-07-20T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"Design plugin APIs for contributors: small contracts, example-led docs, and sandboxing that keeps core stable and safe.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/github/welcoming-plugin-api.html"}}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Designing for Other People’s Code","datePublished":"2026-07-20T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"Make extension safe and approachable: narrow interfaces, documentation-by-example, and sandboxed execution for contributed code.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/github/welcoming-plugin-api.html"}}</script>
   </head>
   <body class="blog-page article-page">
     <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
     <main><article class="article-document"><a class="article-back" href="../../blog.html#github">← Github articles</a>
-      <header class="article-document-header"><p class="kicker">GitHub / Plugin Design</p><h1>Designing for Other People’s Code: A Plugin API That Welcomes Contributions</h1><p class="article-deck">Make extension safe and approachable: narrow interfaces, documentation-by-example, and sandboxed execution for contributed code.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-07-20T12:00:00-07:00">Published July 20, 2026</time><span>·</span><span>5 min read</span></div></header>
+      <header class="article-document-header"><p class="kicker">GitHub / Plugin Design</p><h1>Designing for Other People’s Code</h1><p class="article-deck">Make extension safe and approachable: narrow interfaces, documentation-by-example, and sandboxed execution for contributed code.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-07-20T12:00:00-07:00">Published July 20, 2026</time><span>·</span><span>5 min read</span></div></header>
       <div class="article-prose"><p class="article-lede">The best way to attract contributions is to make the path small, clear, and safe. Big, powerful extension APIs are intimidating and fragile. A plugin interface is easier to adopt when it has a small typed contract, a complete example, and clear isolation boundaries for contributed code.</p><h3>The failure mode</h3><p>You want contributions, so you design a rich, flexible plugin API. The first contributor struggles to understand how the parts fit together. Another contributor introduces side effects that break core behavior. You spend time triaging issues rather than merging useful additions. The fix is to narrow the contract and improve examples.</p>
         <h2>What I learned</h2>
         <h3>Keep the interface tiny</h3><p>Use a single method with a small, typed result. Avoid optional hooks and deep callback trees. If you need flexibility, let plugins implement it internally. Keep core expectations documented and enforced with tests.</p>

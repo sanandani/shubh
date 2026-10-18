@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="A simple rule of thumb for choosing AUTHID, with two small procedures that show the difference." />
-    <title>Oracle DB: invoker&#x27;s vs definer&#x27;s rights for least-privilege code — Shubham Anandani</title>
+    <title>Oracle DB: invoker's vs definer's rights for least-privilege code | imshubh.com</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
@@ -12,6 +12,9 @@
     <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
     <link rel="canonical" href="https://www.imshubh.com/articles/oracle-ace/oracle-db-invoker-s-vs-definer-s-rights-for-least-privilege-code.html" />
     <meta property="article:published_time" content="2026-05-21T12:00:00-07:00" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Oracle DB: invoker&#x27;s vs definer&#x27;s rights for least-privilege code" />
+    <meta name="twitter:description" content="A simple rule of thumb for choosing AUTHID, with two small procedures that show the difference." />
     <meta property="og:type" content="article" />
     <meta property="og:title" content="Oracle DB: invoker&#x27;s vs definer&#x27;s rights for least-privilege code" />
     <meta property="og:description" content="A simple rule of thumb for choosing AUTHID, with two small procedures that show the difference." />
@@ -22,12 +25,12 @@
     <meta property="article:tag" content="oci" />
     <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
     <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Oracle DB: invoker's vs definer's rights for least-privilege code","datePublished":"2026-05-21T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"A simple rule of thumb for choosing AUTHID, with two small procedures that show the difference.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/oracle-ace/oracle-db-invoker-s-vs-definer-s-rights-for-least-privilege-code.html"}}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Oracle DB: invoker's vs definer's rights for least-privilege code","datePublished":"2026-05-21T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"A simple rule of thumb for choosing AUTHID, with two small procedures that show the difference.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/oracle-ace/oracle-db-invoker-s-vs-definer-s-rights-for-least-privilege-code.html"}}</script>
   </head>
   <body class="blog-page article-page">
     <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
     <main><article class="article-document"><a class="article-back" href="../../blog.html#oracle-ace">← Oracle ACE articles</a>
-      <header class="article-document-header"><p class="kicker">ACE-U field notes</p><h1>Oracle DB: invoker&#x27;s vs definer&#x27;s rights for least-privilege code</h1><p class="article-deck">A simple rule of thumb for choosing AUTHID, with two small procedures that show the difference.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-05-21T12:00:00-07:00">Published May 21, 2026</time><span>·</span><span>3 min read</span></div></header>
+      <header class="article-document-header"><p class="kicker">ACE-U field notes</p><h1>Oracle DB: invoker's vs definer's rights for least-privilege code</h1><p class="article-deck">A simple rule of thumb for choosing AUTHID, with two small procedures that show the difference.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-05-21T12:00:00-07:00">Published May 21, 2026</time><span>·</span><span>3 min read</span></div></header>
       <div class="article-prose"><h2>Problem</h2>
 <p>PL/SQL runs with one of two sets of privileges: the owner&#x27;s (definer&#x27;s rights) or the caller&#x27;s (invoker&#x27;s rights). Choosing the wrong one is how a harmless helper procedure ends up with far more reach than anyone intended.</p>
 <p>I wanted a decision path I can apply in seconds and defend in a code review.</p>

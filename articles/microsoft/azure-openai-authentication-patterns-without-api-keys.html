@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="How to authenticate services and agents to Azure OpenAI using Entra ID, managed identity, and AKS Workload ID." />
-    <title>Azure OpenAI authentication patterns without API keys — Shubham Anandani</title>
+    <title>Azure OpenAI authentication patterns without API keys | imshubh.com</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
@@ -12,6 +12,9 @@
     <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
     <link rel="canonical" href="https://www.imshubh.com/articles/microsoft/azure-openai-authentication-patterns-without-api-keys.html" />
     <meta property="article:published_time" content="2025-09-07T12:00:00-07:00" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Azure OpenAI authentication patterns without API keys" />
+    <meta name="twitter:description" content="How to authenticate services and agents to Azure OpenAI using Entra ID, managed identity, and AKS Workload ID." />
     <meta property="og:type" content="article" />
     <meta property="og:title" content="Azure OpenAI authentication patterns without API keys" />
     <meta property="og:description" content="How to authenticate services and agents to Azure OpenAI using Entra ID, managed identity, and AKS Workload ID." />
@@ -21,7 +24,7 @@
     <meta property="article:tag" content="microsoft" />
     <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
     <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Azure OpenAI authentication patterns without API keys","datePublished":"2025-09-07T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"How to authenticate services and agents to Azure OpenAI using Entra ID, managed identity, and AKS Workload ID.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/microsoft/azure-openai-authentication-patterns-without-api-keys.html"}}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Azure OpenAI authentication patterns without API keys","datePublished":"2025-09-07T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"How to authenticate services and agents to Azure OpenAI using Entra ID, managed identity, and AKS Workload ID.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/microsoft/azure-openai-authentication-patterns-without-api-keys.html"}}</script>
   </head>
   <body class="blog-page article-page">
     <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
@@ -94,9 +97,9 @@ spec:
         <p>Purely external, non-Azure hosting lacking managed identity support; use service principals with key vault-backed secrets only as a transitional measure (with rotation and audit).</p>
         <h2>Sources</h2>
         <ul>
-        <li>Authenticate an Azure hosted .NET app to Azure OpenAI using Entra ID (GA) — https://learn.microsoft.com/en-us/dotnet/ai/how-to/app-service-aoai-auth (accessed 2026-10-13).</li>
-        <li>Foundry (classic) Entra auth for Azure OpenAI (GA) — https://learn.microsoft.com/en-us/azure/foundry-classic/openai/how-to/managed-identity (accessed 2026-10-13).</li>
-        <li>Secure access to Azure OpenAI from AKS (GA) — https://learn.microsoft.com/en-us/azure/aks/open-ai-secure-access-quickstart (accessed 2026-10-13).</li>
+        <li>Authenticate an Azure hosted .NET app to Azure OpenAI using Entra ID (GA) — <a href="https://learn.microsoft.com/en-us/dotnet/ai/how-to/app-service-aoai-auth" target="_blank" rel="noreferrer">https://learn.microsoft.com/en-us/dotnet/ai/how-to/app-service-aoai-auth</a> (accessed 2026-10-13).</li>
+        <li>Foundry (classic) Entra auth for Azure OpenAI (GA) — <a href="https://learn.microsoft.com/en-us/azure/foundry-classic/openai/how-to/managed-identity" target="_blank" rel="noreferrer">https://learn.microsoft.com/en-us/azure/foundry-classic/openai/how-to/managed-identity</a> (accessed 2026-10-13).</li>
+        <li>Secure access to Azure OpenAI from AKS (GA) — <a href="https://learn.microsoft.com/en-us/azure/aks/open-ai-secure-access-quickstart" target="_blank" rel="noreferrer">https://learn.microsoft.com/en-us/azure/aks/open-ai-secure-access-quickstart</a> (accessed 2026-10-13).</li>
         </ul>
         <p>---</p></div>
       <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>

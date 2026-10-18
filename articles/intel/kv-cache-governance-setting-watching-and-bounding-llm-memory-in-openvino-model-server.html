@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="A procedure for choosing a KV-cache size for Model Server, observing real memory use with ordinary tools, and writing the limit and its evidence into a…" />
-    <title>KV Cache Governance: Setting, Watching, and Bounding LLM Memory in OpenVINO Model Server — Shubham Anandani</title>
+    <meta name="description" content="A procedure for choosing a KV-cache size for Model Server, observing real memory use with ordinary tools, and writing the limit and its evidence into a runbook." />
+    <title>KV Cache Governance: Bound LLM Memory in OpenVINO Model Server | imshubh.com</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
@@ -12,9 +12,12 @@
     <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
     <link rel="canonical" href="https://www.imshubh.com/articles/intel/kv-cache-governance-setting-watching-and-bounding-llm-memory-in-openvino-model-server.html" />
     <meta property="article:published_time" content="2026-08-17T12:00:00-07:00" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="KV Cache Governance: Bound LLM Memory in OpenVINO Model Server" />
+    <meta name="twitter:description" content="A procedure for choosing a KV-cache size for Model Server, observing real memory use with ordinary tools, and writing the limit and its evidence into a runbook." />
     <meta property="og:type" content="article" />
-    <meta property="og:title" content="KV Cache Governance: Setting, Watching, and Bounding LLM Memory in OpenVINO Model Server" />
-    <meta property="og:description" content="A procedure for choosing a KV-cache size for Model Server, observing real memory use with ordinary tools, and writing the limit and its evidence into a…" />
+    <meta property="og:title" content="KV Cache Governance: Bound LLM Memory in OpenVINO Model Server" />
+    <meta property="og:description" content="A procedure for choosing a KV-cache size for Model Server, observing real memory use with ordinary tools, and writing the limit and its evidence into a runbook." />
     <meta property="og:url" content="https://www.imshubh.com/articles/intel/kv-cache-governance-setting-watching-and-bounding-llm-memory-in-openvino-model-server.html" />
     <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
     <meta property="article:author" content="Shubham Anandani" />
@@ -22,12 +25,12 @@
     <meta property="article:tag" content="openvino" />
     <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
     <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"KV Cache Governance: Setting, Watching, and Bounding LLM Memory in OpenVINO Model Server","datePublished":"2026-08-17T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"A procedure for choosing a KV-cache size for Model Server, observing real memory use with ordinary tools, and writing the limit and its evidence into a…","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/intel/kv-cache-governance-setting-watching-and-bounding-llm-memory-in-openvino-model-server.html"}}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"KV Cache Governance: Bound LLM Memory in OpenVINO Model Server","datePublished":"2026-08-17T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"A procedure for choosing a KV-cache size for Model Server, observing real memory use with ordinary tools, and writing the limit and its evidence into a runbook.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/intel/kv-cache-governance-setting-watching-and-bounding-llm-memory-in-openvino-model-server.html"}}</script>
   </head>
   <body class="blog-page article-page">
     <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
     <main><article class="article-document"><a class="article-back" href="../../blog.html#intel">← Intel articles</a>
-      <header class="article-document-header"><p class="kicker">Intel / Memory management</p><h1>KV Cache Governance: Setting, Watching, and Bounding LLM Memory in OpenVINO Model Server</h1><p class="article-deck">A procedure for choosing a KV-cache size for Model Server, observing real memory use with ordinary tools, and writing the limit and its evidence into a runbook.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-08-17T12:00:00-07:00">Published August 17, 2026</time><span>·</span><span>4 min read</span></div></header>
+      <header class="article-document-header"><p class="kicker">Intel / Memory management</p><h1>KV Cache Governance: Bound LLM Memory in OpenVINO Model Server</h1><p class="article-deck">A procedure for choosing a KV-cache size for Model Server, observing real memory use with ordinary tools, and writing the limit and its evidence into a runbook.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-08-17T12:00:00-07:00">Published August 17, 2026</time><span>·</span><span>4 min read</span></div></header>
       <div class="article-prose"><h2>Problem</h2>
 <p>A language-model server keeps attention keys and values for every token of every active sequence. That memory grows with context length and concurrency. Unlike model weights, it is not a fixed cost, so a deployment that looks fine in a short test can run short of memory under a different traffic mix.</p>
 <p>OpenVINO Model Server lets you set the cache memory with <code>--cache_size</code>, and its documentation examples pass explicit values. Choosing that number deliberately is the heart of governing the cache.</p>
@@ -64,7 +67,7 @@ for words in [200, 1000, 4000, 8000]:
 <h2>Where this doesn't apply</h2>
 <p>Short prompts with low concurrency on a host with ample memory, and services behind a managed platform that sets cache limits for you.</p>
 <h2>Sources</h2>
-<ul><li>Agentic AI with OpenVINO Model Server (example commands) — [https://docs.openvino.ai/2025/model-server/ovms_demos_continuous_batching_agent.html](https://docs.openvino.ai/2025/model-server/ovms_demos_continuous_batching_agent.html) (accessed 2026-10-18).</li><li>Model Server continuous batching demo — [https://github.com/openvinotoolkit/model_server/blob/main/demos/continuous_batching/README.md](https://github.com/openvinotoolkit/model_server/blob/main/demos/continuous_batching/README.md) (accessed 2026-10-18).</li><li>Model Server performance tuning guide — [https://github.com/openvinotoolkit/model_server/blob/main/docs/performance_tuning.md](https://github.com/openvinotoolkit/model_server/blob/main/docs/performance_tuning.md) (accessed 2026-10-18).</li><li>OpenVINO Model Server parameters — [https://docs.openvino.ai/2026/model-server/ovms_docs_parameters.html](https://docs.openvino.ai/2026/model-server/ovms_docs_parameters.html) (accessed 2026-10-18).</li></ul>
+<ul><li>Agentic AI with OpenVINO Model Server (example commands) — <a href="https://docs.openvino.ai/2025/model-server/ovms_demos_continuous_batching_agent.html" target="_blank" rel="noreferrer">https://docs.openvino.ai/2025/model-server/ovms_demos_continuous_batching_agent.html</a> (accessed 2026-10-18).</li><li>Model Server continuous batching demo — <a href="https://github.com/openvinotoolkit/model_server/blob/main/demos/continuous_batching/README.md" target="_blank" rel="noreferrer">https://github.com/openvinotoolkit/model_server/blob/main/demos/continuous_batching/README.md</a> (accessed 2026-10-18).</li><li>Model Server performance tuning guide — <a href="https://github.com/openvinotoolkit/model_server/blob/main/docs/performance_tuning.md" target="_blank" rel="noreferrer">https://github.com/openvinotoolkit/model_server/blob/main/docs/performance_tuning.md</a> (accessed 2026-10-18).</li><li>OpenVINO Model Server parameters — <a href="https://docs.openvino.ai/2026/model-server/ovms_docs_parameters.html" target="_blank" rel="noreferrer">https://docs.openvino.ai/2026/model-server/ovms_docs_parameters.html</a> (accessed 2026-10-18).</li></ul>
 <p>---</p></div>
       <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
     </article></main>

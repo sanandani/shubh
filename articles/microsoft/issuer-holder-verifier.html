@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Verifiable credentials can be signed and valid yet still wrong. Learn issuer/holder/verifier roles, failure modes, and checks beyond JSON and signatures." />
-    <title>Verifiable Doesn’t Mean Verified: Getting Issuer, Holder, and Verifier Right — Shubham Anandani</title>
+    <meta name="description" content="A practical walk through verifiable credentials where “well-formed JSON” and “cryptographically signed” still aren’t the same as “true.”" />
+    <title>Verifiable Doesn’t Mean Verified | imshubh.com</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
@@ -12,9 +12,12 @@
     <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
     <link rel="canonical" href="https://www.imshubh.com/articles/microsoft/issuer-holder-verifier.html" />
     <meta property="article:published_time" content="2026-04-02T12:00:00-07:00" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Verifiable Doesn’t Mean Verified" />
+    <meta name="twitter:description" content="A practical walk through verifiable credentials where “well-formed JSON” and “cryptographically signed” still aren’t the same as “true.”" />
     <meta property="og:type" content="article" />
-    <meta property="og:title" content="Verifiable Doesn’t Mean Verified: Getting Issuer, Holder, and Verifier Right" />
-    <meta property="og:description" content="Verifiable credentials can be signed and valid yet still wrong. Learn issuer/holder/verifier roles, failure modes, and checks beyond JSON and signatures." />
+    <meta property="og:title" content="Verifiable Doesn’t Mean Verified" />
+    <meta property="og:description" content="A practical walk through verifiable credentials where “well-formed JSON” and “cryptographically signed” still aren’t the same as “true.”" />
     <meta property="og:url" content="https://www.imshubh.com/articles/microsoft/issuer-holder-verifier.html" />
     <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
     <meta property="article:author" content="Shubham Anandani" />
@@ -22,12 +25,12 @@
     <meta property="article:tag" content="credentials" />
     <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
     <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Verifiable Doesn’t Mean Verified: Getting Issuer, Holder, and Verifier Right","datePublished":"2026-04-02T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"Verifiable credentials can be signed and valid yet still wrong. Learn issuer/holder/verifier roles, failure modes, and checks beyond JSON and signatures.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/microsoft/issuer-holder-verifier.html"}}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Verifiable Doesn’t Mean Verified","datePublished":"2026-04-02T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"A practical walk through verifiable credentials where “well-formed JSON” and “cryptographically signed” still aren’t the same as “true.”","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/microsoft/issuer-holder-verifier.html"}}</script>
   </head>
   <body class="blog-page article-page">
     <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
     <main><article class="article-document"><a class="article-back" href="../../blog.html#microsoft">← Microsoft articles</a>
-      <header class="article-document-header"><p class="kicker">Microsoft Entra / Verifiable Credentials</p><h1>Verifiable Doesn’t Mean Verified: Getting Issuer, Holder, and Verifier Right</h1><p class="article-deck">A practical walk through verifiable credentials where “well-formed JSON” and “cryptographically signed” still aren’t the same as “true.”</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-04-02T12:00:00-07:00">Published April 2, 2026</time><span>·</span><span>5 min read</span></div></header>
+      <header class="article-document-header"><p class="kicker">Microsoft Entra / Verifiable Credentials</p><h1>Verifiable Doesn’t Mean Verified</h1><p class="article-deck">A practical walk through verifiable credentials where “well-formed JSON” and “cryptographically signed” still aren’t the same as “true.”</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-04-02T12:00:00-07:00">Published April 2, 2026</time><span>·</span><span>5 min read</span></div></header>
       <div class="article-prose"><p class="article-lede">I’m an engineering manager with experience integrating identity-verification flows conceptually aligned with Microsoft Entra Verified ID. One habit that keeps teams honest is repeating the phrase: verifiable doesn’t mean verified. The W3C Verifiable Credentials data model makes claims portable and cryptographically provable, but it doesn’t magically make those claims true, up to date, or appropriate for your use case.</p>
         <h3>The failure mode</h3><p>A team builds a credential verifier that checks JSON shape and a signature. The code reports “valid.” A downstream feature treats the claim as true. Weeks later, someone discovers the issuer did, in fact, sign the credential, but the subject was not the person currently presenting it, or the credential expired months ago. The failure wasn’t cryptography; it was process: treating “verifiable” as “verified.”</p>
         <h2>What I learned</h2>

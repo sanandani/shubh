@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="A practical look at memory and CPU limits for Java services: sizing the heap, surviving back-pressure and recognising an out-of-memory kill." />
-    <title>Container limits and the JVM: why your heap is not your memory limit — Shubham Anandani</title>
+    <title>Container limits and the JVM: why your heap is not your memory limit | imshubh.com</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
@@ -12,6 +12,9 @@
     <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
     <link rel="canonical" href="https://www.imshubh.com/articles/docker/container-limits-and-the-jvm.html" />
     <meta property="article:published_time" content="2026-02-14T12:00:00-08:00" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Container limits and the JVM: why your heap is not your memory limit" />
+    <meta name="twitter:description" content="A practical look at memory and CPU limits for Java services: sizing the heap, surviving back-pressure and recognising an out-of-memory kill." />
     <meta property="og:type" content="article" />
     <meta property="og:title" content="Container limits and the JVM: why your heap is not your memory limit" />
     <meta property="og:description" content="A practical look at memory and CPU limits for Java services: sizing the heap, surviving back-pressure and recognising an out-of-memory kill." />
@@ -22,7 +25,7 @@
     <meta property="article:tag" content="containers" />
     <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
     <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
-    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "Article", "headline": "Container limits and the JVM: why your heap is not your memory limit", "datePublished": "2026-02-14T12:00:00-08:00", "author": {"@type": "Person", "name": "Shubham Anandani", "url": "https://www.imshubh.com/"}, "image": "https://www.imshubh.com/assets/shubham-anandani.jpg"}</script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","headline":"Container limits and the JVM: why your heap is not your memory limit","datePublished":"2026-02-14T12:00:00-08:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"A practical look at memory and CPU limits for Java services: sizing the heap, surviving back-pressure and recognising an out-of-memory kill."}</script>
   </head>
   <body class="blog-page article-page">
     <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
@@ -85,7 +88,7 @@ docker stats --no-stream api</code></pre>
         <h2>One honest limitation</h2>
         <p>Limits shrink the blast radius but do not prevent incidents. A service that is out of memory still fails; the point is that it fails predictably and recovers quickly.</p>
         <h2>Sources</h2>
-        <ul><li>Docker Docs: Resource constraints</li><li>Oracle Java Documentation: Java in containers (JVM ergonomics)</li><li>Docker Docs: docker container inspect</li></ul></div>
+        <ul><li><a href="https://docs.docker.com/engine/containers/resource_constraints" target="_blank" rel="noreferrer">Docker Docs: Resource constraints</a></li><li>Oracle Java Documentation: Java in containers (JVM ergonomics)</li><li><a href="https://docs.docker.com/reference/cli/docker/container/inspect/" target="_blank" rel="noreferrer">Docker Docs: docker container inspect</a></li></ul></div>
       <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
     </article></main>
     <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
