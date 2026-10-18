@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="The Model Server options that control prompt reuse and KV-cache memory, example commands from its documentation, and a measurement plan for choosing…" />
+    <title>Continuous Batching, Prefix Caching, and KV Cache Sizing in OpenVINO Model Server — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/intel/continuous-batching-prefix-caching-and-kv-cache-sizing-in-openvino-model-server.html" />
+    <meta property="article:published_time" content="2026-04-10T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Continuous Batching, Prefix Caching, and KV Cache Sizing in OpenVINO Model Server" />
+    <meta property="og:description" content="The Model Server options that control prompt reuse and KV-cache memory, example commands from its documentation, and a measurement plan for choosing…" />
+    <meta property="og:url" content="https://www.imshubh.com/articles/intel/continuous-batching-prefix-caching-and-kv-cache-sizing-in-openvino-model-server.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="intel" />
+    <meta property="article:tag" content="openvino" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Continuous Batching, Prefix Caching, and KV Cache Sizing in OpenVINO Model Server","datePublished":"2026-04-10T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"The Model Server options that control prompt reuse and KV-cache memory, example commands from its documentation, and a measurement plan for choosing…","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/intel/continuous-batching-prefix-caching-and-kv-cache-sizing-in-openvino-model-server.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#intel">← Intel articles</a>
+      <header class="article-document-header"><p class="kicker">Intel / LLM serving</p><h1>Continuous Batching, Prefix Caching, and KV Cache Sizing in OpenVINO Model Server</h1><p class="article-deck">The Model Server options that control prompt reuse and KV-cache memory, example commands from its documentation, and a measurement plan for choosing values you can defend.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-04-10T12:00:00-07:00">Published April 10, 2026</time><span>·</span><span>4 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+<p>A generative model server keeps a key-value (KV) cache for every sequence it is working on. That cache grows with context length and with the number of sequences processed together. If both grow without limits, throughput looks good in a short test and latency becomes unpredictable under real traffic.</p>
+<p>OpenVINO Model Server serves language models with continuous batching and paged attention. Its documentation shows the main task-specific options, including whether prompt tokens are cached across requests and how much memory the KV cache may use.</p>
+<p>The friction points are choosing a cache size for your hardware, deciding whether prefix caching is worth it for your traffic, and measuring both honestly instead of trusting a short single-user test.</p>
+<h2>Options and trade-offs</h2>
+<ul><li><code>--enable_prefix_caching</code>: described in the documentation as caching prompt tokens (KV blocks) so repeated prefixes are not evaluated again. The performance tuning guide lists <code>--enable_prefix_caching true</code> as the default. It helps when clients resend the same conversation history and does little when every prompt is unique.</li><li><code>--cache_size</code>: the memory for the KV cache, in gigabytes. The documentation's examples set it explicitly, for example 20 for an 8-billion-parameter 4-bit model on a 16-core CPU system and 2 for a GPU example. Treat those as illustrations of the option, not recommendations for your hardware.</li><li><code>--target_device</code>: the continuous batching demo explains that, if you do not set it, the device is chosen from detected hardware with priority discrete GPU, then integrated GPU, then CPU. Set it explicitly when you need a particular device.</li><li><code>--task text_generation</code> with <code>--source_model</code> and <code>--model_repository_path</code> is the documented way to start serving a language model from a model repository. The pull guide describes converting and quantizing a Hugging Face model, with options such as <code>--weight-format int8</code>.</li><li>Example from the documentation (CPU, Docker): <code>docker run -d --name ovms --cpuset-cpus 0-15 --user $(id -u):$(id -g) --rm -p 8000:8000 -v $(pwd)/models:/models openvino/model_server:weekly --rest_port 8000 --model_repository_path /models --source_model OpenVINO/Qwen3-8B-int4-ov --enable_prefix_caching true --cache_size 20 --task text_generation</code>.</li><li>Other batching limits exist in the server's task-specific options. List them with the help output for the version you run, and record any you change.</li><li>Recommendation: start from the documented command for your device, change one option at a time, and measure. Set <code>--cache_size</code> explicitly in production so memory use is a decision you made and wrote down. Keep prefix caching enabled for chat-style traffic and test it with a shared-prefix workload and a unique-prompt workload. Limit concurrency at the edge of your system as well.</li><li>Decision lens: throughput against tail latency and memory risk. Example setup: a single host serving a small model, with three configurations compared under the same request mix: a small cache, a larger cache, and a larger cache with a front-end concurrency limit.</li></ul>
+<h2>Minimal working example</h2>
+<p>Prereqs</p>
+<ul><li>Docker, and a machine with enough memory for the model you choose. The documentation's example uses an 8-billion-parameter 4-bit model on a large CPU system; pick a smaller model if your hardware is smaller.</li><li>The Model Server image and a model from a repository, started with a command in the style shown above.</li><li>Python 3 with <code>requests</code> for the client.</li></ul>
+<p><strong>client.py</strong> (request generator for the server's OpenAI-compatible endpoint)</p>
+<pre><code>import time, statistics, requests
+
+URL = "http://localhost:8000/v3/chat/completions"
+MODEL = "OpenVINO/Qwen3-8B-int4-ov"  # use the model name you deployed
+
+def one_request(prompt):
+    start = time.perf_counter()
+    r = requests.post(URL, json={"model": MODEL, "messages": [{"role": "user", "content": prompt}], "max_tokens": 32, "stream": False})
+    r.raise_for_status()
+    return time.perf_counter() - start
+
+shared_prefix = "Summarize the following notes. " * 200
+latencies = [one_request(shared_prefix + f" Note {i}.") for i in range(30)]
+print("median:", statistics.median(latencies))
+print("p95:", sorted(latencies)[int(0.95 * len(latencies)) - 1])</code></pre>
+<p>This measures total request time with a small output, a rough proxy for time to first token. For a precise first-token time, use a streaming request and record when the first chunk arrives. Check the endpoint path and model name against the documentation for your version.</p>
+<p>Adjust file names, model names, and paths to your own setup.</p>
+<p>Test: Start the server with prefix caching on and an explicit <code>--cache_size</code>. Run <code>client.py</code> with a shared long prefix and again with unique prompts, and watch memory with <code>docker stats</code>. Then change one option, such as the cache size or prefix caching, and repeat. Compare the median and 95th percentile of request time between configurations.</p>
+<p>Record: model, Model Server version, and host hardware; the full command line; the request mix (prompt lengths, shared-prefix share, concurrency); median and 95th percentile with prefix caching on and off; peak memory per configuration; your chosen <code>--cache_size</code> and the reason.</p>
+<h2>Checklist</h2>
+<ul><li>Record the version and every option you set.</li><li>Set <code>--cache_size</code> explicitly.</li><li>Test shared-prefix and unique-prompt workloads separately.</li><li>Change one option per run and watch memory during the run.</li><li>Report percentiles, not averages, and write the chosen values and evidence in your runbook.</li><li>Avoid: trusting a short, single-user test.</li><li>Avoid: copying the documentation's example <code>--cache_size</code> to different hardware.</li></ul>
+<h2>Where this doesn't apply</h2>
+<p>Single-user local tools where concurrency is one, workloads whose prompts never repeat a prefix (prefix caching adds little), and deployments where an upstream gateway already limits concurrency tightly.</p>
+<h2>Sources</h2>
+<ul><li>Agentic AI with OpenVINO Model Server (example commands) — [https://docs.openvino.ai/2025/model-server/ovms_demos_continuous_batching_agent.html](https://docs.openvino.ai/2025/model-server/ovms_demos_continuous_batching_agent.html) (accessed 2026-10-18).</li><li>Model Server continuous batching demo — [https://github.com/openvinotoolkit/model_server/blob/main/demos/continuous_batching/README.md](https://github.com/openvinotoolkit/model_server/blob/main/demos/continuous_batching/README.md) (accessed 2026-10-18).</li><li>Model Server pull and conversion guide — [https://github.com/openvinotoolkit/model_server/blob/main/docs/pull_optimum_cli.md](https://github.com/openvinotoolkit/model_server/blob/main/docs/pull_optimum_cli.md) (accessed 2026-10-18).</li><li>Model Server performance tuning guide — [https://github.com/openvinotoolkit/model_server/blob/main/docs/performance_tuning.md](https://github.com/openvinotoolkit/model_server/blob/main/docs/performance_tuning.md) (accessed 2026-10-18).</li><li>OpenVINO Model Server parameters — [https://docs.openvino.ai/2026/model-server/ovms_docs_parameters.html](https://docs.openvino.ai/2026/model-server/ovms_docs_parameters.html) (accessed 2026-10-18).</li><li>OpenVINO Model Server LLM reference — [https://docs.openvino.ai/2025/model-server/ovms_docs_llm_reference.html](https://docs.openvino.ai/2025/model-server/ovms_docs_llm_reference.html) (accessed 2026-10-18).</li></ul>
+<p>---</p></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

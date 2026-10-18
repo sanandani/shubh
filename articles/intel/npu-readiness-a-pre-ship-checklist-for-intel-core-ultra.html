@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A checklist built from the OpenVINO NPU documentation and plugin README: platform and driver, static shapes, compiled-model caching, and how to list the…" />
+    <title>NPU Readiness: A Pre-Ship Checklist for Intel Core Ultra — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/intel/npu-readiness-a-pre-ship-checklist-for-intel-core-ultra.html" />
+    <meta property="article:published_time" content="2025-08-01T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="NPU Readiness: A Pre-Ship Checklist for Intel Core Ultra" />
+    <meta property="og:description" content="A checklist built from the OpenVINO NPU documentation and plugin README: platform and driver, static shapes, compiled-model caching, and how to list the…" />
+    <meta property="og:url" content="https://www.imshubh.com/articles/intel/npu-readiness-a-pre-ship-checklist-for-intel-core-ultra.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="intel" />
+    <meta property="article:tag" content="openvino" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"NPU Readiness: A Pre-Ship Checklist for Intel Core Ultra","datePublished":"2025-08-01T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"A checklist built from the OpenVINO NPU documentation and plugin README: platform and driver, static shapes, compiled-model caching, and how to list the…","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/intel/npu-readiness-a-pre-ship-checklist-for-intel-core-ultra.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#intel">← Intel articles</a>
+      <header class="article-document-header"><p class="kicker">Intel / NPU deployment</p><h1>NPU Readiness: A Pre-Ship Checklist for Intel Core Ultra</h1><p class="article-deck">A checklist built from the OpenVINO NPU documentation and plugin README: platform and driver, static shapes, compiled-model caching, and how to list the properties your driver exposes.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2025-08-01T12:00:00-07:00">Published August 1, 2025</time><span>·</span><span>4 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+<p>The neural processing unit introduced with Intel Core Ultra processors is a low-power device for AI inference. OpenVINO exposes it as the <code>NPU</code> device, but it has requirements and limits that the CPU and GPU do not.</p>
+<p>Teams meet the same surprises: a model with dynamic shapes that will not compile, compile times that dwarf the first inference, driver differences between machines, and caching that behaves differently from other devices.</p>
+<p>The friction points are driver and platform requirements, the static-shape constraint, and knowing which properties your driver actually exposes.</p>
+<h2>Options and trade-offs</h2>
+<ul><li>Platform and driver: the NPU needs a supported platform and an NPU driver. Record the driver version with every result, because available properties and behavior depend on it.</li><li>Static shapes: Intel community guidance and published research on NPU inference state that the NPU in OpenVINO supports models with static shapes. If your model has dynamic dimensions, plan to fix them before compiling, and check the release notes of your OpenVINO version for any newer capability.</li><li>Driver-level cache: the plugin README and documentation say a user-mode-driver model cache is enabled by default in current NPU drivers to improve time to first inference. OpenVINO's own caching is enabled when you set <code>cache_dir</code>. Read how the two interact in the documentation for your driver and version.</li><li>Property discovery: instead of relying on remembered property names, ask the device. Querying the <code>NPU</code> device for its supported properties lists what your driver and OpenVINO version expose. Record that list with your results.</li><li>Compile time: the first compile can take much longer than the first inference. Use compiled-model caching so a restart does not repeat it, and measure it as described in the caching article.</li><li>Fallback: provide a CPU path for machines where the NPU is absent, the driver is outdated, or compilation fails, and log when the fallback is used.</li><li>Recommendation: treat NPU support as something your build proves. Add a smoke test that compiles a small static-shape model on the NPU and fails loudly if it cannot, and record the platform, driver, and OpenVINO versions. Fix input shapes before compiling, enable caching, and run twice in separate processes to confirm the second start is faster.</li><li>Decision lens: whether the NPU is the right target at all. If your model needs dynamic shapes or more memory than the device offers, the CPU or GPU may be simpler. Example setup: a laptop application that runs a small encoder on the NPU for power efficiency and falls back to the CPU if the smoke test fails.</li></ul>
+<h2>Minimal working example</h2>
+<p>Prereqs</p>
+<ul><li>An Intel Core Ultra system with an NPU and a current NPU driver.</li><li>Python 3 with the <code>openvino</code> package installed.</li><li>A static-shape model.</li></ul>
+<p><strong>npu_probe.py</strong></p>
+<pre><code>import sys, time
+import openvino as ov
+
+core = ov.Core()
+print("Devices:", core.available_devices)
+if "NPU" not in core.available_devices:
+    sys.exit("No NPU found; use the CPU fallback")
+
+print("NPU supported properties:")
+for prop in core.get_property("NPU", "SUPPORTED_PROPERTIES"):
+    print(" ", prop)
+
+core.set_property({"CACHE_DIR": "./npu_cache"})
+start = time.perf_counter()
+compiled = core.compile_model(sys.argv[1], "NPU")  # a static-shape model
+print(f"compile on NPU: {time.perf_counter() - start:.3f}s")</code></pre>
+<p>Adjust file names, model names, and paths to your own setup.</p>
+<p>Test: Run <code>npu_probe.py</code> twice in separate processes and keep the printed property list. Compare compile time between the first and second run. Then try a model with a dynamic dimension and record what the NPU does. If there is no NPU on the machine, the script exits with a message, which is the fallback case your application also needs to handle.</p>
+<p>Record: platform, NPU driver version, and OpenVINO version; the property list the NPU reports; compile time with an empty and a populated cache as median and 95th percentile over at least ten fresh processes; first-inference time cold versus cached; behavior with a dynamic-shape model; fallback behavior when the NPU is unavailable.</p>
+<h2>Checklist</h2>
+<ul><li>Record platform, driver, and OpenVINO versions.</li><li>Add an NPU compile smoke test to your build.</li><li>Fix input shapes before compiling.</li><li>Enable caching and confirm the second start is faster.</li><li>List the properties the device exposes, provide a logged CPU fallback, and re-run everything after a driver or OpenVINO upgrade.</li><li>Avoid: compiling a dynamic-shape model and expecting it to work.</li><li>Avoid: assuming compile time on a developer laptop matches the target machine.</li></ul>
+<h2>Where this doesn't apply</h2>
+<p>Machines without an NPU, models that cannot be expressed with static shapes, and workloads where the GPU or CPU already meets latency and power targets.</p>
+<h2>Sources</h2>
+<ul><li>OpenVINO NPU device documentation — [https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes/npu-device.html](https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes/npu-device.html) (accessed 2026-10-18).</li><li>Intel NPU plugin README — [https://github.com/openvinotoolkit/openvino/blob/master/src/plugins/intel_npu/README.md](https://github.com/openvinotoolkit/openvino/blob/master/src/plugins/intel_npu/README.md) (accessed 2026-10-18).</li><li>Intel community: NPU supports static shapes — [https://community.intel.com/t5/Intel-Distribution-of-OpenVINO/How-to-accelerate-NPU-using-OpenVino/m-p/1567889](https://community.intel.com/t5/Intel-Distribution-of-OpenVINO/How-to-accelerate-NPU-using-OpenVino/m-p/1567889) (accessed 2026-10-18).</li><li>NITRO: LLM Inference on Intel Laptop NPUs (arXiv) — [https://arxiv.org/html/2412.11053v1](https://arxiv.org/html/2412.11053v1) (accessed 2026-10-18).</li><li>OpenVINO Model Caching Overview — [https://docs.openvino.ai/nightly/openvino-workflow/running-inference/optimize-inference/optimizing-latency/model-caching-overview.html](https://docs.openvino.ai/nightly/openvino-workflow/running-inference/optimize-inference/optimizing-latency/model-caching-overview.html) (accessed 2026-10-18).</li></ul>
+<p>---</p></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

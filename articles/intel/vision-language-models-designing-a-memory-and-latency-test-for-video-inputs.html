@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Why image and video inputs change serving cost, what to vary and record, and how to find the limits of your own deployment before users do." />
+    <title>Vision-Language Models: Designing a Memory and Latency Test for Video Inputs — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/intel/vision-language-models-designing-a-memory-and-latency-test-for-video-inputs.html" />
+    <meta property="article:published_time" content="2025-07-15T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Vision-Language Models: Designing a Memory and Latency Test for Video Inputs" />
+    <meta property="og:description" content="Why image and video inputs change serving cost, what to vary and record, and how to find the limits of your own deployment before users do." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/intel/vision-language-models-designing-a-memory-and-latency-test-for-video-inputs.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="intel" />
+    <meta property="article:tag" content="openvino" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Vision-Language Models: Designing a Memory and Latency Test for Video Inputs","datePublished":"2025-07-15T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"Why image and video inputs change serving cost, what to vary and record, and how to find the limits of your own deployment before users do.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/intel/vision-language-models-designing-a-memory-and-latency-test-for-video-inputs.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#intel">← Intel articles</a>
+      <header class="article-document-header"><p class="kicker">Intel / Multimodal serving</p><h1>Vision-Language Models: Designing a Memory and Latency Test for Video Inputs</h1><p class="article-deck">Why image and video inputs change serving cost, what to vary and record, and how to find the limits of your own deployment before users do.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2025-07-15T12:00:00-07:00">Published July 15, 2025</time><span>·</span><span>3 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+<p>A vision-language model turns images or video frames into tokens and processes them together with text. A handful of frames can contribute far more tokens than an ordinary chat message. That raises both the time to read the prompt and the memory held for it.</p>
+<p>As a result, a service that handles video behaves differently from a text chat service even when the same server software runs both. A cache limit chosen from chat traffic may not hold, and neither may a latency target set for text.</p>
+<p>The friction points are setting a frame budget, re-sizing memory with video in the mix, and not assuming that features which help text, such as prefix caching, help video.</p>
+<h2>Options and trade-offs</h2>
+<ul><li>Input types: check the documentation for your OpenVINO GenAI and Model Server versions for which image and video inputs the vision-language pipeline accepts and how frames are sampled. This area changes quickly, so use the documentation for the version you install.</li><li>Frame budget: limit the number of frames and their resolution per request. Because each frame contributes tokens, this is usually the most direct control over both latency and memory.</li><li>Cache limit: the Model Server <code>--cache_size</code> option sets KV-cache memory. A limit that works for text-only traffic should be re-examined with video requests in the mix.</li><li>Prompt reuse: prefix caching reuses work for repeated prompt prefixes. Whether it helps when the changing part of a conversation is video is something to test directly and report either way.</li><li>Device choice: use <code>--target_device</code> to select a device explicitly, and record the device and driver with every result.</li><li>Recommendation: treat video as its own workload with its own limits. Choose a frame budget first, then size memory from measurements that include video requests. Measure the same text prompt with no image, one image, several images, and a short clip; the differences are the cost of each input type.</li><li>Decision lens: input cost versus feature value. Example setup: an internal tool that accepts clips of a few seconds, with a fixed sampling rate, a fixed memory limit, and a clear error message for longer clips.</li></ul>
+<h2>Minimal working example</h2>
+<p>Prereqs</p>
+<ul><li>Model Server serving a vision-language model, set up as its documentation for your version describes.</li><li>Docker and Python 3 with <code>requests</code>.</li><li>A sample image and a short video clip.</li></ul>
+<p><strong>modality_ladder.py</strong></p>
+<pre><code>import time, requests
+
+URL = "http://localhost:8000/v3/chat/completions"
+MODEL = "your-vlm-model-name"  # the name you deployed
+
+def ask(content):
+    start = time.perf_counter()
+    r = requests.post(URL, json={"model": MODEL, "messages": [{"role": "user", "content": content}], "max_tokens": 16})
+    return r.status_code, round(time.perf_counter() - start, 3)
+
+text = {"type": "text", "text": "Describe what you see."}
+print("text only:", ask([text]))
+# Add image and frame entries in the format your server version documents,
+# then compare request time as you add more of them.</code></pre>
+<p>Follow your Model Server version's documentation for the exact request format for images and video frames.</p>
+<p>Adjust file names, model names, and paths to your own setup.</p>
+<p>Test: Send the same text prompt with no image, one image, several images, and a short clip, at least twenty times each. Watch the server process's memory. Then raise the number of frames until the server refuses or slows sharply, and note where that happens.</p>
+<p>Record: model, precision, device, driver, and software versions; frame sampling and resolution; request time per input type as median and 95th percentile; peak memory per input type; the frame count at which the server refuses or slows; whether prefix caching helps with a stable text history and changing video; your chosen frame budget.</p>
+<h2>Checklist</h2>
+<ul><li>Use the documentation for your exact versions for input formats.</li><li>Set a frame budget.</li><li>Re-size memory using video requests.</li><li>Measure each input type separately and record device and driver with every result.</li><li>Test prefix reuse with changing video, and return a clear error for inputs over budget.</li><li>Avoid: sizing memory from text-only traffic.</li><li>Avoid: assuming prefix caching helps when the changing part is video.</li></ul>
+<h2>Where this doesn't apply</h2>
+<p>Text-only services, models or versions without video support, and single-image tools where the cost difference is small.</p>
+<h2>Sources</h2>
+<ul><li>OpenVINO Model Server parameters — [https://docs.openvino.ai/2026/model-server/ovms_docs_parameters.html](https://docs.openvino.ai/2026/model-server/ovms_docs_parameters.html) (accessed 2026-10-18).</li><li>Agentic AI with OpenVINO Model Server (example commands) — [https://docs.openvino.ai/2025/model-server/ovms_demos_continuous_batching_agent.html](https://docs.openvino.ai/2025/model-server/ovms_demos_continuous_batching_agent.html) (accessed 2026-10-18).</li><li>Model Server continuous batching demo — [https://github.com/openvinotoolkit/model_server/blob/main/demos/continuous_batching/README.md](https://github.com/openvinotoolkit/model_server/blob/main/demos/continuous_batching/README.md) (accessed 2026-10-18).</li><li>Model Server performance tuning guide — [https://github.com/openvinotoolkit/model_server/blob/main/docs/performance_tuning.md](https://github.com/openvinotoolkit/model_server/blob/main/docs/performance_tuning.md) (accessed 2026-10-18).</li></ul>
+<p>---</p></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

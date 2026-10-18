@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="How compiled-model caching works, how to confirm a device supports it, how it interacts with AUTO and the NPU, and how to measure cold start against…" />
+    <title>Taking Cold Starts Out of the Request Path: Compiled-Model Caching in OpenVINO — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/intel/taking-cold-starts-out-of-the-request-path-compiled-model-caching-in-openvino.html" />
+    <meta property="article:published_time" content="2025-10-20T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Taking Cold Starts Out of the Request Path: Compiled-Model Caching in OpenVINO" />
+    <meta property="og:description" content="How compiled-model caching works, how to confirm a device supports it, how it interacts with AUTO and the NPU, and how to measure cold start against…" />
+    <meta property="og:url" content="https://www.imshubh.com/articles/intel/taking-cold-starts-out-of-the-request-path-compiled-model-caching-in-openvino.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="intel" />
+    <meta property="article:tag" content="openvino" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Taking Cold Starts Out of the Request Path: Compiled-Model Caching in OpenVINO","datePublished":"2025-10-20T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"How compiled-model caching works, how to confirm a device supports it, how it interacts with AUTO and the NPU, and how to measure cold start against…","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/intel/taking-cold-starts-out-of-the-request-path-compiled-model-caching-in-openvino.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#intel">← Intel articles</a>
+      <header class="article-document-header"><p class="kicker">Intel / Startup latency</p><h1>Taking Cold Starts Out of the Request Path: Compiled-Model Caching in OpenVINO</h1><p class="article-deck">How compiled-model caching works, how to confirm a device supports it, how it interacts with AUTO and the NPU, and how to measure cold start against cache import honestly.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2025-10-20T12:00:00-07:00">Published October 20, 2025</time><span>·</span><span>5 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+<p>Every OpenVINO application reads a model and compiles it for a specific device when it starts. For a small model on CPU the cost is easy to ignore. For larger models, or for GPU and NPU targets, compilation can dominate the time before the first request completes. If a rollout restarts your service, the first user request can pay that price.</p>
+<p>OpenVINO's model caching stores the compiled result so that a later start can import it instead of recompiling. You enable it by pointing OpenVINO at a cache folder. The catch is that not every device supports importing and exporting compiled models. OpenVINO's documentation says such devices work normally but do not get the compilation speed-up, so a cache you configured can quietly do nothing.</p>
+<p>That quiet failure is the reason to measure rather than assume. The friction points are confirming device support, understanding how caching interacts with AUTO and the NPU, and measuring a restart in a way that is not fooled by process state.</p>
+<h2>Options and trade-offs</h2>
+<ul><li>Application-level caching: set the <code>CACHE_DIR</code> property on the OpenVINO core before compiling. The first compile has extra work because it also stores the result, so it can be slightly slower. Later compiles can import the stored model.</li><li>Capability check: ask the device whether it supports import and export (the <code>EXPORT_IMPORT</code> capability). If it does not, caching will not shorten that device's compile step, whatever you configure.</li><li>AUTO device selection: the AUTO documentation says AUTO starts inference on the CPU by default unless there is a cached model for the best-suited device, because the CPU can begin right away. While the CPU works, AUTO keeps loading the model onto the better device and switches over when ready. A warm cache can therefore change which device serves your first request.</li><li>NPU: the NPU documentation and plugin README describe a driver-level compiled-model cache enabled by default in current drivers, and OpenVINO's own caching is enabled when you set <code>cache_dir</code>. Read how the two interact in the documentation for your driver and version.</li><li>Model Server: OpenVINO Model Server provides a <code>--cache_dir</code> option and a documentation page on its model cache. The goal is the same as in application code: faster loading on later starts.</li><li>Prefix caching is a different mechanism that works per request instead of per process. Model Server's performance tuning guide lists <code>--enable_prefix_caching true</code> as the default and describes it as reusing work for repeated prompt prefixes, which is common when chat clients resend conversation history.</li><li>General rule for any compiled artifact: it is tied to the device, the software version, and the model and its input shapes. Do not share one cache folder across versions or machine types.</li><li>Recommendation: turn caching on wherever the device supports it, keep the cache folder on storage that survives restarts, and treat the capability check as a gate. If a device does not report <code>EXPORT_IMPORT</code>, plan for the full compile time there. Measure restarts with fresh processes, because a second compile call inside one process does not tell you what a restart costs.</li><li>Decision lens: restart speed against operational risk. A persistent cache is one more thing to manage, and a stale artifact left after an upgrade is a confusing failure. Put the OpenVINO version, model version, and device name in the folder path so you can delete a whole generation at once. Example setup: a container with a volume mounted at the cache path, a startup script that logs compile time, and a health check that confirms the folder contains files after the first run.</li></ul>
+<h2>Minimal working example</h2>
+<p>Prereqs</p>
+<ul><li>Python 3 with the <code>openvino</code> package installed (<code>pip install openvino</code>).</li><li>An OpenVINO IR model (<code>model.xml</code> and <code>model.bin</code>) or an ONNX file you already use.</li><li>A writable folder for the cache, on the same filesystem the production service will use.</li></ul>
+<p><strong>capability_check.py</strong></p>
+<pre><code>import openvino as ov
+import openvino.properties.device as device
+
+core = ov.Core()
+for name in core.available_devices:
+    supported = "EXPORT_IMPORT" in core.get_property(name, device.capabilities)
+    print(name, "supports caching" if supported else "no import/export")</code></pre>
+<p><strong>cold_vs_cached.py</strong> (run it in a new process each time)</p>
+<pre><code>import sys, time
+import openvino as ov
+
+model_path, device_name = sys.argv[1], sys.argv[2]
+core = ov.Core()
+core.set_property({"CACHE_DIR": "./model_cache"})
+
+start = time.perf_counter()
+compiled = core.compile_model(model_path, device_name)
+print(f"compile_model on {device_name}: {time.perf_counter() - start:.3f}s")</code></pre>
+<p>Delete the <code>model_cache</code> folder to get a cold run. Run the script again without deleting it to get a cached run.</p>
+<p>Adjust file names, model names, and paths to your own setup.</p>
+<p>Test: Run <code>capability_check.py</code> and note which devices report support. Run <code>cold_vs_cached.py</code> ten times with the cache folder deleted before each run (cold), then ten times without deleting it (cached), each in a new process. If the cached median is clearly lower, caching is working on that device. If the two medians are close, the device probably does not support caching or the folder is not being used, which is also a useful answer.</p>
+<p>Record: device, OpenVINO version, operating system, and model; capability check result; cold compile time as median and 95th percentile; cached compile time as median and 95th percentile; cache folder size; time to first token cold versus cached if you serve a language model; whether outputs match between the two.</p>
+<h2>Checklist</h2>
+<ul><li>Run the capability check for every device you plan to use.</li><li>Set <code>CACHE_DIR</code> (or <code>--cache_dir</code> in Model Server) and confirm files appear after the first run.</li><li>Put version, model, and device in the cache path and store it on persistent storage.</li><li>Measure in separate processes and report percentiles.</li><li>Compare outputs between a cold run and a cached run.</li><li>Avoid: assuming caching works without checking the device's capabilities.</li><li>Avoid: timing two compiles in one process and calling it a restart test.</li></ul>
+<h2>Where this doesn't apply</h2>
+<p>Workloads where the model is compiled once for a long-running process and restarts are rare, cases where first-token latency is dominated by something other than compilation (network time or input parsing), and devices that do not support import and export.</p>
+<h2>Sources</h2>
+<ul><li>OpenVINO Model Caching Overview — [https://docs.openvino.ai/nightly/openvino-workflow/running-inference/optimize-inference/optimizing-latency/model-caching-overview.html](https://docs.openvino.ai/nightly/openvino-workflow/running-inference/optimize-inference/optimizing-latency/model-caching-overview.html) (accessed 2026-10-18).</li><li>Automatic Device Selection documentation — [https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes/auto-device-selection.html](https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes/auto-device-selection.html) (accessed 2026-10-18).</li><li>Automatic Device Selection and Configuration (OpenVINO blog) — [https://blog.openvino.ai/blog-posts/automatic-device-selection-and-configuration](https://blog.openvino.ai/blog-posts/automatic-device-selection-and-configuration) (accessed 2026-10-18).</li><li>OpenVINO NPU device documentation — [https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes/npu-device.html](https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes/npu-device.html) (accessed 2026-10-18).</li><li>Intel NPU plugin README — [https://github.com/openvinotoolkit/openvino/blob/master/src/plugins/intel_npu/README.md](https://github.com/openvinotoolkit/openvino/blob/master/src/plugins/intel_npu/README.md) (accessed 2026-10-18).</li><li>Model Server performance tuning guide — [https://github.com/openvinotoolkit/model_server/blob/main/docs/performance_tuning.md](https://github.com/openvinotoolkit/model_server/blob/main/docs/performance_tuning.md) (accessed 2026-10-18).</li><li>OpenVINO Model Server parameters — [https://docs.openvino.ai/2026/model-server/ovms_docs_parameters.html](https://docs.openvino.ai/2026/model-server/ovms_docs_parameters.html) (accessed 2026-10-18).</li></ul>
+<p>---</p></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

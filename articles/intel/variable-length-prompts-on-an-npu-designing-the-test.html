@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="How to design a fair experiment for first-token latency on an NPU across prompt lengths: length buckets, padding and chunking strategies, and what to…" />
+    <title>Variable-Length Prompts on an NPU: Designing the Test — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/intel/variable-length-prompts-on-an-npu-designing-the-test.html" />
+    <meta property="article:published_time" content="2025-06-08T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Variable-Length Prompts on an NPU: Designing the Test" />
+    <meta property="og:description" content="How to design a fair experiment for first-token latency on an NPU across prompt lengths: length buckets, padding and chunking strategies, and what to…" />
+    <meta property="og:url" content="https://www.imshubh.com/articles/intel/variable-length-prompts-on-an-npu-designing-the-test.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="intel" />
+    <meta property="article:tag" content="openvino" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Variable-Length Prompts on an NPU: Designing the Test","datePublished":"2025-06-08T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"How to design a fair experiment for first-token latency on an NPU across prompt lengths: length buckets, padding and chunking strategies, and what to…","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/intel/variable-length-prompts-on-an-npu-designing-the-test.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#intel">← Intel articles</a>
+      <header class="article-document-header"><p class="kicker">Intel / NPU performance</p><h1>Variable-Length Prompts on an NPU: Designing the Test</h1><p class="article-deck">How to design a fair experiment for first-token latency on an NPU across prompt lengths: length buckets, padding and chunking strategies, and what to record.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2025-06-08T12:00:00-07:00">Published June 8, 2025</time><span>·</span><span>4 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+<p>A language model has to read the whole prompt before it can produce a first token. That prefill step grows with prompt length, so time to first token depends on the prompt lengths your users actually send.</p>
+<p>Intel community guidance and published research on NPU inference say that the NPU in OpenVINO works with static shapes. A prompt of varying length does not fit that directly, so a deployment has to choose a strategy: pad to a fixed length, process in fixed-size pieces, or keep several compiled shapes. Newer OpenVINO and GenAI releases may add dedicated support, so read the release notes for your version before designing around the limitation.</p>
+<p>The friction points are choosing a strategy, defining prompt-length buckets that match real use, and measuring the tail instead of the average.</p>
+<h2>Options and trade-offs</h2>
+<ul><li>Pad to one fixed length: simple and compatible with static shapes. Short prompts pay for the padding, so it favors uniform prompt lengths.</li><li>Fixed-size chunks: process the prompt piece by piece with a chunk size you choose. It avoids padding everything to the longest length, at the cost of more steps for long prompts. Check whether your OpenVINO and GenAI versions provide this directly.</li><li>Several compiled shapes: keep one compiled model per length bucket and route each request by its prompt length. It is predictable but uses more memory and more cache entries.</li><li>Streaming: returning tokens as they are generated improves perceived latency but does not shorten prefill, so track perceived first-token time and true first-token time separately.</li><li>Measurement unit: use prompt-length buckets such as short, medium, long, and very long, defined in tokens. An average across all prompts hides the long-prompt tail that users notice.</li><li>Recommendation: begin with your real prompt-length distribution; if you have none, make a reasoned guess, label it as a guess, and plan to replace it. Test each strategy your stack supports against every bucket, changing one thing at a time. Adopt a strategy only if it improves the 95th percentile for the buckets that matter, and keep the simpler setup if it does not.</li><li>Decision lens: user-visible first-token latency versus implementation complexity. Example setup: an assistant whose prompts are mostly short uses a small fixed length, with a separate path for the rare long prompt.</li></ul>
+<h2>Minimal working example</h2>
+<p>Prereqs</p>
+<ul><li>An NPU machine with a language-model stack that runs on the NPU for your OpenVINO version, set up as that version's documentation describes.</li><li>Python 3 with <code>transformers</code> for the tokenizer.</li><li>Your model's tokenizer.</li></ul>
+<p><strong>make_prompts.py</strong> (build prompts of controlled token length)</p>
+<pre><code>from transformers import AutoTokenizer
+
+tokenizer = AutoTokenizer.from_pretrained("your-model-name")  # use your model's tokenizer
+filler = "The quick brown fox jumps over the lazy dog. " * 2000
+ids = tokenizer(filler)["input_ids"]
+
+buckets = {"short": 64, "medium": 512, "long": 2048}
+for name, n in buckets.items():
+    prompt = tokenizer.decode(ids[:n])
+    print(name, len(tokenizer(prompt)["input_ids"]))</code></pre>
+<p>Use the prompts with whichever generation API your stack provides, and record the time from sending the request to the first generated token.</p>
+<p>Adjust file names, model names, and paths to your own setup.</p>
+<p>Test: Build prompts for each bucket with <code>make_prompts.py</code>. For each strategy your stack supports, warm up, then send at least thirty requests per bucket and record time to first token. Report the median and 95th percentile per bucket, with streaming on and off. Keep every other setting the same between runs.</p>
+<p>Record: NPU, driver, OpenVINO, and GenAI versions; model and precision; bucket definitions in tokens; time to first token per bucket and strategy as median and 95th percentile; streaming on versus off; your chosen strategy and the reason.</p>
+<h2>Checklist</h2>
+<ul><li>Read the release notes for your version about NPU and variable prompts.</li><li>Define buckets from real or clearly labeled estimated lengths.</li><li>Warm up before measuring and change one setting per run.</li><li>Report median and 95th percentile per bucket.</li><li>Track perceived and true first-token time separately, and keep the simpler strategy when a change does not help.</li><li>Avoid: averaging across prompt lengths.</li><li>Avoid: assuming a feature from release notes exists in your installed version.</li></ul>
+<h2>Where this doesn't apply</h2>
+<p>Pipelines where all prompts have almost the same length, deployments on CPU or GPU, and versions that provide native handling of variable prompts (follow that documentation instead).</p>
+<h2>Sources</h2>
+<ul><li>OpenVINO NPU device documentation — [https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes/npu-device.html](https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes/npu-device.html) (accessed 2026-10-18).</li><li>Intel community: NPU supports static shapes — [https://community.intel.com/t5/Intel-Distribution-of-OpenVINO/How-to-accelerate-NPU-using-OpenVino/m-p/1567889](https://community.intel.com/t5/Intel-Distribution-of-OpenVINO/How-to-accelerate-NPU-using-OpenVino/m-p/1567889) (accessed 2026-10-18).</li><li>NITRO: LLM Inference on Intel Laptop NPUs (arXiv) — [https://arxiv.org/html/2412.11053v1](https://arxiv.org/html/2412.11053v1) (accessed 2026-10-18).</li><li>Intel NPU plugin README — [https://github.com/openvinotoolkit/openvino/blob/master/src/plugins/intel_npu/README.md](https://github.com/openvinotoolkit/openvino/blob/master/src/plugins/intel_npu/README.md) (accessed 2026-10-18).</li></ul>
+<p>---</p></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="How the OpenVINO execution provider for ONNX Runtime selects devices, how provider options pass per-device properties and a cache directory, and a probe…" />
+    <title>Device Settings Through Wrappers: ONNX Runtime and OpenVINO — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/intel/device-settings-through-wrappers-onnx-runtime-and-openvino.html" />
+    <meta property="article:published_time" content="2026-06-24T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Device Settings Through Wrappers: ONNX Runtime and OpenVINO" />
+    <meta property="og:description" content="How the OpenVINO execution provider for ONNX Runtime selects devices, how provider options pass per-device properties and a cache directory, and a probe…" />
+    <meta property="og:url" content="https://www.imshubh.com/articles/intel/device-settings-through-wrappers-onnx-runtime-and-openvino.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="intel" />
+    <meta property="article:tag" content="openvino" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Device Settings Through Wrappers: ONNX Runtime and OpenVINO","datePublished":"2026-06-24T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"How the OpenVINO execution provider for ONNX Runtime selects devices, how provider options pass per-device properties and a cache directory, and a probe…","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/intel/device-settings-through-wrappers-onnx-runtime-and-openvino.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#intel">← Intel articles</a>
+      <header class="article-document-header"><p class="kicker">Intel / Integration</p><h1>Device Settings Through Wrappers: ONNX Runtime and OpenVINO</h1><p class="article-deck">How the OpenVINO execution provider for ONNX Runtime selects devices, how provider options pass per-device properties and a cache directory, and a probe that records what your installed versions accept.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-06-24T12:00:00-07:00">Published June 24, 2026</time><span>·</span><span>4 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+<p>Many teams use OpenVINO through another library, and ONNX Runtime's OpenVINO execution provider is one example. Each wrapper has its own configuration surface, and it is not identical to OpenVINO's own property names and behavior.</p>
+<p>That difference causes a quiet class of problems. A setting that works when you call OpenVINO directly may be ignored or reshaped by a wrapper, and the default device may not be the one you expect.</p>
+<p>The friction points are knowing the default device, knowing which OpenVINO version the wrapper bundles, and knowing which options your installed version really accepts.</p>
+<h2>Options and trade-offs</h2>
+<ul><li>Default device: the PyPI page for the OpenVINO execution provider package states that, by default, the Intel CPU is used for inference, and that you can change this to an integrated GPU, a discrete GPU, or an integrated NPU through the provider configuration's device type argument.</li><li>Bundled runtime: the same page says the Linux wheels at that time came with pre-built libraries of OpenVINO 2025.4.1, so the OpenVINO inside the wrapper may differ from one you installed separately. Check the version your package carries.</li><li>Provider options: ONNX Runtime GenAI's documentation for the OpenVINO provider shows <code>device_type</code>, <code>cache_dir</code>, and a <code>load_config</code> block with per-device properties, for example <code>INFERENCE_PRECISION_HINT</code> and <code>PERFORMANCE_HINT</code> under a <code>CPU</code> key. The page also advises choosing the device by goal: CPU for latency, GPU for throughput, and NPU for efficiency.</li><li>Per-device properties: placing properties under the device they apply to, as in the <code>load_config</code> example, avoids applying a setting meant for one device to all of them.</li><li>Cache directory: the same documentation shows <code>cache_dir</code> as a provider option to reduce model loading time on later runs. As with direct OpenVINO use, confirm with a restart test that it works.</li><li>Direct OpenVINO use gives you every property OpenVINO exposes and clearer errors, at the cost of more integration code. If a wrapper does not expose something you need, consider using OpenVINO directly for that component.</li><li>Recommendation: treat provider options as deployment configuration. Write them in one place, record the library versions beside them, and re-run a probe whenever you upgrade. Copy option names from the page for the version you installed, not from memory, and prefer explicit device names and per-device properties in production.</li><li>Decision lens: convenience versus control. Example setup: a service that loads models through ONNX Runtime with one configuration file listing the device type, cache directory, and per-device properties, plus a note of the versions on which that file was tested.</li></ul>
+<h2>Minimal working example</h2>
+<p>Prereqs</p>
+<ul><li>Python 3 in a clean virtual environment with the <code>onnxruntime-openvino</code> package installed. Do not install it next to the plain <code>onnxruntime</code> package in the same environment.</li><li>An ONNX model you already use.</li><li>A writable cache folder.</li></ul>
+<p><strong>provider_probe.py</strong></p>
+<pre><code>import onnxruntime as ort
+
+print("ONNX Runtime version:", ort.__version__)
+print("Available providers:", ort.get_available_providers())
+
+providers = [("OpenVINOExecutionProvider", {"device_type": "CPU", "cache_dir": "./ov_cache"})]
+session = ort.InferenceSession("model.onnx", providers=providers)
+print("Session providers:", session.get_providers())</code></pre>
+<p>If <code>OpenVINOExecutionProvider</code> is missing from the available providers, your installed package does not include it, and ONNX Runtime will fall back to another provider.</p>
+<p>Adjust file names, model names, and paths to your own setup.</p>
+<p>Test: Run <code>provider_probe.py</code> and check that <code>OpenVINOExecutionProvider</code> appears in the available providers and in the session's providers. Run it a second time to see whether load time drops with <code>cache_dir</code>. If the machine has a GPU or NPU, change <code>device_type</code> and record what changes.</p>
+<p>Record: ONNX Runtime and provider package versions; the OpenVINO version bundled in the package; the providers available and the providers the session reports for each device type; load time with and without <code>cache_dir</code>, first versus second run; behavior when a requested device is absent; the configuration you chose for production.</p>
+<h2>Checklist</h2>
+<ul><li>Record every library version.</li><li>Confirm the provider is actually available.</li><li>Set the device type explicitly and place properties under the device they apply to.</li><li>Test <code>cache_dir</code> with a restart.</li><li>Keep the verified configuration in your repository and re-run the probe after every upgrade.</li><li>Avoid: assuming the wrapper's OpenVINO version matches your standalone install.</li><li>Avoid: copying option names from another version's documentation.</li></ul>
+<h2>Where this doesn't apply</h2>
+<p>Applications that call OpenVINO directly, and systems using a different OpenVINO integration than ONNX Runtime.</p>
+<h2>Sources</h2>
+<ul><li>onnxruntime-openvino on PyPI — [https://pypi.org/project/onnxruntime-openvino/](https://pypi.org/project/onnxruntime-openvino/) (accessed 2026-10-18).</li><li>ONNX Runtime GenAI: OpenVINO execution provider — [https://microsoft-onnxruntime-genai-88.mintlify.app/acceleration/openvino](https://microsoft-onnxruntime-genai-88.mintlify.app/acceleration/openvino) (accessed 2026-10-18).</li><li>OpenVINO Model Caching Overview — [https://docs.openvino.ai/nightly/openvino-workflow/running-inference/optimize-inference/optimizing-latency/model-caching-overview.html](https://docs.openvino.ai/nightly/openvino-workflow/running-inference/optimize-inference/optimizing-latency/model-caching-overview.html) (accessed 2026-10-18).</li></ul>
+<p>---</p></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

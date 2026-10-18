@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A decision framework for latency and memory budgets and for defaults on caching, device selection, and KV-cache limits, with the evidence recorded for…" />
+    <title>A Playbook for GenAI Latency on Intel Hardware: Budgets, Policies, and Defaults — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/intel/a-playbook-for-genai-latency-on-intel-hardware-budgets-policies-and-defaults.html" />
+    <meta property="article:published_time" content="2025-08-22T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="A Playbook for GenAI Latency on Intel Hardware: Budgets, Policies, and Defaults" />
+    <meta property="og:description" content="A decision framework for latency and memory budgets and for defaults on caching, device selection, and KV-cache limits, with the evidence recorded for…" />
+    <meta property="og:url" content="https://www.imshubh.com/articles/intel/a-playbook-for-genai-latency-on-intel-hardware-budgets-policies-and-defaults.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="intel" />
+    <meta property="article:tag" content="openvino" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"A Playbook for GenAI Latency on Intel Hardware: Budgets, Policies, and Defaults","datePublished":"2025-08-22T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"A decision framework for latency and memory budgets and for defaults on caching, device selection, and KV-cache limits, with the evidence recorded for…","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/intel/a-playbook-for-genai-latency-on-intel-hardware-budgets-policies-and-defaults.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#intel">← Intel articles</a>
+      <header class="article-document-header"><p class="kicker">Intel / Operations</p><h1>A Playbook for GenAI Latency on Intel Hardware: Budgets, Policies, and Defaults</h1><p class="article-deck">A decision framework for latency and memory budgets and for defaults on caching, device selection, and KV-cache limits, with the evidence recorded for each default.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2025-08-22T12:00:00-07:00">Published August 22, 2025</time><span>·</span><span>4 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+<p>Teams adopting OpenVINO for generative workloads meet the same set of switches: compiled-model caching, prefix caching, device selection, KV-cache sizing, and device-specific properties. Each can help. Switched on in different combinations by different people, they produce behavior that nobody can explain.</p>
+<p>A playbook turns those switches into decisions with owners and evidence. It starts from budgets, derives defaults from measurements, and records for each default what was measured and on which hardware.</p>
+<p>The friction points are deciding the budgets, keeping defaults tied to evidence, and reviewing them when software or hardware changes.</p>
+<h2>Options and trade-offs</h2>
+<ul><li>Budgets: define time to first token at a stated percentile, throughput, and a memory limit for each service. Without a target, tuning has no end.</li><li>Cold-start policy: use compiled-model caching where devices support it, and verify it with the capability check and the output comparison from earlier in the series.</li><li>Device policy: choose explicit devices for predictable behavior, use AUTO where portability matters, and log the executing device. AUTO may serve early requests on the CPU unless a cached model exists for the better device.</li><li>Memory policy: set the KV-cache size explicitly, keep prefix caching on for conversational traffic, limit prompt size and concurrency at the gateway, and define what happens to an oversize request.</li><li>NPU gate: require a compile smoke test, a recorded driver version, a list of the device's supported properties, and a CPU fallback before enabling the NPU for users.</li><li>Evidence rule: every default points to a measurement with the hardware and versions it came from. A default without evidence is a guess and should be labeled as one.</li><li>Recommendation: write the playbook as configuration plus a short decision table in your repository, not as a document nobody reads. Each setting gets a reason, an owner, and a link to the measurement that justified it. Review it whenever OpenVINO or Model Server versions, models, hardware, or traffic change.</li><li>Decision flow in four questions: Is cold start a risk? Enable caching and verify it. Are contexts long or repeated? Keep prefix caching on and set an explicit KV limit. Is an NPU planned? Pass the readiness checklist first. Do you need portability across machines? Use AUTO for routing and log where work ran.</li><li>Decision lens: consistency and defensibility. Example setup: a platform team with one configuration repository, a benchmark job that reruns the key tests on each version upgrade, and a one-page decision flow that new services follow.</li></ul>
+<h2>Minimal working example</h2>
+<p>Prereqs</p>
+<ul><li>Results from the earlier articles for the services you run.</li><li>A repository or folder where configuration and results files can live together.</li></ul>
+<p><strong>defaults.yaml</strong> (outline of a policy file; fill every value from your own measurements)</p>
+<pre><code>service: chat-assistant
+budget:
+  ttft_p95_seconds: &lt;your target&gt;
+  memory_limit_gb: &lt;your limit&gt;
+caching:
+  compiled_model_cache: true
+  cache_path: /var/cache/ov/&lt;ov-version&gt;/&lt;model-version&gt;/&lt;device&gt;
+  evidence: results/cold-vs-cached.md
+device:
+  strategy: explicit   # or auto
+  log_execution_device: true
+  evidence: results/device-strategy.md
+kv_cache:
+  cache_size_gb: &lt;from observation&gt;
+  prefix_caching: true
+  overflow_behavior: reject-with-message
+  evidence: results/kv-cache.md</code></pre>
+<p>Every <code>evidence</code> entry should point to a results file you produced from the earlier articles.</p>
+<p>Adjust file names, model names, and paths to your own setup.</p>
+<p>Test: Pick one default in <code>defaults.yaml</code> and find the results file that justifies it. Upgrade OpenVINO or Model Server in a test environment and rerun the relevant measurement. If the numbers changed, update the default and its evidence. A default you cannot link to a measurement should be marked as a guess.</p>
+<p>Record: the budget for each service; cold start before and after the caching policy; first-token percentile before and after the memory policy; the device strategy outcome on your hardware; the result of the rerun after the last upgrade; the evidence file for every default.</p>
+<h2>Checklist</h2>
+<ul><li>Define budgets for each service.</li><li>Enable and verify compiled-model caching, with an output comparison for warm starts.</li><li>Choose a device policy and log the executing device.</li><li>Set an explicit KV-cache limit from observation.</li><li>Require a readiness checklist for the NPU, attach evidence to every default, and review after upgrades.</li><li>Avoid: copying another team's defaults without measuring.</li><li>Avoid: tuning without budgets.</li></ul>
+<h2>Where this doesn't apply</h2>
+<p>Small experiments on one machine where defaults are adequate, and teams that cannot run repeatable measurements.</p>
+<h2>Sources</h2>
+<ul><li>OpenVINO Model Caching Overview — [https://docs.openvino.ai/nightly/openvino-workflow/running-inference/optimize-inference/optimizing-latency/model-caching-overview.html](https://docs.openvino.ai/nightly/openvino-workflow/running-inference/optimize-inference/optimizing-latency/model-caching-overview.html) (accessed 2026-10-18).</li><li>Automatic Device Selection documentation — [https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes/auto-device-selection.html](https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes/auto-device-selection.html) (accessed 2026-10-18).</li><li>Model Server performance tuning guide — [https://github.com/openvinotoolkit/model_server/blob/main/docs/performance_tuning.md](https://github.com/openvinotoolkit/model_server/blob/main/docs/performance_tuning.md) (accessed 2026-10-18).</li><li>OpenVINO Model Server parameters — [https://docs.openvino.ai/2026/model-server/ovms_docs_parameters.html](https://docs.openvino.ai/2026/model-server/ovms_docs_parameters.html) (accessed 2026-10-18).</li><li>OpenVINO NPU device documentation — [https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes/npu-device.html](https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes/npu-device.html) (accessed 2026-10-18).</li><li>onnxruntime-openvino on PyPI — [https://pypi.org/project/onnxruntime-openvino/](https://pypi.org/project/onnxruntime-openvino/) (accessed 2026-10-18).</li></ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

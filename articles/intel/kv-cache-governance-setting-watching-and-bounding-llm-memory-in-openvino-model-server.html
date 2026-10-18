@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A procedure for choosing a KV-cache size for Model Server, observing real memory use with ordinary tools, and writing the limit and its evidence into a…" />
+    <title>KV Cache Governance: Setting, Watching, and Bounding LLM Memory in OpenVINO Model Server — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/intel/kv-cache-governance-setting-watching-and-bounding-llm-memory-in-openvino-model-server.html" />
+    <meta property="article:published_time" content="2026-08-17T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="KV Cache Governance: Setting, Watching, and Bounding LLM Memory in OpenVINO Model Server" />
+    <meta property="og:description" content="A procedure for choosing a KV-cache size for Model Server, observing real memory use with ordinary tools, and writing the limit and its evidence into a…" />
+    <meta property="og:url" content="https://www.imshubh.com/articles/intel/kv-cache-governance-setting-watching-and-bounding-llm-memory-in-openvino-model-server.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="intel" />
+    <meta property="article:tag" content="openvino" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"KV Cache Governance: Setting, Watching, and Bounding LLM Memory in OpenVINO Model Server","datePublished":"2026-08-17T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"A procedure for choosing a KV-cache size for Model Server, observing real memory use with ordinary tools, and writing the limit and its evidence into a…","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/intel/kv-cache-governance-setting-watching-and-bounding-llm-memory-in-openvino-model-server.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#intel">← Intel articles</a>
+      <header class="article-document-header"><p class="kicker">Intel / Memory management</p><h1>KV Cache Governance: Setting, Watching, and Bounding LLM Memory in OpenVINO Model Server</h1><p class="article-deck">A procedure for choosing a KV-cache size for Model Server, observing real memory use with ordinary tools, and writing the limit and its evidence into a runbook.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-08-17T12:00:00-07:00">Published August 17, 2026</time><span>·</span><span>4 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+<p>A language-model server keeps attention keys and values for every token of every active sequence. That memory grows with context length and concurrency. Unlike model weights, it is not a fixed cost, so a deployment that looks fine in a short test can run short of memory under a different traffic mix.</p>
+<p>OpenVINO Model Server lets you set the cache memory with <code>--cache_size</code>, and its documentation examples pass explicit values. Choosing that number deliberately is the heart of governing the cache.</p>
+<p>The friction points are picking a limit, observing real usage against it, documenting the number and its basis, and deciding in advance what the service does when a request does not fit.</p>
+<h2>Options and trade-offs</h2>
+<ul><li>Explicit limit: pass <code>--cache_size</code> in gigabytes. The documentation's examples use values such as 20 on a large CPU system and 2 in a GPU example, which shows that the right value depends on the model, precision, and hardware.</li><li>Prefix reuse: with prefix caching enabled, repeated prompt prefixes avoid recomputation. A larger cache can hold more reusable history, so cache size and the benefit of prefix caching are linked.</li><li>Concurrency and context length are the two drivers of cache growth. Limit the maximum prompt size and the number of simultaneous requests at your gateway so the cache you chose is a realistic fit.</li><li>Observation: use operating-system and container tools to watch the server process's memory over time. You do not need special server features to see a trend and compare it with the limit you set.</li><li>Overflow policy: decide whether the service should reject oversize requests with a clear error, shorten context, or queue. Silent failure or a crash is the outcome to avoid.</li><li>Model and precision changes: a different model or precision changes memory per token, so a limit chosen for one is not valid for another.</li><li>Recommendation: start with a conservative value in the style of the documentation's examples, run a realistic mix of context lengths and concurrency, and watch the memory trend. Increase the cache until your largest realistic request fits with headroom, and stop there. Write the limit in the runbook with the model, precision, hardware, and the observed peak that justified it.</li><li>Decision lens: predictable memory versus refusing some requests. Example setup: a single-host service with an explicit <code>--cache_size</code>, a gateway that rejects prompts over a set length with a clear message, and an alert when process memory reaches a chosen fraction of the host.</li></ul>
+<h2>Minimal working example</h2>
+<p>Prereqs</p>
+<ul><li>A Model Server container named <code>ovms</code> serving a language model, started with an explicit <code>--cache_size</code>.</li><li>Docker and Python 3 with <code>requests</code>.</li></ul>
+<p><strong>memory_watch.sh</strong> (sample the container's memory while a load test runs)</p>
+<pre><code>while true; do
+  docker stats --no-stream --format "{{.Name}} {{.MemUsage}}" ovms
+  sleep 5
+done</code></pre>
+<p><strong>load_profile.py</strong></p>
+<pre><code>import requests
+
+URL = "http://localhost:8000/v3/chat/completions"
+MODEL = "OpenVINO/Qwen3-8B-int4-ov"  # use the model name you deployed
+
+def send(words):
+    prompt = "word " * words
+    r = requests.post(URL, json={"model": MODEL, "messages": [{"role": "user", "content": prompt}], "max_tokens": 16})
+    return r.status_code, r.elapsed.total_seconds()
+
+for words in [200, 1000, 4000, 8000]:
+    print(words, send(words))</code></pre>
+<p>Increase the prompt sizes until the server starts refusing or slowing down, and record what it returns.</p>
+<p>Adjust file names, model names, and paths to your own setup.</p>
+<p>Test: Start <code>memory_watch.sh</code> in one terminal and run <code>load_profile.py</code> in another with increasing prompt sizes. Note the memory trend, the largest prompt that completes, and exactly what the server returns for a prompt that is too large. Change <code>--cache_size</code>, restart, and repeat.</p>
+<p>Record: model, precision, Model Server version, and host memory; the <code>--cache_size</code> values tested; the memory trend; the largest prompt that completed for each cache size; the server's response to an oversize prompt; latency as prompt size grows; your chosen limit and the evidence for it.</p>
+<h2>Checklist</h2>
+<ul><li>Set <code>--cache_size</code> explicitly.</li><li>Observe memory over a realistic load and find the largest prompt that fits.</li><li>Test the overflow path on purpose.</li><li>Limit prompt size and concurrency at the gateway.</li><li>Document the limit with hardware, model, and precision, and repeat after any change.</li><li>Avoid: sizing from a single short test.</li><li>Avoid: having no defined behavior for oversize requests.</li></ul>
+<h2>Where this doesn't apply</h2>
+<p>Short prompts with low concurrency on a host with ample memory, and services behind a managed platform that sets cache limits for you.</p>
+<h2>Sources</h2>
+<ul><li>Agentic AI with OpenVINO Model Server (example commands) — [https://docs.openvino.ai/2025/model-server/ovms_demos_continuous_batching_agent.html](https://docs.openvino.ai/2025/model-server/ovms_demos_continuous_batching_agent.html) (accessed 2026-10-18).</li><li>Model Server continuous batching demo — [https://github.com/openvinotoolkit/model_server/blob/main/demos/continuous_batching/README.md](https://github.com/openvinotoolkit/model_server/blob/main/demos/continuous_batching/README.md) (accessed 2026-10-18).</li><li>Model Server performance tuning guide — [https://github.com/openvinotoolkit/model_server/blob/main/docs/performance_tuning.md](https://github.com/openvinotoolkit/model_server/blob/main/docs/performance_tuning.md) (accessed 2026-10-18).</li><li>OpenVINO Model Server parameters — [https://docs.openvino.ai/2026/model-server/ovms_docs_parameters.html](https://docs.openvino.ai/2026/model-server/ovms_docs_parameters.html) (accessed 2026-10-18).</li></ul>
+<p>---</p></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

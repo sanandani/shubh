@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A practical comparison of three ways to choose where OpenVINO runs a model, what AUTO actually does at startup, and a test that shows which strategy…" />
+    <title>AUTO vs Explicit Devices vs HETERO: Choosing a Device Strategy in OpenVINO — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/intel/auto-vs-explicit-devices-vs-hetero-choosing-a-device-strategy-in-openvino.html" />
+    <meta property="article:published_time" content="2026-03-03T12:00:00-08:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="AUTO vs Explicit Devices vs HETERO: Choosing a Device Strategy in OpenVINO" />
+    <meta property="og:description" content="A practical comparison of three ways to choose where OpenVINO runs a model, what AUTO actually does at startup, and a test that shows which strategy…" />
+    <meta property="og:url" content="https://www.imshubh.com/articles/intel/auto-vs-explicit-devices-vs-hetero-choosing-a-device-strategy-in-openvino.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="intel" />
+    <meta property="article:tag" content="openvino" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"AUTO vs Explicit Devices vs HETERO: Choosing a Device Strategy in OpenVINO","datePublished":"2026-03-03T12:00:00-08:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"A practical comparison of three ways to choose where OpenVINO runs a model, what AUTO actually does at startup, and a test that shows which strategy…","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/intel/auto-vs-explicit-devices-vs-hetero-choosing-a-device-strategy-in-openvino.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#intel">← Intel articles</a>
+      <header class="article-document-header"><p class="kicker">Intel / Device strategy</p><h1>AUTO vs Explicit Devices vs HETERO: Choosing a Device Strategy in OpenVINO</h1><p class="article-deck">A practical comparison of three ways to choose where OpenVINO runs a model, what AUTO actually does at startup, and a test that shows which strategy holds up on your machine.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-03-03T12:00:00-08:00">Published March 3, 2026</time><span>·</span><span>4 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+<p>OpenVINO lets you name a device directly, ask for AUTO selection, or split a model across devices with HETERO. They look like three spellings of one decision, but they behave differently when a device is missing, when you restart, and when you cache compiled models.</p>
+<p>The wrong choice rarely fails loudly. It shows up as a first request served by a different device than you expected, a cache that never hits, or a fallback that quietly runs on the CPU and misses a latency target.</p>
+<p>The friction points are knowing what AUTO does at startup, knowing where work actually ran, and testing restarts instead of only first starts.</p>
+<h2>Options and trade-offs</h2>
+<ul><li>Explicit device: compile for <code>CPU</code>, <code>GPU</code>, or <code>NPU</code> by name. The behavior is easiest to reason about, and the compiled-model cache belongs to that concrete device. Routing and failover are your application's job.</li><li>AUTO: the documentation says AUTO detects available devices and selects the best one automatically. By default it starts inference on the CPU unless there is a cached model for the best-suited device, because the CPU can start with no additional delay. While the CPU runs inference, AUTO keeps loading the model onto the better device and hands the work over when ready.</li><li>AUTO startup behavior is configurable: the <code>enable_startup_fallback</code> property controls whether the CPU is used as the initial helper device (default true), and <code>enable_runtime_fallback</code> controls whether a failed inference request is retried on another device (default true). Excluding the CPU from the priority list disables the initial CPU acceleration.</li><li>AUTO reports where work actually ran: the <code>execution_devices</code> property lists the devices currently executing inference. Logging it is the cheapest way to avoid surprises.</li><li>A published OpenVINO blog describes AUTO trying the next best device if the model does not compile on the first choice, with the CPU as the final fallback because it supports all operations and precisions.</li><li>HETERO splits one model across several devices. It is meant for cases where a model does not fit on one device or part of it needs different hardware. It adds configuration and testing work, so treat it as a special-purpose tool and test the exact model and device pair you intend to ship.</li><li>Caching interaction: compiling explicitly for each device you use makes cache behavior easy to reason about. With AUTO, early requests may be served by the CPU while the better device loads, so first-request latency depends on whether a cached model exists for that better device.</li><li>Recommendation: use an explicit device when you need predictable startup and cache behavior, and put routing and failover in your application where you can log and test them. Use AUTO when portability across machines matters more than deterministic timing, and always log <code>execution_devices</code>. Treat HETERO as an advanced option adopted only when a specific model needs it.</li><li>Decision lens: predictability versus portability. Example setup: an application that runs on laptops with varied hardware uses AUTO and logs its execution device; a service on a fixed server fleet compiles explicitly for the device it has.</li></ul>
+<h2>Minimal working example</h2>
+<p>Prereqs</p>
+<ul><li>Python 3 with the <code>openvino</code> package installed.</li><li>A machine with at least two device types if possible, such as CPU and an integrated GPU or NPU.</li><li>A model you already run.</li></ul>
+<p><strong>compare_devices.py</strong></p>
+<pre><code>import sys, time
+import openvino as ov
+
+model_path = sys.argv[1]
+core = ov.Core()
+core.set_property({"CACHE_DIR": "./model_cache"})
+print("Available devices:", core.available_devices)
+
+for target in ["CPU", "AUTO"]:
+    start = time.perf_counter()
+    compiled = core.compile_model(model_path, target)
+    elapsed = time.perf_counter() - start
+    print(target, f"compile {elapsed:.3f}s", "executing on:", compiled.get_property("EXECUTION_DEVICES"))</code></pre>
+<p>Add <code>"GPU"</code> or <code>"NPU"</code> to the list if your machine has them.</p>
+<p>Adjust file names, model names, and paths to your own setup.</p>
+<p>Test: Run <code>compare_devices.py</code> twice in separate processes, once with an empty cache folder and once with a populated one. Note the device reported by <code>EXECUTION_DEVICES</code> right after compilation and again after a few inferences, because AUTO can switch devices. If you can do it safely, disable a device and rerun to see how each strategy reacts.</p>
+<p>Record: devices present and OpenVINO version; device reported by AUTO right after compile and after warm-up; time to first inference for each strategy with an empty and a populated cache, as median and 95th percentile; behavior when the preferred device is unavailable; your decision and the reason.</p>
+<h2>Checklist</h2>
+<ul><li>Log the executing device in every run.</li><li>Compile explicitly per device when cache behavior must be predictable.</li><li>Review the startup and runtime fallback settings if you use AUTO.</li><li>Test restarts, not only first starts, and pin the versions you tested.</li><li>Document the failover behavior you observed.</li><li>Avoid: assuming AUTO serves the first request on the best device.</li><li>Avoid: adopting HETERO without testing the exact model.</li></ul>
+<h2>Where this doesn't apply</h2>
+<p>Single-device deployments where the choice is trivial, systems whose hardware is fixed and known (explicit selection is simpler), and models too large for any single device, where HETERO may be unavoidable.</p>
+<h2>Sources</h2>
+<ul><li>Automatic Device Selection documentation — [https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes/auto-device-selection.html](https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes/auto-device-selection.html) (accessed 2026-10-18).</li><li>Automatic Device Selection and Configuration (OpenVINO blog) — [https://blog.openvino.ai/blog-posts/automatic-device-selection-and-configuration](https://blog.openvino.ai/blog-posts/automatic-device-selection-and-configuration) (accessed 2026-10-18).</li><li>OpenVINO Model Caching Overview — [https://docs.openvino.ai/nightly/openvino-workflow/running-inference/optimize-inference/optimizing-latency/model-caching-overview.html](https://docs.openvino.ai/nightly/openvino-workflow/running-inference/optimize-inference/optimizing-latency/model-caching-overview.html) (accessed 2026-10-18).</li></ul>
+<p>---</p></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

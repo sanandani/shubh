@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="What reusing a compiled-model cache assumes, how to check that a cache exists and results match, and how to make a service fail closed on a bad warm start." />
+    <title>Cache Correctness in Practice: Verifying That a Warm Start Gives the Same Answers — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/intel/cache-correctness-in-practice-verifying-that-a-warm-start-gives-the-same-answers.html" />
+    <meta property="article:published_time" content="2026-02-27T12:00:00-08:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Cache Correctness in Practice: Verifying That a Warm Start Gives the Same Answers" />
+    <meta property="og:description" content="What reusing a compiled-model cache assumes, how to check that a cache exists and results match, and how to make a service fail closed on a bad warm start." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/intel/cache-correctness-in-practice-verifying-that-a-warm-start-gives-the-same-answers.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="intel" />
+    <meta property="article:tag" content="openvino" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Cache Correctness in Practice: Verifying That a Warm Start Gives the Same Answers","datePublished":"2026-02-27T12:00:00-08:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"What reusing a compiled-model cache assumes, how to check that a cache exists and results match, and how to make a service fail closed on a bad warm start.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/intel/cache-correctness-in-practice-verifying-that-a-warm-start-gives-the-same-answers.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#intel">← Intel articles</a>
+      <header class="article-document-header"><p class="kicker">Intel / Correctness</p><h1>Cache Correctness in Practice: Verifying That a Warm Start Gives the Same Answers</h1><p class="article-deck">What reusing a compiled-model cache assumes, how to check that a cache exists and results match, and how to make a service fail closed on a bad warm start.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-02-27T12:00:00-08:00">Published February 27, 2026</time><span>·</span><span>4 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+<p>Caching exists to save time, so it is tempting to treat it as invisible. But a cached artifact is a compiled program saved to disk. Reusing it assumes that the conditions that produced it still hold: the same device, a compatible software version, and the same model and input shapes.</p>
+<p>Two things make this risky in practice. OpenVINO's documentation says devices without import and export support run normally but do not get the speed-up, so a missing cache does not announce itself. And an artifact left over from an earlier version or a different model can be picked up by accident if folders are not separated.</p>
+<p>The friction points are confirming that a cache was created, confirming that a warm start produces the same outputs as a cold start, and refusing to serve when it does not.</p>
+<h2>Options and trade-offs</h2>
+<ul><li>Check that something was cached: after the first run, the cache folder should contain new files. An empty folder after a successful compile suggests the device does not support caching or the folder is not writable.</li><li>Compare outputs: run one fixed input through a freshly compiled model and through a model loaded from the cache, then compare the results with a tolerance you choose in advance. For deterministic models on the same device, exact equality is a reasonable expectation; choose a tolerance only if your pipeline needs one.</li><li>Separate cache folders by software version, model version, device, and input shape. This costs nothing and removes a whole class of confusing failures.</li><li>Fail closed: if the output comparison fails or loading from the cache raises an error, delete that cache entry, recompile, and log the event. Do not serve from a cache you could not verify.</li><li>Keep the check cheap: a single fixed input at startup usually catches a gross failure, and it can run alongside your warm-up request.</li><li>Be cautious with outside reports: issue trackers contain reports about specific edge cases. Treat them as leads for your own tests, and do not build policy around a problem you cannot reproduce on your version.</li><li>Recommendation: add a verification step to startup. After the model loads, run one fixed input and compare it with a stored reference. If the comparison fails, discard the cache entry, recompile, and record that the warm start was rejected. Log whether each start was cold or cached, how long compilation took, and which device and versions were involved.</li><li>Decision lens: speed against silent error risk. Example setup: a service checks one reference input after every restart, treats a mismatch as a failed start, and writes each version's cache to its own directory so an upgrade never reads the previous version's files.</li></ul>
+<h2>Minimal working example</h2>
+<p>Prereqs</p>
+<ul><li>Python 3 with <code>openvino</code> and <code>numpy</code> installed.</li><li>A model with a floating-point input; adjust the dtype in the script if yours differs.</li><li>A writable cache folder.</li></ul>
+<p><strong>verify_cache.py</strong> (run with <code>fresh</code> first, then <code>cached</code> twice)</p>
+<pre><code>import sys
+import numpy as np
+import openvino as ov
+
+model_path, mode = sys.argv[1], sys.argv[2]  # mode: fresh or cached
+core = ov.Core()
+if mode == "cached":
+    core.set_property({"CACHE_DIR": "./model_cache"})
+compiled = core.compile_model(model_path, "CPU")
+
+rng = np.random.default_rng(0)
+shape = [d.get_length() for d in compiled.input(0).partial_shape]
+x = rng.random(shape, dtype=np.float32)  # adjust dtype to match your model
+result = compiled(x)[compiled.output(0)]
+
+if mode == "fresh":
+    np.save("reference.npy", result)
+    print("saved reference")
+else:
+    reference = np.load("reference.npy")
+    print("max abs difference:", float(np.max(np.abs(reference - result))))</code></pre>
+<p>Adjust file names, model names, and paths to your own setup.</p>
+<p>Test: Run <code>verify_cache.py</code> with <code>fresh</code> to store a reference, then with <code>cached</code> to populate the cache, then with <code>cached</code> again to compare an imported model against the reference. Next, change the model file (or its version folder) and confirm that your folder naming prevents the old cache from being used. Repeat after upgrading OpenVINO. A difference larger than the tolerance you chose is a failed start.</p>
+<p>Record: device, operating system, OpenVINO version, and model; files present in the cache folder after the first run; maximum absolute output difference between cold and cached; the tolerance you chose and why; behavior after the model changes; behavior after an upgrade; time added by the startup check.</p>
+<h2>Checklist</h2>
+<ul><li>Confirm the cache folder is populated after the first run.</li><li>Compare a fixed output between a cold run and a cached run, and record your tolerance.</li><li>Separate cache folders by version, model, device, and shape.</li><li>Fail closed and recompile on a mismatch.</li><li>Log cold or cached on every start, and re-run the check after every upgrade.</li><li>Avoid: assuming a cache exists because no error appeared.</li><li>Avoid: reusing one cache folder across versions or models.</li></ul>
+<h2>Where this doesn't apply</h2>
+<p>Services that never use compiled-model caching, and systems that already compare outputs against a reference on every start.</p>
+<h2>Sources</h2>
+<ul><li>OpenVINO Model Caching Overview — [https://docs.openvino.ai/nightly/openvino-workflow/running-inference/optimize-inference/optimizing-latency/model-caching-overview.html](https://docs.openvino.ai/nightly/openvino-workflow/running-inference/optimize-inference/optimizing-latency/model-caching-overview.html) (accessed 2026-10-18).</li><li>OpenVINO Model Server parameters — [https://docs.openvino.ai/2026/model-server/ovms_docs_parameters.html](https://docs.openvino.ai/2026/model-server/ovms_docs_parameters.html) (accessed 2026-10-18).</li><li>OpenVINO NPU device documentation — [https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes/npu-device.html](https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes/npu-device.html) (accessed 2026-10-18).</li></ul>
+<p>---</p></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>
