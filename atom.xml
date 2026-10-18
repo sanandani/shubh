@@ -2690,6 +2690,101 @@ public class OnGraphEvent
         &lt;li&gt;Microsoft Graph Event Grid sample (.NET) — https://github.com/microsoftgraph/msgraph-sample-eventgrid-notifications-dotnet&lt;/li&gt;
         &lt;li&gt;Microsoft Graph Event Grid sample (Java) — https://github.com/microsoftgraph/msgraph-sample-eventgrid-notifications-java&lt;/li&gt;
         &lt;p&gt;---&lt;/p&gt;
+        &lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Dependabot and security advisories: tame the update flood</atom:title><atom:id>https://www.imshubh.com/articles/github/dependabot-and-security-advisories-tame-the-update-flood.html</atom:id><atom:link href="https://www.imshubh.com/articles/github/dependabot-and-security-advisories-tame-the-update-flood.html" rel="alternate" /><atom:published>2025-12-21T12:00:00-08:00</atom:published><atom:updated>2025-12-21T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How to combine grouped Dependabot updates, safe auto-merge, code owners and advisories so dependencies stay current without drowning reviewers or merging risk blindly.</atom:summary><atom:category term="github" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;Dependencies change faster than a small team can review them. Left alone, Dependabot opens a pull request per package, reviewers stop looking, and updates either pile up unmerged or get approved on autopilot. Both outcomes are dangerous. The first leaves known vulnerabilities in place. The second lets a bad release in with a rubber stamp.&lt;/p&gt;
+        &lt;p&gt;The risk is real and it is not limited to libraries. In March 2025, the widely used GitHub Action tj-actions/changed-files was compromised: attackers pointed existing version tags at malicious code that printed secrets into workflow logs, and CISA added the issue to its Known Exploited Vulnerabilities catalog. Workflows that referenced a tag, not a commit, picked up the malicious code without anyone changing a line. The lesson applies to every ecosystem: what you depend on, and how you pin it, is part of your attack surface.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Individual update pull requests: easy to review in isolation, and noisy enough that reviewers fatigue.&lt;/li&gt;
+        &lt;li&gt;Grouped updates: Dependabot batches related updates into one pull request. Fewer pull requests, slightly larger diffs, and better reviewer throughput.&lt;/li&gt;
+        &lt;li&gt;Auto-merge for low-risk updates: fast, and only safe where tests are good. Limit it to patch releases or development-only dependencies.&lt;/li&gt;
+        &lt;li&gt;Code owners on sensitive paths: guarantees someone accountable reviews changes to build files, workflows and security code. It adds latency where it matters.&lt;/li&gt;
+        &lt;li&gt;Security advisories: Dependabot alerts tell you what is vulnerable. Repository security advisories let you coordinate a fix privately before disclosure, which matters if you maintain a library others depend on.&lt;/li&gt;
+        &lt;li&gt;Pinning actions by tag versus by commit SHA: tags are readable and movable, and SHAs are immutable. Dependabot can keep SHA pins current.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;My recommendation&lt;/h2&gt;
+        &lt;p&gt;Group routine minor and patch updates into one weekly pull request per ecosystem. Auto-merge only patch updates, and only when the required checks pass. Keep major versions and anything touching build or workflow files manual and owner-reviewed. Pin third-party GitHub Actions to full commit SHAs, and let Dependabot raise the update pull requests. Treat security alerts separately from routine updates, with their own faster path.&lt;/p&gt;
+        &lt;h2&gt;Minimal working example&lt;/h2&gt;
+        &lt;p&gt;The Dependabot configuration, covering a Gradle project and the workflows themselves:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;# .github/dependabot.yml
+version: 2
+updates:
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+    labels: ["dependencies"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions:
+        patterns: ["*"]
+    labels: ["dependencies", "ci"]&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Auto-merge for patch updates only, using Dependabot's own metadata action:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;# .github/workflows/dependabot-automerge.yml
+name: dependabot-automerge
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - id: meta
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge for patch updates
+        if: steps.meta.outputs.update-type == 'version-update:semver-patch'
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Auto-merge waits for the required checks configured in your ruleset or branch protection, so make sure they exist. Without them, "auto-merge when checks pass" merges immediately.&lt;/p&gt;
+        &lt;p&gt;Owners for the files that control your build and your supply chain:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;# .github/CODEOWNERS
+/.github/              @my-org/security
+/build.gradle*         @my-org/maintainers
+/gradle/               @my-org/maintainers
+/.github/dependabot.yml @my-org/security&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Pin an action by commit SHA, with a readable comment that Dependabot updates along with the SHA:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;- uses: actions/checkout@&amp;lt;full-40-character-commit-sha&amp;gt;  # v4.x.x&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Test it: let Dependabot open a grouped pull request, confirm a patch-only update merges after checks pass, confirm a major update waits for review, and confirm a change to the workflows folder asks for the security group.&lt;/p&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Enable Dependabot version updates and alerts, and keep security updates on.&lt;/li&gt;
+        &lt;li&gt;Group minor and patch updates per ecosystem, and cap open pull requests.&lt;/li&gt;
+        &lt;li&gt;Restrict auto-merge to patch updates with passing required checks.&lt;/li&gt;
+        &lt;li&gt;Make sure required checks exist before enabling auto-merge.&lt;/li&gt;
+        &lt;li&gt;Add CODEOWNERS for build files, workflows and the Dependabot config.&lt;/li&gt;
+        &lt;li&gt;Pin third-party actions to full commit SHAs.&lt;/li&gt;
+        &lt;li&gt;Enable private vulnerability reporting if you maintain a public library, and use repository security advisories to coordinate fixes.&lt;/li&gt;
+        &lt;li&gt;Write the triage rule down: who looks at a security alert, within what time, and what counts as done.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Where this doesn't apply&lt;/h2&gt;
+        &lt;p&gt;Projects with frozen or vendored dependencies see few updates and may not need grouping. Ecosystems governed by an external policy engine or an internal mirror may enforce these rules elsewhere.&lt;/p&gt;
+        &lt;h2&gt;One honest limitation&lt;/h2&gt;
+        &lt;p&gt;Grouping reduces noise, but it can also hide an interaction: one risky update buried in a batch of ten harmless ones. Keep majors and anything touching sensitive paths out of the groups, and read the lockfile diff when it matters.&lt;/p&gt;
+        &lt;h2&gt;Sources&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Dependabot options reference — https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference&lt;/li&gt;
+        &lt;li&gt;Automating Dependabot with GitHub Actions — https://docs.github.com/en/code-security/dependabot/working-with-dependabot/automating-dependabot-with-github-actions&lt;/li&gt;
+        &lt;li&gt;About code owners — https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners&lt;/li&gt;
+        &lt;li&gt;About repository security advisories — https://docs.github.com/en/code-security/security-advisories/working-with-repository-security-advisories/about-repository-security-advisories&lt;/li&gt;
+        &lt;li&gt;CISA alert on the tj-actions/changed-files compromise — https://www.cisa.gov/news-events/alerts/2025/03/18/supply-chain-compromise-third-party-tj-actionschanged-files-cve-2025-30066-and-reviewdogaction&lt;/li&gt;
         &lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Identity Domains: MFA policies and admin-safe rollout</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/identity-domains-mfa-policies-and-admin-safe-rollout.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/identity-domains-mfa-policies-and-admin-safe-rollout.html" rel="alternate" /><atom:published>2025-12-16T12:00:00-08:00</atom:published><atom:updated>2025-12-16T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How I turn on MFA without locking the administrators out of their own console.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
 &lt;p&gt;Turning on MFA is the right call, and it is also the change most likely to produce a locked-out admin at 5 p.m. on a Friday. Automation that signs in as a user can break as well.&lt;/p&gt;
 &lt;p&gt;My goal was a rollout order that protects administrators first, leaves one deliberate escape hatch while things settle, and then closes that hatch.&lt;/p&gt;
@@ -2740,7 +2835,116 @@ ov.save_model(model_int8, "model_int8.xml")&lt;/code&gt;&lt;/pre&gt;
         &lt;h2&gt;Make precision visible and roll out in steps&lt;/h2&gt;&lt;p&gt;Record the precision and execution device in service logs or response metadata so a change is diagnosable. Keep the public response contract minimal and avoid exposing sensitive implementation details.&lt;/p&gt;&lt;p&gt;Before a full rollout, run FP32 and INT8 in shadow for a representative sample and alert on meaningful divergence. If one slice regresses, route it back to FP32 or disable the INT8 path while you investigate. Maintaining both variants adds operational work, but gives the team a controlled recovery option.&lt;/p&gt;
         &lt;h2&gt;Try it yourself&lt;/h2&gt;&lt;ol&gt;&lt;li&gt;Build FP32 and INT8 variants and disclose the precision used for each request.&lt;/li&gt;&lt;li&gt;Measure warm and cold paths separately, then report latency percentiles and output-delta distributions.&lt;/li&gt;&lt;li&gt;Evaluate by class and edge-case slice, not only by aggregate accuracy.&lt;/li&gt;&lt;li&gt;Run a shadow comparison and define in advance what divergence will trigger a rollback.&lt;/li&gt;&lt;/ol&gt;
         &lt;h2&gt;Closing thought&lt;/h2&gt;&lt;p&gt;Quantization is powerful, but faster is not free. Percentiles, output deltas, and slice-level evaluation tell you whether INT8 belongs in the production path—or whether FP32 is the more responsible choice.&lt;/p&gt;
-        &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://docs.openvino.ai/2026/openvino-workflow/model-optimization-guide/quantizing-models-post-training.html" target="_blank" rel="noreferrer"&gt;OpenVINO post-training quantization overview&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://docs.openvino.ai/2026/openvino-workflow/model-optimization-guide/quantizing-models-post-training/basic-quantization-flow.html" target="_blank" rel="noreferrer"&gt;NNCF basic quantization flow and calibration datasets&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://docs.openvino.ai/2026/openvino-workflow/running-inference/inference-devices-and-modes/cpu-device.html" target="_blank" rel="noreferrer"&gt;OpenVINO CPU device and supported inference precisions&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>GHAS + Azure runners without ops debt</atom:title><atom:id>https://www.imshubh.com/articles/microsoft/ghas-azure-runners-without-ops-debt.html</atom:id><atom:link href="https://www.imshubh.com/articles/microsoft/ghas-azure-runners-without-ops-debt.html" rel="alternate" /><atom:published>2025-11-15T12:00:00-08:00</atom:published><atom:updated>2025-11-15T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>When GitHub Advanced Security delivers value on hosted runners, and how to host ephemeral self-hosted runners on Azure when you really need them.</atom:summary><atom:category term="microsoft" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://docs.openvino.ai/2026/openvino-workflow/model-optimization-guide/quantizing-models-post-training.html" target="_blank" rel="noreferrer"&gt;OpenVINO post-training quantization overview&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://docs.openvino.ai/2026/openvino-workflow/model-optimization-guide/quantizing-models-post-training/basic-quantization-flow.html" target="_blank" rel="noreferrer"&gt;NNCF basic quantization flow and calibration datasets&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://docs.openvino.ai/2026/openvino-workflow/running-inference/inference-devices-and-modes/cpu-device.html" target="_blank" rel="noreferrer"&gt;OpenVINO CPU device and supported inference precisions&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>Code scanning and rulesets: make a green check mean something</atom:title><atom:id>https://www.imshubh.com/articles/github/code-scanning-and-rulesets-make-a-green-check-mean-something.html</atom:id><atom:link href="https://www.imshubh.com/articles/github/code-scanning-and-rulesets-make-a-green-check-mean-something.html" rel="alternate" /><atom:published>2025-11-23T12:00:00-08:00</atom:published><atom:updated>2025-11-23T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How to turn CodeQL from a report you read after the merge into a gate that blocks risky changes, using rulesets, required checks and code owners.</atom:summary><atom:category term="github" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;Many repositories run code scanning and still merge vulnerable code. The scan runs, the results land in the Security tab, and the pull request turns green anyway, because nothing connects the scan's findings to the decision to merge. Scanning that cannot block a merge is a report, and reports get read late.&lt;/p&gt;
+        &lt;p&gt;GitHub offers three separate mechanisms that people often blur together. Required status checks say a named job must succeed. Code scanning merge protection, configured in a ruleset, says a pull request cannot merge if a required tool finds alerts above a chosen severity, or has not finished, or is not set up. Code owner review says the right people must approve changes to sensitive paths. The GitHub documentation is explicit that merge protection through rulesets is not the same thing as status checks. Using the right one for each job is the whole skill.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Report only: scanning runs and alerts appear in the Security tab. There is no friction and no enforcement.&lt;/li&gt;
+        &lt;li&gt;Required status check on the scan job: the job must pass. It is easy to set up, but it checks that the job ran, not what it found, unless the job itself fails on findings.&lt;/li&gt;
+        &lt;li&gt;Code scanning rule in a ruleset: blocks merges based on alert severity thresholds and also when analysis is incomplete or missing. This is the closest match to "do not merge known problems".&lt;/li&gt;
+        &lt;li&gt;Code owner review: guarantees that people who understand a directory look at changes to it. It adds latency, so reserve it for paths that carry real risk.&lt;/li&gt;
+        &lt;li&gt;Branch protection rules versus rulesets: both can require checks and reviews. Rulesets layer, can target tags as well as branches, and allow granular bypass lists. Rulesets are available on public repositories for every plan, and on private repositories with Pro, Team or Enterprise Cloud.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;My recommendation&lt;/h2&gt;
+        &lt;p&gt;Use a ruleset on the default branch that combines four things: a pull request with at least one approval, a required build check, the CodeQL code scanning rule with a severity threshold you can live with, and code owner review for the directories that matter. Start the severity threshold at high or critical so the gate earns trust, then tighten it as the backlog shrinks. Keep the bypass list short and limited to a role you audit.&lt;/p&gt;
+        &lt;h2&gt;Minimal working example&lt;/h2&gt;
+        &lt;p&gt;First, a CodeQL workflow that runs on pull requests and on a schedule:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;name: codeql
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 3 * * 1"
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: java-kotlin
+          build-mode: autobuild
+      - uses: github/codeql-action/analyze@v3&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Next, code owners for sensitive paths (&lt;code&gt;.github/CODEOWNERS&lt;/code&gt;):&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;# Default reviewers
+*                      @my-org/maintainers
+
+# Security-sensitive paths need the security group
+/src/main/java/**/auth/   @my-org/security
+/.github/workflows/       @my-org/security&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Then a ruleset, saved as &lt;code&gt;ruleset.json&lt;/code&gt; and created with the REST API. Verify the field names against the current API reference before relying on it:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;{
+  "name": "main-protection",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": { "include": ["~DEFAULT_BRANCH"], "exclude": [] }
+  },
+  "bypass_actors": [
+    { "actor_id": 5, "actor_type": "RepositoryRole", "bypass_mode": "pull_request" }
+  ],
+  "rules": [
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 1,
+        "dismiss_stale_reviews_on_push": true,
+        "require_code_owner_review": true,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": true
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "required_status_checks": [ { "context": "build" } ]
+      }
+    },
+    {
+      "type": "code_scanning",
+      "parameters": {
+        "code_scanning_tools": [
+          { "tool": "CodeQL", "security_alerts_threshold": "high_or_higher", "alerts_threshold": "errors" }
+        ]
+      }
+    }
+  ]
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;pre&gt;&lt;code&gt;gh api -X POST repos/OWNER/REPO/rulesets --input ruleset.json&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Test it in a throwaway branch. Open a pull request that introduces a known issue (for example SQL built by string concatenation) and confirm the merge is blocked. Then fix it and confirm the block lifts. Finally, open a pull request that touches a code-owned path and confirm it waits for the owning team.&lt;/p&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Enable code scanning with the CodeQL workflow, and confirm the first run on the default branch finishes before turning on enforcement.&lt;/li&gt;
+        &lt;li&gt;Add the code scanning rule to a ruleset, with a severity threshold chosen from your current alert backlog.&lt;/li&gt;
+        &lt;li&gt;Keep a required build check and a pull request rule in the same ruleset.&lt;/li&gt;
+        &lt;li&gt;Add CODEOWNERS entries only for paths where review adds real value, and turn on code owner review.&lt;/li&gt;
+        &lt;li&gt;Use &lt;code&gt;enforcement: evaluate&lt;/code&gt; first if your plan supports it, to see what would have been blocked before you enforce.&lt;/li&gt;
+        &lt;li&gt;Keep the bypass list to one audited role.&lt;/li&gt;
+        &lt;li&gt;Be careful with path filters on workflows that feed required checks. A skipped workflow never reports a status, and a required check that never reports blocks the merge forever.&lt;/li&gt;
+        &lt;li&gt;Organization-wide code scanning rules are limited to GitHub Enterprise plans. Smaller teams configure the rule per repository.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Where this doesn't apply&lt;/h2&gt;
+        &lt;p&gt;Repositories that use an external scanner and never upload SARIF results to GitHub cannot use code scanning merge protection, so the gate has to live in that tool's own CI check. Monorepos that gate through a separate policy engine may prefer to keep one source of truth.&lt;/p&gt;
+        &lt;h2&gt;One honest limitation&lt;/h2&gt;
+        &lt;p&gt;A severity gate catches what the scanner finds, and scanners miss things. The gate also creates pressure to dismiss alerts rather than fix them, so review dismissals as carefully as you review merges.&lt;/p&gt;
+        &lt;h2&gt;Sources&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Code scanning merge protection — https://docs.github.com/en/code-security/concepts/code-scanning/merge-protection&lt;/li&gt;
+        &lt;li&gt;Available rules for rulesets — https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets&lt;/li&gt;
+        &lt;li&gt;About code owners — https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners&lt;/li&gt;
+        &lt;li&gt;REST API for repository rules — https://docs.github.com/en/rest/repos/rules&lt;/li&gt;
+        &lt;li&gt;Configuring default setup for code scanning — https://docs.github.com/en/code-security/code-scanning/enabling-code-scanning/configuring-default-setup-for-code-scanning&lt;/li&gt;
+        &lt;p&gt;---&lt;/p&gt;
+        &lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>GHAS + Azure runners without ops debt</atom:title><atom:id>https://www.imshubh.com/articles/microsoft/ghas-azure-runners-without-ops-debt.html</atom:id><atom:link href="https://www.imshubh.com/articles/microsoft/ghas-azure-runners-without-ops-debt.html" rel="alternate" /><atom:published>2025-11-15T12:00:00-08:00</atom:published><atom:updated>2025-11-15T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>When GitHub Advanced Security delivers value on hosted runners, and how to host ephemeral self-hosted runners on Azure when you really need them.</atom:summary><atom:category term="microsoft" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
         &lt;p&gt;Teams want code, secret and dependency scanning wired into the pull request, not bolted on afterwards. GitHub Advanced Security (GHAS) does that, and for most repositories it runs fine on GitHub-hosted runners. The trouble starts when a build needs custom images, private network access or specialized hardware. Then you are running your own runners, and with them come token handling, scaling and isolation problems that did not exist before.&lt;/p&gt;
         &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
         &lt;ul&gt;
@@ -2932,7 +3136,124 @@ public final class JfrAllocationFolder {
 &lt;h2&gt;One honest limitation&lt;/h2&gt;
 &lt;p&gt;An expired or rotated IdP certificate can break sign-in without warning. I keep a calendar entry for it and a short, written refresh procedure.&lt;/p&gt;
 &lt;h2&gt;Sources&lt;/h2&gt;
-&lt;ul&gt;&lt;li&gt;OCI Documentation: Federating with Identity Domains (SAML identity providers)&lt;/li&gt;&lt;li&gt;OCI Documentation: Identity Provider Policies in Identity Domains&lt;/li&gt;&lt;li&gt;OCI Documentation: Manually Federating Your Tenancy&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Faster Docker builds for a Java service: context, layers and cache mounts</atom:title><atom:id>https://www.imshubh.com/articles/docker/faster-docker-builds-for-a-java-service.html</atom:id><atom:link href="https://www.imshubh.com/articles/docker/faster-docker-builds-for-a-java-service.html" rel="alternate" /><atom:published>2025-10-23T12:00:00-07:00</atom:published><atom:updated>2025-10-23T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Most of the speed-up comes from three boring changes: a smaller build context, a sensible layer order and a BuildKit cache mount for Gradle.</atom:summary><atom:category term="docker" /><atom:category term="containers" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+&lt;ul&gt;&lt;li&gt;OCI Documentation: Federating with Identity Domains (SAML identity providers)&lt;/li&gt;&lt;li&gt;OCI Documentation: Identity Provider Policies in Identity Domains&lt;/li&gt;&lt;li&gt;OCI Documentation: Manually Federating Your Tenancy&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Ship verifiable releases with GitHub artifact attestations</atom:title><atom:id>https://www.imshubh.com/articles/github/ship-verifiable-releases-with-github-artifact-attestations.html</atom:id><atom:link href="https://www.imshubh.com/articles/github/ship-verifiable-releases-with-github-artifact-attestations.html" rel="alternate" /><atom:published>2025-10-26T12:00:00-07:00</atom:published><atom:updated>2025-10-26T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How to add signed build provenance and SBOM attestations to a release, so anyone downstream can check what was built, from which commit, by which workflow.</atom:summary><atom:category term="github" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;A release asset is a promise: this file came from this project. Most consumers have no way to check it. If a binary is rebuilt outside CI, swapped in transit, or built from a different commit than the tag suggests, the file name looks identical and nothing flags the difference. Checksums help only if you trust the place you got the checksum from. Build-pipeline compromises such as the 2020 SolarWinds attack are the reason this problem is taken seriously.&lt;/p&gt;
+        &lt;p&gt;GitHub artifact attestations address this with a signed statement that binds an artifact's digest to its build provenance: the repository, workflow, commit and runner that produced it. The statements follow the in-toto and Sigstore formats. You can verify them with the GitHub CLI, online or offline. An SBOM (software bill of materials) can be attached in the same way, so a consumer can see what is inside the artifact as well as where it came from.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Do nothing: no friction, and no way for anyone to verify anything.&lt;/li&gt;
+        &lt;li&gt;Checksums only: catches accidental corruption, but proves nothing about origin if the checksum file sits next to the artifact.&lt;/li&gt;
+        &lt;li&gt;SBOM only: shows contents, but without a signed link to a build it is just another unverified file.&lt;/li&gt;
+        &lt;li&gt;Build provenance attestation: a signed statement tying the artifact digest to the workflow run. This is the strongest single step for most projects.&lt;/li&gt;
+        &lt;li&gt;Provenance plus an SBOM attestation: adds contents transparency on top of origin. Verifying the SBOM requires naming its predicate type explicitly, because verification defaults to provenance.&lt;/li&gt;
+        &lt;li&gt;Custom predicates: record your own assertions (test results, policy checks) in the in-toto format when provenance and SBOM are not enough.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;My recommendation&lt;/h2&gt;
+        &lt;p&gt;Attest provenance for every released binary and container image, and add an SBOM attestation when consumers care about contents. Treat verification as part of the release process, not an afterthought: run &lt;code&gt;gh attestation verify&lt;/code&gt; in the release workflow's final step so a broken attestation fails the release. Be honest in the README about what this proves. A valid attestation says the artifact came from a particular workflow run. It does not say the workflow was uncompromised or the build reproducible.&lt;/p&gt;
+        &lt;h2&gt;Minimal working example&lt;/h2&gt;
+        &lt;p&gt;A release workflow for a Java project. It builds a jar, creates an SBOM, attests both, builds and attests a container image by digest, and publishes the release:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;name: release
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write        # create the release
+  id-token: write        # sign with the workflow's OIDC identity
+  attestations: write    # store the attestation
+  packages: write        # push the image
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Build
+        run: ./gradlew --no-daemon build
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: .
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Attest build provenance (jar)
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: build/libs/*.jar
+
+      - name: Attest SBOM
+        uses: actions/attest-sbom@v2
+        with:
+          subject-path: build/libs/*.jar
+          sbom-path: sbom.spdx.json
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+
+      - name: Attest image provenance (by digest)
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ghcr.io/${{ github.repository }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "${{ github.ref_name }}" build/libs/*.jar sbom.spdx.json --generate-notes&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Verify as a consumer:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;# Provenance (the default)
+gh attestation verify build/libs/app-1.0.0.jar --repo OWNER/REPO
+
+# SBOM: name the predicate type explicitly
+gh attestation verify build/libs/app-1.0.0.jar --repo OWNER/REPO \
+  --predicate-type https://spdx.dev/Document/v2.3
+
+# Container image
+gh attestation verify oci://ghcr.io/OWNER/REPO:v1.0.0 --repo OWNER/REPO&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Test it: release a tag, run the three commands against the published assets, then change one byte of the jar and confirm verification fails.&lt;/p&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Grant the job &lt;code&gt;id-token: write&lt;/code&gt; and &lt;code&gt;attestations: write&lt;/code&gt;. Add &lt;code&gt;packages: write&lt;/code&gt; when pushing images.&lt;/li&gt;
+        &lt;li&gt;Attest container images by digest, not by tag, and leave the tag out of &lt;code&gt;subject-name&lt;/code&gt;.&lt;/li&gt;
+        &lt;li&gt;Pin third-party actions to a full commit SHA and let Dependabot update them. The attest actions move between major versions, so check the current release before copying versions from any article.&lt;/li&gt;
+        &lt;li&gt;Verify the artifact in CI before publishing, and document the verification command in the README.&lt;/li&gt;
+        &lt;li&gt;Publish the SBOM next to the artifact, and tell users to pass the SBOM predicate type when verifying it.&lt;/li&gt;
+        &lt;li&gt;Practice offline verification (download the attestation bundle and the trusted root with the CLI) for environments without internet access.&lt;/li&gt;
+        &lt;li&gt;State plainly in the README what an attestation does and does not prove.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Where this doesn't apply&lt;/h2&gt;
+        &lt;p&gt;If you only ship source and no built artifacts, there is little to attest. Attestations for private and internal repositories need GitHub Enterprise Cloud, and the feature is not available on GitHub Enterprise Server, so check your plan first. Fully air-gapped environments need their own trust anchors.&lt;/p&gt;
+        &lt;h2&gt;One honest limitation&lt;/h2&gt;
+        &lt;p&gt;Provenance is necessary but not sufficient. A signed statement that a workflow built a file does not make the build hermetic or reproducible, and a compromised workflow produces a perfectly valid attestation. Higher assurance depends on build isolation and organizational policy, which the SLSA levels describe.&lt;/p&gt;
+        &lt;h2&gt;Sources&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Artifact attestations — https://docs.github.com/en/actions/concepts/security/artifact-attestations&lt;/li&gt;
+        &lt;li&gt;actions/attest-build-provenance — https://github.com/actions/attest-build-provenance&lt;/li&gt;
+        &lt;li&gt;actions/attest-sbom — https://github.com/actions/attest-sbom&lt;/li&gt;
+        &lt;li&gt;Verifying attestations offline — https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations/verifying-attestations-offline&lt;/li&gt;
+        &lt;li&gt;SLSA specification, build levels — https://slsa.dev/spec/v1.0/levels&lt;/li&gt;
+        &lt;p&gt;---&lt;/p&gt;
+        &lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Faster Docker builds for a Java service: context, layers and cache mounts</atom:title><atom:id>https://www.imshubh.com/articles/docker/faster-docker-builds-for-a-java-service.html</atom:id><atom:link href="https://www.imshubh.com/articles/docker/faster-docker-builds-for-a-java-service.html" rel="alternate" /><atom:published>2025-10-23T12:00:00-07:00</atom:published><atom:updated>2025-10-23T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Most of the speed-up comes from three boring changes: a smaller build context, a sensible layer order and a BuildKit cache mount for Gradle.</atom:summary><atom:category term="docker" /><atom:category term="containers" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
         &lt;p&gt;When a container build takes minutes, people stop iterating and start batching changes, which is when bugs hide. Teams usually respond by turning caching on and hoping. That helps a little, but the real gains come from what you send to the builder and the order you ask it to do things in. A Java service is a good case. The dependencies change rarely and the source changes constantly, yet a naive Dockerfile downloads the world on every edit.&lt;/p&gt;
         &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
         &lt;ul&gt;&lt;li&gt;Do nothing and rely on the default layer cache: fine until the first COPY of the whole repo, after which every code change re-downloads dependencies.&lt;/li&gt;&lt;li&gt;Copy only the build files first, resolve dependencies, then copy the source: much better, but a changed build file still re-downloads everything.&lt;/li&gt;&lt;li&gt;Add a BuildKit cache mount for the Gradle home: dependency downloads survive across builds, even when the layer itself is invalidated.&lt;/li&gt;&lt;/ul&gt;

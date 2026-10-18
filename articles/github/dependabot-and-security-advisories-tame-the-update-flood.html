@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="How to combine grouped Dependabot updates, safe auto-merge, code owners and advisories so dependencies stay current without drowning reviewers or merging…" />
+    <title>Dependabot and security advisories: tame the update flood — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/github/dependabot-and-security-advisories-tame-the-update-flood.html" />
+    <meta property="article:published_time" content="2025-12-21T12:00:00-08:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Dependabot and security advisories: tame the update flood" />
+    <meta property="og:description" content="How to combine grouped Dependabot updates, safe auto-merge, code owners and advisories so dependencies stay current without drowning reviewers or merging…" />
+    <meta property="og:url" content="https://www.imshubh.com/articles/github/dependabot-and-security-advisories-tame-the-update-flood.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="github" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Dependabot and security advisories: tame the update flood","datePublished":"2025-12-21T12:00:00-08:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"How to combine grouped Dependabot updates, safe auto-merge, code owners and advisories so dependencies stay current without drowning reviewers or merging…","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/github/dependabot-and-security-advisories-tame-the-update-flood.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#github">← GitHub articles</a>
+      <header class="article-document-header"><p class="kicker">Dependency security</p><h1>Dependabot and security advisories: tame the update flood</h1><p class="article-deck">How to combine grouped Dependabot updates, safe auto-merge, code owners and advisories so dependencies stay current without drowning reviewers or merging risk blindly.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2025-12-21T12:00:00-08:00">Published December 21, 2025</time><span>·</span><span>9–11 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+        <p>Dependencies change faster than a small team can review them. Left alone, Dependabot opens a pull request per package, reviewers stop looking, and updates either pile up unmerged or get approved on autopilot. Both outcomes are dangerous. The first leaves known vulnerabilities in place. The second lets a bad release in with a rubber stamp.</p>
+        <p>The risk is real and it is not limited to libraries. In March 2025, the widely used GitHub Action tj-actions/changed-files was compromised: attackers pointed existing version tags at malicious code that printed secrets into workflow logs, and CISA added the issue to its Known Exploited Vulnerabilities catalog. Workflows that referenced a tag, not a commit, picked up the malicious code without anyone changing a line. The lesson applies to every ecosystem: what you depend on, and how you pin it, is part of your attack surface.</p>
+        <h2>Options and trade-offs</h2>
+        <ul>
+        <li>Individual update pull requests: easy to review in isolation, and noisy enough that reviewers fatigue.</li>
+        <li>Grouped updates: Dependabot batches related updates into one pull request. Fewer pull requests, slightly larger diffs, and better reviewer throughput.</li>
+        <li>Auto-merge for low-risk updates: fast, and only safe where tests are good. Limit it to patch releases or development-only dependencies.</li>
+        <li>Code owners on sensitive paths: guarantees someone accountable reviews changes to build files, workflows and security code. It adds latency where it matters.</li>
+        <li>Security advisories: Dependabot alerts tell you what is vulnerable. Repository security advisories let you coordinate a fix privately before disclosure, which matters if you maintain a library others depend on.</li>
+        <li>Pinning actions by tag versus by commit SHA: tags are readable and movable, and SHAs are immutable. Dependabot can keep SHA pins current.</li>
+        </ul>
+        <h2>My recommendation</h2>
+        <p>Group routine minor and patch updates into one weekly pull request per ecosystem. Auto-merge only patch updates, and only when the required checks pass. Keep major versions and anything touching build or workflow files manual and owner-reviewed. Pin third-party GitHub Actions to full commit SHAs, and let Dependabot raise the update pull requests. Treat security alerts separately from routine updates, with their own faster path.</p>
+        <h2>Minimal working example</h2>
+        <p>The Dependabot configuration, covering a Gradle project and the workflows themselves:</p>
+        <pre><code># .github/dependabot.yml
+version: 2
+updates:
+  - package-ecosystem: "gradle"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+    labels: ["dependencies"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      actions:
+        patterns: ["*"]
+    labels: ["dependencies", "ci"]</code></pre>
+        <p>Auto-merge for patch updates only, using Dependabot's own metadata action:</p>
+        <pre><code># .github/workflows/dependabot-automerge.yml
+name: dependabot-automerge
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - id: meta
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge for patch updates
+        if: steps.meta.outputs.update-type == 'version-update:semver-patch'
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}</code></pre>
+        <p>Auto-merge waits for the required checks configured in your ruleset or branch protection, so make sure they exist. Without them, "auto-merge when checks pass" merges immediately.</p>
+        <p>Owners for the files that control your build and your supply chain:</p>
+        <pre><code># .github/CODEOWNERS
+/.github/              @my-org/security
+/build.gradle*         @my-org/maintainers
+/gradle/               @my-org/maintainers
+/.github/dependabot.yml @my-org/security</code></pre>
+        <p>Pin an action by commit SHA, with a readable comment that Dependabot updates along with the SHA:</p>
+        <pre><code>- uses: actions/checkout@&lt;full-40-character-commit-sha&gt;  # v4.x.x</code></pre>
+        <p>Test it: let Dependabot open a grouped pull request, confirm a patch-only update merges after checks pass, confirm a major update waits for review, and confirm a change to the workflows folder asks for the security group.</p>
+        <h2>Checklist</h2>
+        <ul>
+        <li>Enable Dependabot version updates and alerts, and keep security updates on.</li>
+        <li>Group minor and patch updates per ecosystem, and cap open pull requests.</li>
+        <li>Restrict auto-merge to patch updates with passing required checks.</li>
+        <li>Make sure required checks exist before enabling auto-merge.</li>
+        <li>Add CODEOWNERS for build files, workflows and the Dependabot config.</li>
+        <li>Pin third-party actions to full commit SHAs.</li>
+        <li>Enable private vulnerability reporting if you maintain a public library, and use repository security advisories to coordinate fixes.</li>
+        <li>Write the triage rule down: who looks at a security alert, within what time, and what counts as done.</li>
+        </ul>
+        <h2>Where this doesn't apply</h2>
+        <p>Projects with frozen or vendored dependencies see few updates and may not need grouping. Ecosystems governed by an external policy engine or an internal mirror may enforce these rules elsewhere.</p>
+        <h2>One honest limitation</h2>
+        <p>Grouping reduces noise, but it can also hide an interaction: one risky update buried in a batch of ten harmless ones. Keep majors and anything touching sensitive paths out of the groups, and read the lockfile diff when it matters.</p>
+        <h2>Sources</h2>
+        <ul>
+        <li>Dependabot options reference — https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference</li>
+        <li>Automating Dependabot with GitHub Actions — https://docs.github.com/en/code-security/dependabot/working-with-dependabot/automating-dependabot-with-github-actions</li>
+        <li>About code owners — https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners</li>
+        <li>About repository security advisories — https://docs.github.com/en/code-security/security-advisories/working-with-repository-security-advisories/about-repository-security-advisories</li>
+        <li>CISA alert on the tj-actions/changed-files compromise — https://www.cisa.gov/news-events/alerts/2025/03/18/supply-chain-compromise-third-party-tj-actionschanged-files-cve-2025-30066-and-reviewdogaction</li>
+        </ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>
