@@ -211,7 +211,116 @@ print(result.headers.get("opc-request-id"))   # keep for the audit trail&lt;/cod
 &lt;h2&gt;One honest limitation&lt;/h2&gt;
 &lt;p&gt;Bulk analysis produces a lot of metadata and intermediate output. Decide on redaction and retention rules up front, or the results bucket turns into its own data-protection problem.&lt;/p&gt;
 &lt;h2&gt;Sources&lt;/h2&gt;
-&lt;ul&gt;&lt;li&gt;OCI Documentation: Language, Detecting Personally Identifiable Information&lt;/li&gt;&lt;li&gt;OCI Documentation: Vision, Document AI Overview&lt;/li&gt;&lt;li&gt;OCI Python SDK Reference: AIServiceLanguageClient and AIServiceVisionClient&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>UCP pool tuning for resilience and validation</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/ucp-pool-tuning-for-resilience-and-validation.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/ucp-pool-tuning-for-resilience-and-validation.html" rel="alternate" /><atom:published>2026-09-18T12:00:00-07:00</atom:published><atom:updated>2026-09-18T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>The handful of Universal Connection Pool settings I change first, and the arithmetic behind the sizes.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+&lt;ul&gt;&lt;li&gt;OCI Documentation: Language, Detecting Personally Identifiable Information&lt;/li&gt;&lt;li&gt;OCI Documentation: Vision, Document AI Overview&lt;/li&gt;&lt;li&gt;OCI Python SDK Reference: AIServiceLanguageClient and AIServiceVisionClient&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Migrating to Microsoft Entra Verified ID</atom:title><atom:id>https://www.imshubh.com/articles/microsoft/migrating-to-microsoft-entra-verified-id.html</atom:id><atom:link href="https://www.imshubh.com/articles/microsoft/migrating-to-microsoft-entra-verified-id.html" rel="alternate" /><atom:published>2026-10-03T12:00:00-07:00</atom:published><atom:updated>2026-10-03T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>A neutral playbook for issuing and verifying user-owned credentials with open standards, and wiring the verification step into an existing app.</atom:summary><atom:category term="microsoft" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;Many apps verify identity attributes with a bespoke token: a signed JWT that only the issuing system can produce and only your app can parse. That locks the user into one issuer's flow and forces every verifier to build a custom integration. Microsoft Entra Verified ID uses open standards (decentralized identifiers, W3C verifiable credentials, OpenID for Verifiable Credentials) so a person can hold a credential in a wallet, such as Microsoft Authenticator, and present it to any verifier that trusts the issuer.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Issuer setup: bind a decentralized identifier to your domain (did:web), keep signing keys in Key Vault, grant the Request Service the permissions it needs, and define a credential contract (display and rules). The result is portable credentials, at the cost of setup steps and a dependency on a wallet.&lt;/li&gt;
+        &lt;li&gt;Verifier setup: a separate app, ideally in a separate tenant from the issuer, that creates presentation requests, receives callbacks and validates what comes back. It gets privacy-respecting, user-approved presentations instead of passwords or shared secrets.&lt;/li&gt;
+        &lt;li&gt;Hybrid designs: where a server must query an issuer continuously, user presentation is a poor fit. Combine it with server-side checks instead of replacing them.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;My recommendation&lt;/h2&gt;
+        &lt;p&gt;Migrate one low-risk attribute first, such as proof of employment or membership, and keep the existing check running in parallel. Verify the credential's issuer, signature and status, and accept only the claims you need. Expand once the flow is reliable.&lt;/p&gt;
+        &lt;h2&gt;Minimal working example&lt;/h2&gt;
+        &lt;p&gt;The verifier flow has three parts: get a token for the Request Service, create a presentation request, and handle the callback.&lt;/p&gt;
+        &lt;p&gt;Step 1: get an access token with the client credentials flow, using the Verifiable Credentials Service Request scope (confirm the exact scope value in the current docs):&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;curl -s -X POST "https://login.microsoftonline.com/&amp;lt;tenant-id&amp;gt;/oauth2/v2.0/token" \
+  -d "client_id=&amp;lt;app-id&amp;gt;" \
+  -d "client_secret=&amp;lt;secret-or-use-a-certificate&amp;gt;" \
+  -d "grant_type=client_credentials" \
+  -d "scope=3db474b9-6a0c-4840-96ac-1fceb342124f/.default"&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Step 2: create a presentation request:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;POST https://verifiedid.did.msidentity.com/v1.0/verifiableCredentials/createPresentationRequest
+Content-Type: application/json
+Authorization: Bearer &amp;lt;token&amp;gt;
+
+{
+  "authority": "did:web:verifier.example.com",
+  "includeQRCode": true,
+  "registration": { "clientName": "Example Verifier" },
+  "callback": {
+    "url": "https://verifier.example.com/api/presentation-callback",
+    "state": "&amp;lt;unique-request-id&amp;gt;",
+    "headers": { "api-key": "&amp;lt;shared-callback-secret&amp;gt;" }
+  },
+  "requestedCredentials": [
+    {
+      "type": "ProofOfEmployment",
+      "purpose": "Confirm your employer before granting access",
+      "acceptedIssuers": [ "did:web:issuer.example.com" ]
+    }
+  ]
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;The response includes a QR code and a deep link for the wallet. Step 3: handle the callback and authorize only on a verified presentation:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;// Callback handler (framework-agnostic sketch)
+void onCallback(String apiKeyHeader, JsonNode body) {
+    if (!MessageDigest.isEqual(apiKeyHeader.getBytes(UTF_8), EXPECTED_KEY.getBytes(UTF_8))) {
+        throw new SecurityException("bad callback key");
+    }
+    String status = body.path("requestStatus").asText();
+    switch (status) {
+        case "request_retrieved"      -&amp;gt; markScanned(body.path("state").asText());
+        case "presentation_verified"  -&amp;gt; grantAccess(body.path("state").asText(),
+                                                     body.path("verifiedCredentialsData"));
+        case "presentation_error"     -&amp;gt; markFailed(body.path("state").asText());
+        default                       -&amp;gt; { /* ignore unknown statuses */ }
+    }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Test it: run the flow with a test credential and confirm access is granted only after &lt;code&gt;presentation_verified&lt;/code&gt;. Then present a credential from an issuer that is not in &lt;code&gt;acceptedIssuers&lt;/code&gt; and confirm it is rejected.&lt;/p&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Use did:web with domain binding, serve it over HTTPS, and avoid redirects on the well-known path.&lt;/li&gt;
+        &lt;li&gt;Keep signing keys in Key Vault and plan rotation before you need it.&lt;/li&gt;
+        &lt;li&gt;Check the issuer DID against an allowlist, and confirm the credential status, not just the signature.&lt;/li&gt;
+        &lt;li&gt;Use a unique state value per request, and authenticate callbacks with a secret you compare in constant time.&lt;/li&gt;
+        &lt;li&gt;Request only the claims you will use, and explain the purpose to the user.&lt;/li&gt;
+        &lt;li&gt;Align on the supported standards (VC Data Model, OpenID4VC, Presentation Exchange) so you can work with other wallets and verifiers.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Where this doesn't apply&lt;/h2&gt;
+        &lt;p&gt;Scenarios that need continuous server-side queries to an issuer rather than a user presenting a credential. Use a hybrid design there.&lt;/p&gt;
+        &lt;h2&gt;Sources&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Verified ID introduction and standards — https://learn.microsoft.com/en-us/entra/verified-id/decentralized-identifier-overview&lt;/li&gt;
+        &lt;li&gt;Request Service REST API presentation specification — https://learn.microsoft.com/en-us/entra/verified-id/presentation-request-api&lt;/li&gt;
+        &lt;li&gt;Configure your tenant for Verified ID — https://learn.microsoft.com/en-us/entra/verified-id/verifiable-credentials-configure-tenant&lt;/li&gt;
+        &lt;p&gt;---&lt;/p&gt;
+        &lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>AKS confidential containers for model isolation</atom:title><atom:id>https://www.imshubh.com/articles/microsoft/aks-confidential-containers-for-model-isolation.html</atom:id><atom:link href="https://www.imshubh.com/articles/microsoft/aks-confidential-containers-for-model-isolation.html" rel="alternate" /><atom:published>2026-09-21T12:00:00-07:00</atom:published><atom:updated>2026-09-21T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>What kata-cc isolates, how attestation ties to key release, and operational constraints.</atom:summary><atom:category term="microsoft" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;Some AI workloads need runtime confidentiality: protect model artifacts and user data from the host OS/kernel and operators. AKS confidential containers (kata-cc) isolate the pod in a confidential utility VM with attestation and policy controls. Trade-offs include startup time, debugging limitations, and preview status constraints.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;AKS confidential VM node pool: Node-level boundary; simpler lift-and-shift; not per-pod sandbox.&lt;/li&gt;
+        &lt;li&gt;AKS confidential containers (kata-cc): Pod-level confidential sandbox, policy generator and attestation; more operational constraints; supports Azure Linux and specific VM SKUs; preview limitations apply.&lt;/li&gt;
+        &lt;li&gt;ACI confidential containers: Container group boundary; suitable for event-driven jobs; fewer orchestration features than AKS.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Minimal working example&lt;/h2&gt;
+        &lt;p&gt;Prereqs&lt;/p&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Azure CLI 2.44.1+; aks-preview and confcom extensions; Azure Linux; KataCcIsolation on node pool; enable workload identity and OIDC issuer if key release requires identity linkage.&lt;/li&gt;
+        &lt;p&gt;Create cluster (example)&lt;/p&gt;
+        &lt;/ul&gt;
+        &lt;pre&gt;&lt;code&gt;az aks create --resource-group rg --name aks-cc \
+  --kubernetes-version 1.25.0 \
+  --os-sku AzureLinux \
+  --node-vm-size Standard_DC8as_cc_v5 \
+  --workload-runtime KataCcIsolation \
+  --enable-oidc-issuer --enable-workload-identity&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Deploy consumer with attestation sidecar and policy Generate policy with confcom; apply as annotation; tie Key Vault key release to attestation measurement. Test: Remove kata-cc spec and policy; confirm ciphertext (no key release).&lt;/p&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Confirm supported SKUs and OS; Azure Linux only for kata-cc at present.&lt;/li&gt;
+        &lt;li&gt;Enable and maintain policy (do not use :latest tags because layers are measured).&lt;/li&gt;
+        &lt;li&gt;Expect longer pod startup and limited troubleshooting (exec/stdio require policy change).&lt;/li&gt;
+        &lt;li&gt;Integrate attestation with Key Vault for secure key release.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Where this doesn't apply&lt;/h2&gt;
+        &lt;p&gt;Windows node pools; or workloads requiring frequent interactive debugging incompatible with kata-cc constraints.&lt;/p&gt;
+        &lt;h2&gt;Sources&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Confidential containers (Preview) — https://learn.microsoft.com/en-us/azure/aks/confidential-containers-overview (accessed 2026-10-13).&lt;/li&gt;
+        &lt;li&gt;Deploy AKS with confidential containers policy — https://learn.microsoft.com/en-us/azure/aks/deploy-confidential-containers-default-policy (accessed 2026-10-13).&lt;/li&gt;
+        &lt;li&gt;Confidential containers overview (Azure confidential computing) — https://github.com/MicrosoftDocs/azure-docs/blob/main/articles/confidential-computing/confidential-containers.md (accessed 2026-10-13).&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;p&gt;---&lt;/p&gt;</atom:content></atom:entry><atom:entry><atom:title>UCP pool tuning for resilience and validation</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/ucp-pool-tuning-for-resilience-and-validation.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/ucp-pool-tuning-for-resilience-and-validation.html" rel="alternate" /><atom:published>2026-09-18T12:00:00-07:00</atom:published><atom:updated>2026-09-18T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>The handful of Universal Connection Pool settings I change first, and the arithmetic behind the sizes.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
 &lt;p&gt;UCP has dozens of properties, and the defaults work. What I wanted was predictable behavior under stress: callers that fail fast instead of hanging, bad connections that are caught before they reach the application, and a pool that does not quietly use up the database&amp;#x27;s session budget.&lt;/p&gt;
 &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
 &lt;ul&gt;&lt;li&gt;A small pool with a modest maximum: gentle on the database, and it may add latency while the pool warms up.&lt;/li&gt;&lt;li&gt;A larger minimum or initial size: faster first requests, and idle sessions you are paying for.&lt;/li&gt;&lt;li&gt;Validation on borrow: safer, with a small cost on each borrow. A short trust window reduces that cost.&lt;/li&gt;&lt;/ul&gt;
@@ -310,7 +419,68 @@ curl -s http://127.0.0.1:8080/health&lt;/code&gt;&lt;/pre&gt;
         &lt;h2&gt;One honest limitation&lt;/h2&gt;
         &lt;p&gt;A cold start on a JVM service can take seconds. You can soften it with a smaller image and class-data sharing, but you cannot remove it, so decide whether a slow first visit is acceptable for the demo.&lt;/p&gt;
         &lt;h2&gt;Sources&lt;/h2&gt;
-        &lt;ul&gt;&lt;li&gt;Docker Docs: Compose file reference (ports)&lt;/li&gt;&lt;li&gt;Docker Docs: Dockerfile HEALTHCHECK&lt;/li&gt;&lt;li&gt;Oracle Java Documentation: com.sun.net.httpserver package&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Revocation Is the Hard Part</atom:title><atom:id>https://www.imshubh.com/articles/microsoft/credential-revocation.html</atom:id><atom:link href="https://www.imshubh.com/articles/microsoft/credential-revocation.html" rel="alternate" /><atom:published>2026-08-25T12:00:00-07:00</atom:published><atom:updated>2026-08-25T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Revocation checks must avoid “phone home” privacy leaks. Learn lists vs status endpoints, holder stapling, caching, and short-lived credentials.</atom:summary><atom:category term="identity" /><atom:category term="credentials" /><atom:content type="html">&lt;p class="article-lede"&gt;Issuing verifiable credentials is straightforward: define a claim, sign it, return it to the holder. Revocation is harder: you need to detect when a credential should no longer be accepted, ideally without creating a surveillance channel that reveals who asked and when.&lt;/p&gt;
+        &lt;ul&gt;&lt;li&gt;Docker Docs: Compose file reference (ports)&lt;/li&gt;&lt;li&gt;Docker Docs: Dockerfile HEALTHCHECK&lt;/li&gt;&lt;li&gt;Oracle Java Documentation: com.sun.net.httpserver package&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>API gateway enforcement for LLM APIs</atom:title><atom:id>https://www.imshubh.com/articles/microsoft/api-gateway-enforcement-for-llm-apis.html</atom:id><atom:link href="https://www.imshubh.com/articles/microsoft/api-gateway-enforcement-for-llm-apis.html" rel="alternate" /><atom:published>2026-09-09T12:00:00-07:00</atom:published><atom:updated>2026-09-09T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Putting Azure API Management in front of Azure OpenAI: managed identity to the backend, token validation at the edge, and rate limits per caller.</atom:summary><atom:category term="microsoft" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;When every team calls the model endpoint directly, governance is a spreadsheet: who has access, how much they use, and what they send. Putting a gateway in front of the model gives you one place to authenticate callers, enforce limits and log usage. Azure API Management (APIM) can authenticate to Azure OpenAI with its own managed identity, so no API keys are stored or shared, and it can validate caller tokens before anything reaches the model.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Managed identity to the backend: APIM holds the identity, callers hold nothing that works against the model directly. It is simple for service-to-service access, and every caller shares the same backend privileges.&lt;/li&gt;
+        &lt;li&gt;OAuth 2.0 validation at the gateway: callers present Entra tokens, and APIM checks audience and roles before forwarding. You get per-caller control and audit, with more setup.&lt;/li&gt;
+        &lt;li&gt;Per-caller limits: rate limits keyed on the caller's identity stop one team's runaway loop from using the shared quota.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;My recommendation&lt;/h2&gt;
+        &lt;p&gt;Use both layers. Validate the caller's token at the gateway, then use the gateway's managed identity to call the backend. Add a rate limit keyed on the caller. Disable key-based access on the model resource once traffic flows through the gateway, so there is no way around it.&lt;/p&gt;
+        &lt;h2&gt;Minimal working example&lt;/h2&gt;
+        &lt;p&gt;Enable a managed identity on the APIM instance and grant it access to the model resource:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;az role assignment create \
+  --assignee &amp;lt;apim-principal-id&amp;gt; \
+  --role "Cognitive Services OpenAI User" \
+  --scope &amp;lt;azure-openai-resource-id&amp;gt;&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Then add the inbound policy. It validates the caller, limits usage, and swaps the caller's token for the gateway's backend token:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;&amp;lt;inbound&amp;gt;
+  &amp;lt;base /&amp;gt;
+
+  &amp;lt;!-- 1. Validate the caller's Entra token --&amp;gt;
+  &amp;lt;validate-jwt header-name="Authorization" failed-validation-httpcode="401"
+                failed-validation-error-message="Unauthorized"&amp;gt;
+    &amp;lt;openid-config url="https://login.microsoftonline.com/&amp;lt;tenant-id&amp;gt;/v2.0/.well-known/openid-configuration" /&amp;gt;
+    &amp;lt;audiences&amp;gt;
+      &amp;lt;audience&amp;gt;&amp;lt;gateway-app-id&amp;gt;&amp;lt;/audience&amp;gt;
+    &amp;lt;/audiences&amp;gt;
+    &amp;lt;required-claims&amp;gt;
+      &amp;lt;claim name="roles" match="any"&amp;gt;
+        &amp;lt;value&amp;gt;LLM.Invoke&amp;lt;/value&amp;gt;
+      &amp;lt;/claim&amp;gt;
+    &amp;lt;/required-claims&amp;gt;
+  &amp;lt;/validate-jwt&amp;gt;
+
+  &amp;lt;!-- 2. Limit usage per caller --&amp;gt;
+  &amp;lt;rate-limit-by-key calls="60" renewal-period="60"
+      counter-key="@(context.Request.Headers.GetValueOrDefault("Authorization","").AsJwt()?.Subject)" /&amp;gt;
+
+  &amp;lt;!-- 3. Authenticate to the backend with the gateway's managed identity --&amp;gt;
+  &amp;lt;authentication-managed-identity resource="https://cognitiveservices.azure.com"
+      output-token-variable-name="managed-id-access-token" ignore-error="false" /&amp;gt;
+  &amp;lt;set-header name="Authorization" exists-action="override"&amp;gt;
+    &amp;lt;value&amp;gt;@("Bearer " + (string)context.Variables["managed-id-access-token"])&amp;lt;/value&amp;gt;
+  &amp;lt;/set-header&amp;gt;
+&amp;lt;/inbound&amp;gt;&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Test it: call the gateway with a valid token and confirm a normal response, call without a token and confirm a 401, and call in a loop to confirm the rate limit returns 429.&lt;/p&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Use the model resource's custom subdomain endpoint, and confirm the role assignment scope.&lt;/li&gt;
+        &lt;li&gt;Validate the audience and a role claim at the gateway, not just that a token exists.&lt;/li&gt;
+        &lt;li&gt;Key the rate limit on the caller's identity, not on an IP address that may be shared.&lt;/li&gt;
+        &lt;li&gt;Disable local (key) authentication on the model resource after cutover.&lt;/li&gt;
+        &lt;li&gt;Log request metadata for audit, and keep prompt and completion content out of default logs.&lt;/li&gt;
+        &lt;li&gt;Check that your policy ordering does what you expect: validation first, then limits, then backend authentication.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Where this doesn't apply&lt;/h2&gt;
+        &lt;p&gt;Backends that do not support Entra authentication or gateway integration. There, the gateway still helps with limits and audit, but backend authentication needs another design.&lt;/p&gt;
+        &lt;h2&gt;Sources&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Authenticate and authorize to LLM APIs with Azure API Management — https://learn.microsoft.com/en-us/azure/api-management/api-management-authenticate-authorize-ai-apis&lt;/li&gt;
+        &lt;li&gt;authentication-managed-identity policy — https://learn.microsoft.com/en-us/azure/api-management/authentication-managed-identity-policy&lt;/li&gt;
+        &lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Revocation Is the Hard Part</atom:title><atom:id>https://www.imshubh.com/articles/microsoft/credential-revocation.html</atom:id><atom:link href="https://www.imshubh.com/articles/microsoft/credential-revocation.html" rel="alternate" /><atom:published>2026-08-25T12:00:00-07:00</atom:published><atom:updated>2026-08-25T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Revocation checks must avoid “phone home” privacy leaks. Learn lists vs status endpoints, holder stapling, caching, and short-lived credentials.</atom:summary><atom:category term="identity" /><atom:category term="credentials" /><atom:content type="html">&lt;p class="article-lede"&gt;Issuing verifiable credentials is straightforward: define a claim, sign it, return it to the holder. Revocation is harder: you need to detect when a credential should no longer be accepted, ideally without creating a surveillance channel that reveals who asked and when.&lt;/p&gt;
         &lt;h3&gt;The failure mode&lt;/h3&gt;&lt;p&gt;A verifier calls a central revocation endpoint for every check. The endpoint sees who asked (IP or key), when, for which credential ID, and what outcome occurred. Even if the credential is privacy-preserving, the revocation lookup becomes a “phone home” channel that leaks context. Users and regulators won’t love that.&lt;/p&gt;
         &lt;h2&gt;What I learned&lt;/h2&gt;
         &lt;h3&gt;Understand the revocation design space&lt;/h3&gt;
@@ -1651,7 +1821,80 @@ Allow group image-publishers to manage repos in compartment registry&lt;/code&gt
 &lt;h2&gt;One honest limitation&lt;/h2&gt;
 &lt;p&gt;Auth tokens expire or get replaced, and a stale token in a pipeline fails at the worst time. Treat it like any other credential and give it an owner and a rotation date.&lt;/p&gt;
 &lt;h2&gt;Sources&lt;/h2&gt;
-&lt;ul&gt;&lt;li&gt;OCI Documentation: Pushing Images Using the Docker CLI&lt;/li&gt;&lt;li&gt;OCI Documentation: Logging in to Oracle Cloud Infrastructure Registry&lt;/li&gt;&lt;li&gt;OCI Documentation: Required Policies for Container Registry&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Records Aren’t Just Less Typing: Modeling Ambiguity Without Nulls</atom:title><atom:id>https://www.imshubh.com/articles/java/records-sealed-types.html</atom:id><atom:link href="https://www.imshubh.com/articles/java/records-sealed-types.html" rel="alternate" /><atom:published>2026-03-03T12:00:00-08:00</atom:published><atom:updated>2026-03-03T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Modern Java lets you model ambiguity without nulls. Learn records, sealed interfaces, and pattern matching to represent missing and unverifiable states clearly.</atom:summary><atom:category term="java" /><atom:category term="backend" /><atom:content type="html">&lt;p class="article-lede"&gt;I’m an engineering manager with a background in Java backend systems. One lesson that keeps paying dividends is this: ambiguity deserves types, not comments. Nulls and booleans blur meaning. “false,” “zero,” and “we don’t know” are not interchangeable. With modern Java (records, sealed interfaces, pattern matching), I model uncertainty explicitly and make ambiguity impossible to ignore.&lt;/p&gt;&lt;p&gt;Modern Java can express these outcomes as records and sealed types: Present, Missing, and Unverifiable. The same pattern works in ordinary service domains; it does not depend on a scoring model.&lt;/p&gt;
+&lt;ul&gt;&lt;li&gt;OCI Documentation: Pushing Images Using the Docker CLI&lt;/li&gt;&lt;li&gt;OCI Documentation: Logging in to Oracle Cloud Infrastructure Registry&lt;/li&gt;&lt;li&gt;OCI Documentation: Required Policies for Container Registry&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Programmatic rollout of Workload Identity</atom:title><atom:id>https://www.imshubh.com/articles/microsoft/programmatic-rollout-of-workload-identity.html</atom:id><atom:link href="https://www.imshubh.com/articles/microsoft/programmatic-rollout-of-workload-identity.html" rel="alternate" /><atom:published>2026-03-06T12:00:00-08:00</atom:published><atom:updated>2026-03-06T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Scope, phasing and incident readiness when moving AKS workloads from AAD Pod Identity or static secrets to Workload Identity.</atom:summary><atom:category term="microsoft" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;AKS Workload Identity replaces the deprecated AAD Pod Identity and removes static secrets from pods. A rollout touches the control plane, depends on SDK versions in every workload, and can fail in ways that only show up under load or after a token refresh. Without a plan, the first sign of a problem is an application that cannot reach its database.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Enable the OIDC issuer and Workload Identity on the cluster: a one-time change with a short control-plane impact. Announce a window for it.&lt;/li&gt;
+        &lt;li&gt;Parallel migration: run Workload Identity next to Pod Identity, move one workload at a time, verify each, then remove Pod Identity. It is slower, and it is the only approach with a clean rollback.&lt;/li&gt;
+        &lt;li&gt;Sidecar proxy for older SDKs: a temporary bridge that intercepts calls to the instance metadata endpoint for workloads that cannot upgrade yet. Treat it as a deadline, not a destination.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;My recommendation&lt;/h2&gt;
+        &lt;p&gt;Migrate per namespace, starting with a low-risk internal workload. Define rollback criteria before the first change: error rate on token acquisition, authentication failures to the target service, and pod restarts. Do not remove Pod Identity until every workload has run on Workload Identity through at least one full token-renewal cycle.&lt;/p&gt;
+        &lt;h2&gt;Minimal working example&lt;/h2&gt;
+        &lt;p&gt;Enable the cluster features and look up the issuer:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;az aks update --resource-group &amp;lt;rg&amp;gt; --name &amp;lt;aks&amp;gt; \
+  --enable-oidc-issuer --enable-workload-identity
+
+OIDC_ISSUER=$(az aks show -g &amp;lt;rg&amp;gt; -n &amp;lt;aks&amp;gt; --query "oidcIssuerProfile.issuerUrl" -o tsv)&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Create a managed identity and federate it with one service account:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;az identity create --name app-identity --resource-group &amp;lt;rg&amp;gt;
+CLIENT_ID=$(az identity show -n app-identity -g &amp;lt;rg&amp;gt; --query clientId -o tsv)
+
+az identity federated-credential create \
+  --name app-fic \
+  --identity-name app-identity \
+  --resource-group &amp;lt;rg&amp;gt; \
+  --issuer "$OIDC_ISSUER" \
+  --subject system:serviceaccount:&amp;lt;namespace&amp;gt;:app-sa \
+  --audience api://AzureADTokenExchange&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Annotate the service account and label the pod:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: app-sa
+  namespace: &amp;lt;namespace&amp;gt;
+  annotations:
+    azure.workload.identity/client-id: "&amp;lt;client-id&amp;gt;"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  namespace: &amp;lt;namespace&amp;gt;
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: app }
+  template:
+    metadata:
+      labels:
+        app: app
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: app-sa
+      containers:
+        - name: app
+          image: &amp;lt;registry&amp;gt;/app:&amp;lt;tag&amp;gt;&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Test it: deploy one workload, confirm it acquires a token and reaches its Azure dependency, then restart it and confirm it still does after the token refreshes.&lt;/p&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Inventory workloads that still call the instance metadata endpoint or use older SDKs, and decide per workload whether to upgrade or bridge.&lt;/li&gt;
+        &lt;li&gt;Use one service account and one federated credential per workload identity, and keep least-privilege Azure RBAC on the identity.&lt;/li&gt;
+        &lt;li&gt;Write down rollback criteria and who decides, before the change window.&lt;/li&gt;
+        &lt;li&gt;Migrate one namespace at a time, and watch token errors and pod restarts after each.&lt;/li&gt;
+        &lt;li&gt;Remove Pod Identity only after every workload has been stable on Workload Identity, and confirm the add-on's end-of-support dates.&lt;/li&gt;
+        &lt;li&gt;Keep a record of every federated credential so stale ones can be cleaned up.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Where this doesn't apply&lt;/h2&gt;
+        &lt;p&gt;Kubernetes clusters outside Azure. They need the equivalent OIDC issuer configuration and federation, if the platform offers it.&lt;/p&gt;
+        &lt;h2&gt;Sources&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Workload Identity overview — https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview&lt;/li&gt;
+        &lt;li&gt;Migrate from Pod Identity — https://learn.microsoft.com/en-us/azure/aks/workload-identity-migrate-from-pod-identity&lt;/li&gt;
+        &lt;li&gt;Use AAD Pod Identity (deprecation notice) — https://learn.microsoft.com/en-us/azure/aks/use-azure-ad-pod-identity&lt;/li&gt;
+        &lt;p&gt;---&lt;/p&gt;
+        &lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Records Aren’t Just Less Typing: Modeling Ambiguity Without Nulls</atom:title><atom:id>https://www.imshubh.com/articles/java/records-sealed-types.html</atom:id><atom:link href="https://www.imshubh.com/articles/java/records-sealed-types.html" rel="alternate" /><atom:published>2026-03-03T12:00:00-08:00</atom:published><atom:updated>2026-03-03T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Modern Java lets you model ambiguity without nulls. Learn records, sealed interfaces, and pattern matching to represent missing and unverifiable states clearly.</atom:summary><atom:category term="java" /><atom:category term="backend" /><atom:content type="html">&lt;p class="article-lede"&gt;I’m an engineering manager with a background in Java backend systems. One lesson that keeps paying dividends is this: ambiguity deserves types, not comments. Nulls and booleans blur meaning. “false,” “zero,” and “we don’t know” are not interchangeable. With modern Java (records, sealed interfaces, pattern matching), I model uncertainty explicitly and make ambiguity impossible to ignore.&lt;/p&gt;&lt;p&gt;Modern Java can express these outcomes as records and sealed types: Present, Missing, and Unverifiable. The same pattern works in ordinary service domains; it does not depend on a scoring model.&lt;/p&gt;
         &lt;h3&gt;The failure mode&lt;/h3&gt;&lt;p&gt;You return a number for a score and a boolean “hasEvidence.” A caller subtracts two scores and treats “0” as “no evidence,” then logs an anomaly when “0” appears alongside “hasEvidence=true.” The model caused this. Nulls and booleans encourage shortcuts and misinterpretation.&lt;/p&gt;
         &lt;h2&gt;What I learned&lt;/h2&gt;
         &lt;h3&gt;Use records for immutable, transparent domain data&lt;/h3&gt;&lt;p&gt;Records let me define concise, immutable carriers without boilerplate. They encourage a bias toward immutability and make the intent clear.&lt;/p&gt;
@@ -1926,7 +2169,96 @@ class ProfileRoundTripTest {
         &lt;ul&gt;&lt;li&gt;Silent type coercion hiding a producer's breaking change.&lt;/li&gt;&lt;li&gt;Explicit &lt;code&gt;null&lt;/code&gt; written by one serializer and omitted by another.&lt;/li&gt;&lt;li&gt;Enums that fail on unknown values in old clients.&lt;/li&gt;&lt;li&gt;A required field added without a default, breaking old documents.&lt;/li&gt;&lt;/ul&gt;
         &lt;h2&gt;Demo to build&lt;/h2&gt;
         &lt;h2&gt;Takeaways&lt;/h2&gt;
-        &lt;ul&gt;&lt;li&gt;Put invariants and null normalization in the record's compact constructor.&lt;/li&gt;&lt;li&gt;Turn off silent coercion where the contract is strict.&lt;/li&gt;&lt;li&gt;Evolve schemas additively, and keep golden files from every release.&lt;/li&gt;&lt;li&gt;Property-based round-trip tests guard the serialization invariants.&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Benchmarking Honestly: Building a Repeatable, Trustworthy Inference Benchmark</atom:title><atom:id>https://www.imshubh.com/articles/intel/benchmarking-inference.html</atom:id><atom:link href="https://www.imshubh.com/articles/intel/benchmarking-inference.html" rel="alternate" /><atom:published>2026-01-28T12:00:00-08:00</atom:published><atom:updated>2026-01-28T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Build inference benchmarks that report warm-up, latency percentiles, output parity, and hardware conditions.</atom:summary><atom:category term="intel" /><atom:category term="edgeai" /><atom:content type="html">&lt;p class="article-lede"&gt;Benchmarks are easy to fool. Run a handful of requests on a quiet laptop, choose the number that looks good, and almost any model can appear fast. Production has warm-up, load, input variation, and hardware contention. A useful benchmark makes those conditions visible.&lt;/p&gt;
+        &lt;ul&gt;&lt;li&gt;Put invariants and null normalization in the record's compact constructor.&lt;/li&gt;&lt;li&gt;Turn off silent coercion where the contract is strict.&lt;/li&gt;&lt;li&gt;Evolve schemas additively, and keep golden files from every release.&lt;/li&gt;&lt;li&gt;Property-based round-trip tests guard the serialization invariants.&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Foundry RBAC that prevents over-privilege</atom:title><atom:id>https://www.imshubh.com/articles/microsoft/foundry-rbac-that-prevents-over-privilege.html</atom:id><atom:link href="https://www.imshubh.com/articles/microsoft/foundry-rbac-that-prevents-over-privilege.html" rel="alternate" /><atom:published>2026-02-02T12:00:00-08:00</atom:published><atom:updated>2026-02-02T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Mapping Microsoft Foundry roles to tasks for projects, models and agent endpoints, so developers get what they need and nothing more.</atom:summary><atom:category term="microsoft" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;Teams over-assign roles because it is faster. One person ends up able to create projects, deploy models and publish agents because it was easier to grant a broad role once than to think about it. Foundry has built-in roles that separate these tasks, and using them well is the cheapest security improvement available. One thing to know up front: the roles were renamed. What used to be called Azure AI User is now Foundry User, and Azure AI Project Manager is now Foundry Project Manager. If your infrastructure code still uses the old names, update it.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Foundry User: the least-privilege developer role. It gives reader access to the project and resource plus the data actions needed to build and test agents. It does not allow deploying or managing models.&lt;/li&gt;
+        &lt;li&gt;Foundry Project Manager: everything Foundry User can do, plus creating and managing projects, publishing agents, and assigning the Foundry User role to others. It does not include model deployment.&lt;/li&gt;
+        &lt;li&gt;Foundry Account Owner and Foundry Owner: manage the account and projects, including deploying models. These are broad. Use them sparingly and for platform owners only.&lt;/li&gt;
+        &lt;li&gt;Agent consumers: callers who only need to invoke a published agent should get access to the agent endpoint, not a build or admin role.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;My recommendation&lt;/h2&gt;
+        &lt;p&gt;Give developers Foundry User and nothing else on the resource. Give team leads Foundry Project Manager so they can create projects and invite developers without waiting on a platform team. Reserve Foundry Account Owner for the few people who actually deploy models. Review assignments on a schedule, because over-privilege creeps back.&lt;/p&gt;
+        &lt;h2&gt;Minimal working example&lt;/h2&gt;
+        &lt;p&gt;Assign roles by name at the narrowest scope that works:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;SUB=&amp;lt;subscription-id&amp;gt;
+RG=&amp;lt;resource-group&amp;gt;
+ACCOUNT=&amp;lt;foundry-resource-name&amp;gt;
+SCOPE="/subscriptions/$SUB/resourceGroups/$RG/providers/Microsoft.CognitiveServices/accounts/$ACCOUNT"
+
+# Developers: least privilege
+az role assignment create \
+  --assignee &amp;lt;developer-object-id&amp;gt; \
+  --role "Foundry User" \
+  --scope "$SCOPE"
+
+# Team lead: can create projects, publish agents, invite developers
+az role assignment create \
+  --assignee &amp;lt;lead-object-id&amp;gt; \
+  --role "Foundry Project Manager" \
+  --scope "$SCOPE"
+
+# Platform owner who deploys models
+az role assignment create \
+  --assignee &amp;lt;platform-owner-object-id&amp;gt; \
+  --role "Foundry Account Owner" \
+  --scope "$SCOPE"&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Audit who has what:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;az role assignment list --scope "$SCOPE" \
+  --query "[].{principal:principalName, role:roleDefinitionName}" -o table&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Test it: sign in as a Foundry User and confirm you can build and run an agent but cannot deploy a model. Sign in as a Project Manager and confirm you can publish an agent but still cannot deploy a model.&lt;/p&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Start every developer at Foundry User on the resource, and elevate only for a named task.&lt;/li&gt;
+        &lt;li&gt;Check the permission tables for "manage models" and deployment before granting Account Owner or Owner.&lt;/li&gt;
+        &lt;li&gt;Remember that Project Manager can assign only the Foundry User role, which makes delegated onboarding safe.&lt;/li&gt;
+        &lt;li&gt;Give service principals and end users that only invoke agents the narrowest role that allows it.&lt;/li&gt;
+        &lt;li&gt;Update scripts and templates that still reference the old Azure AI role names.&lt;/li&gt;
+        &lt;li&gt;Review role assignments at a regular interval, and remove access when people change teams.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Where this doesn't apply&lt;/h2&gt;
+        &lt;p&gt;Older hub-based (classic) projects have a different role surface. If you run both, map roles carefully and do not assume names carry across.&lt;/p&gt;
+        &lt;h2&gt;Sources&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Role-based access control for Microsoft Foundry — https://learn.microsoft.com/en-us/azure/foundry/concepts/rbac-foundry&lt;/li&gt;
+        &lt;li&gt;Elevated-role tasks in Microsoft Foundry — https://learn.microsoft.com/en-us/azure/foundry/concepts/administrator-guide&lt;/li&gt;
+        &lt;li&gt;Azure built-in roles for AI + machine learning — https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/ai-machine-learning&lt;/li&gt;
+        &lt;p&gt;---&lt;/p&gt;
+        &lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Content filters for prompts and outputs</atom:title><atom:id>https://www.imshubh.com/articles/microsoft/content-filters-for-prompts-and-outputs.html</atom:id><atom:link href="https://www.imshubh.com/articles/microsoft/content-filters-for-prompts-and-outputs.html" rel="alternate" /><atom:published>2026-01-29T12:00:00-08:00</atom:published><atom:updated>2026-01-29T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Prompt Shields, groundedness, protected material, and blocklists for enterprise moderation.</atom:summary><atom:category term="microsoft" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;GenAI agents must resist prompt injection, avoid harmful outputs, and maintain provenance. Azure AI Content Safety offers moderation for text/images and safety features (Prompt Shields, groundedness detection, protected material) with configurable thresholds and blocklists.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Prompt Shields (direct and indirect injection): Detect jailbreak attempts and document-borne attacks; low false-positive rates; add latency; configurable block vs annotate modes.&lt;/li&gt;
+        &lt;li&gt;Groundedness detection (Preview): Detect ungrounded completions relative to sources; helps provenance and QA; preview scope limits.&lt;/li&gt;
+        &lt;li&gt;Protected material detection (text GA, code preview): Identifies copyrighted segments in completions; supports compliance; English scope.&lt;/li&gt;
+        &lt;li&gt;Blocklists and custom categories: Enforce organization-specific terms and custom detection; stored encrypted at rest with CMK options.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Minimal working example&lt;/h2&gt;
+        &lt;p&gt;Text moderation (Python) Requirements: requests or SDK; endpoint; subscription key or Entra auth.&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;import requests, json
+endpoint = "https://YOUR-CONTENT-SAFETY.cognitiveservices.azure.com"
+headers = {"Ocp-Apim-Subscription-Key": "KEY","Content-Type":"application/json"}
+payload = {"text": "Sample text", "blocklistNames": []}
+r = requests.post(f"{endpoint}/contentsafety/text:analyze?api-version=2024-09-01",
+                  headers=headers, data=json.dumps(payload))
+print(r.json())&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Test: Inspect categoriesAnalysis severities; adjust thresholds; add blocklists.&lt;/p&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Configure separate input/output filters; turn on Prompt Shields for inputs; add groundedness and protected material for outputs.&lt;/li&gt;
+        &lt;li&gt;Confirm API rate limits and payload size limits per modality/tier.&lt;/li&gt;
+        &lt;li&gt;Use blocklists for brand/PII terms; understand storage and deletion controls.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Where this doesn't apply&lt;/h2&gt;
+        &lt;p&gt;Offline moderation pipelines with proprietary classifiers; integrate but consider Content Safety for complementary coverage.&lt;/p&gt;
+        &lt;h2&gt;Sources&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;What is Azure AI Content Safety? (GA) — https://learn.microsoft.com/en-us/azure/ai-services/content-safety/overview (accessed 2026-10-13).&lt;/li&gt;
+        &lt;li&gt;Documentation hub (GA) — https://learn.microsoft.com/en-us/azure/ai-services/content-safety/ (accessed 2026-10-13).&lt;/li&gt;
+        &lt;li&gt;Data, privacy, and security (GA) — https://learn.microsoft.com/en-us/azure/foundry/responsible-ai/content-safety/data-privacy (accessed 2026-10-13).&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;p&gt;---&lt;/p&gt;</atom:content></atom:entry><atom:entry><atom:title>Benchmarking Honestly: Building a Repeatable, Trustworthy Inference Benchmark</atom:title><atom:id>https://www.imshubh.com/articles/intel/benchmarking-inference.html</atom:id><atom:link href="https://www.imshubh.com/articles/intel/benchmarking-inference.html" rel="alternate" /><atom:published>2026-01-28T12:00:00-08:00</atom:published><atom:updated>2026-01-28T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Build inference benchmarks that report warm-up, latency percentiles, output parity, and hardware conditions.</atom:summary><atom:category term="intel" /><atom:category term="edgeai" /><atom:content type="html">&lt;p class="article-lede"&gt;Benchmarks are easy to fool. Run a handful of requests on a quiet laptop, choose the number that looks good, and almost any model can appear fast. Production has warm-up, load, input variation, and hardware contention. A useful benchmark makes those conditions visible.&lt;/p&gt;
         &lt;p&gt;In &lt;code&gt;aceu-edge-infer&lt;/code&gt;, I keep a small harness that compares FP32 and INT8 inference and records latency and output deltas. The sample inputs are synthetic, so its results are method scaffolding—not evidence of production performance. The measurement discipline is what I want the demo to teach.&lt;/p&gt;
         &lt;h2&gt;Decide what question the benchmark answers&lt;/h2&gt;&lt;p&gt;Are you measuring cold start, steady-state single-request latency, or throughput under concurrent work? Those are different measurements. State the workload, model artifact, runtime and device, input shape, batch size, thread/concurrency settings, and whether preprocessing and post-processing are included.&lt;/p&gt;
         &lt;h2&gt;Warm up—and report cold start separately&lt;/h2&gt;&lt;p&gt;The first call may include model compilation, memory allocation, cache fill, or runtime initialization. If the question is steady-state latency, run a planned warm-up and keep those samples out of the measured set. If cold start matters to users, report it as its own metric instead of mixing it into steady-state numbers.&lt;/p&gt;
@@ -2283,7 +2615,82 @@ docker run --rm --platform linux/arm64 registry.example.com/demo/app:1.4.2&lt;/c
         &lt;h2&gt;One honest limitation&lt;/h2&gt;
         &lt;p&gt;Emulation is useful for a smoke test and not much else. It can hide timing and system-call differences, and a JIT-heavy workload will behave differently from the real thing.&lt;/p&gt;
         &lt;h2&gt;Sources&lt;/h2&gt;
-        &lt;ul&gt;&lt;li&gt;Docker Docs: Multi-platform builds&lt;/li&gt;&lt;li&gt;Docker Docs: buildx imagetools inspect&lt;/li&gt;&lt;li&gt;Docker Docs: Multi-stage builds (BUILDPLATFORM and TARGETARCH)&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Identity Domains: MFA policies and admin-safe rollout</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/identity-domains-mfa-policies-and-admin-safe-rollout.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/identity-domains-mfa-policies-and-admin-safe-rollout.html" rel="alternate" /><atom:published>2025-12-16T12:00:00-08:00</atom:published><atom:updated>2025-12-16T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How I turn on MFA without locking the administrators out of their own console.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Docker Docs: Multi-platform builds&lt;/li&gt;&lt;li&gt;Docker Docs: buildx imagetools inspect&lt;/li&gt;&lt;li&gt;Docker Docs: Multi-stage builds (BUILDPLATFORM and TARGETARCH)&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Graph + Event Grid for lifecycle events</atom:title><atom:id>https://www.imshubh.com/articles/microsoft/graph-event-grid-for-lifecycle-events.html</atom:id><atom:link href="https://www.imshubh.com/articles/microsoft/graph-event-grid-for-lifecycle-events.html" rel="alternate" /><atom:published>2025-12-27T12:00:00-08:00</atom:published><atom:updated>2025-12-27T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Receiving tenant-wide identity change notifications at scale with Microsoft Graph and Event Grid partner topics, including the renewal events that people forget.</atom:summary><atom:category term="microsoft" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;Microsoft Graph change notifications tell your system when something changes, for example a user is created, updated or deleted. The default delivery method is a webhook, and webhooks are brittle at scale. Endpoints time out, retries pile up, cold starts add latency, and a missed lifecycle event means a subscription quietly expires and you stop hearing about changes. Event Grid partner topics replace the webhook with managed delivery, retries, dead-lettering and fan-out to serverless handlers.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Direct webhook to a Function or web app: the simplest to build. You own scaling, retry behavior and response-time limits, and a slow validation response can lose the subscription.&lt;/li&gt;
+        &lt;li&gt;Event Grid partner topic: Graph delivers to a topic in your Azure subscription, and you attach event subscriptions to route the events. There is more setup, but delivery, retry and dead-lettering are handled for you.&lt;/li&gt;
+        &lt;li&gt;Event Hubs: the right choice for very high-volume streams where you want partitioned, replayable consumption rather than per-event routing.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;My recommendation&lt;/h2&gt;
+        &lt;p&gt;Use an Event Grid partner topic for anything that must not lose events: identity lifecycle changes that drive access removal or deprovisioning. Subscribe to lifecycle notifications as well as change notifications, and treat renewal as part of the design, not an afterthought.&lt;/p&gt;
+        &lt;h2&gt;Minimal working example&lt;/h2&gt;
+        &lt;p&gt;Step 1: create the Graph subscription. The notification URL points at Event Grid instead of a web address:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;POST https://graph.microsoft.com/v1.0/subscriptions
+Content-Type: application/json
+Authorization: Bearer &amp;lt;token&amp;gt;
+
+{
+  "changeType": "created,updated,deleted",
+  "notificationUrl": "EventGrid:?azuresubscriptionid=&amp;lt;subscription-id&amp;gt;&amp;amp;resourcegroup=&amp;lt;resource-group&amp;gt;&amp;amp;partnertopic=&amp;lt;topic-name&amp;gt;&amp;amp;location=&amp;lt;region&amp;gt;",
+  "lifecycleNotificationUrl": "EventGrid:?azuresubscriptionid=&amp;lt;subscription-id&amp;gt;&amp;amp;resourcegroup=&amp;lt;resource-group&amp;gt;&amp;amp;partnertopic=&amp;lt;topic-name&amp;gt;&amp;amp;location=&amp;lt;region&amp;gt;",
+  "resource": "users",
+  "expirationDateTime": "2026-12-01T00:00:00Z",
+  "clientState": "&amp;lt;random-secret-value&amp;gt;"
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Step 2: activate the partner topic that Graph created in your resource group, then route it:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;az eventgrid partner topic activate \
+  --name &amp;lt;topic-name&amp;gt; \
+  --resource-group &amp;lt;resource-group&amp;gt;&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Then add an event subscription on the topic that sends events to an Azure Function (portal or CLI).&lt;/p&gt;
+        &lt;p&gt;Step 3: handle events asynchronously. The function should do as little as possible before returning:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.Logging;
+using System.Text.Json;
+
+public class OnGraphEvent
+{
+    private readonly ILogger&amp;lt;OnGraphEvent&amp;gt; _log;
+    public OnGraphEvent(ILogger&amp;lt;OnGraphEvent&amp;gt; log) =&amp;gt; _log = log;
+
+    [Function("OnGraphEvent")]
+    public void Run([EventGridTrigger] string eventJson)
+    {
+        using var doc = JsonDocument.Parse(eventJson);
+        var type = doc.RootElement.GetProperty("type").GetString();
+
+        if (type != null &amp;amp;&amp;amp; type.Contains("lifecycleNotification", StringComparison.OrdinalIgnoreCase))
+        {
+            _log.LogInformation("Lifecycle event received, renew the subscription: {Type}", type);
+            // enqueue a renewal job
+            return;
+        }
+
+        _log.LogInformation("Change event: {Type}", type);
+        // enqueue the change for processing, do not do slow work here
+    }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Check the exact event schema and type names against your own partner topic before you rely on them, since they differ by resource and Graph version.&lt;/p&gt;
+        &lt;p&gt;Test it: create a test user, confirm an event reaches the function, then delete the user and confirm the delete event arrives. Let a short-lived subscription run to expiry in a test tenant and confirm the lifecycle event fires.&lt;/p&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Subscribe to lifecycle notifications as well as change notifications, and renew subscriptions when the lifecycle events say so.&lt;/li&gt;
+        &lt;li&gt;Check the maximum subscription lifetime for the resource type, and set renewal well before it.&lt;/li&gt;
+        &lt;li&gt;Put a &lt;code&gt;clientState&lt;/code&gt; secret in the subscription and validate it on receipt where your handler can see it.&lt;/li&gt;
+        &lt;li&gt;Keep handlers fast and idempotent. Queue work and return, since events can be delivered more than once.&lt;/li&gt;
+        &lt;li&gt;Configure dead-lettering on the event subscription and alert when messages land there.&lt;/li&gt;
+        &lt;li&gt;Use encrypted rich notifications where the resource supports them, and manage the certificates as documented.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Where this doesn't apply&lt;/h2&gt;
+        &lt;p&gt;Extremely high-volume streams, where Event Hubs is a better fit. Also, resources that Graph does not support through Event Grid partner topics still need a webhook.&lt;/p&gt;
+        &lt;h2&gt;Sources&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Change notifications overview — https://learn.microsoft.com/en-us/graph/change-notifications-overview&lt;/li&gt;
+        &lt;li&gt;Microsoft Graph Event Grid sample (.NET) — https://github.com/microsoftgraph/msgraph-sample-eventgrid-notifications-dotnet&lt;/li&gt;
+        &lt;li&gt;Microsoft Graph Event Grid sample (Java) — https://github.com/microsoftgraph/msgraph-sample-eventgrid-notifications-java&lt;/li&gt;
+        &lt;p&gt;---&lt;/p&gt;
+        &lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Identity Domains: MFA policies and admin-safe rollout</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/identity-domains-mfa-policies-and-admin-safe-rollout.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/identity-domains-mfa-policies-and-admin-safe-rollout.html" rel="alternate" /><atom:published>2025-12-16T12:00:00-08:00</atom:published><atom:updated>2025-12-16T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How I turn on MFA without locking the administrators out of their own console.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
 &lt;p&gt;Turning on MFA is the right call, and it is also the change most likely to produce a locked-out admin at 5 p.m. on a Friday. Automation that signs in as a user can break as well.&lt;/p&gt;
 &lt;p&gt;My goal was a rollout order that protects administrators first, leaves one deliberate escape hatch while things settle, and then closes that hatch.&lt;/p&gt;
 &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
@@ -2333,7 +2740,86 @@ ov.save_model(model_int8, "model_int8.xml")&lt;/code&gt;&lt;/pre&gt;
         &lt;h2&gt;Make precision visible and roll out in steps&lt;/h2&gt;&lt;p&gt;Record the precision and execution device in service logs or response metadata so a change is diagnosable. Keep the public response contract minimal and avoid exposing sensitive implementation details.&lt;/p&gt;&lt;p&gt;Before a full rollout, run FP32 and INT8 in shadow for a representative sample and alert on meaningful divergence. If one slice regresses, route it back to FP32 or disable the INT8 path while you investigate. Maintaining both variants adds operational work, but gives the team a controlled recovery option.&lt;/p&gt;
         &lt;h2&gt;Try it yourself&lt;/h2&gt;&lt;ol&gt;&lt;li&gt;Build FP32 and INT8 variants and disclose the precision used for each request.&lt;/li&gt;&lt;li&gt;Measure warm and cold paths separately, then report latency percentiles and output-delta distributions.&lt;/li&gt;&lt;li&gt;Evaluate by class and edge-case slice, not only by aggregate accuracy.&lt;/li&gt;&lt;li&gt;Run a shadow comparison and define in advance what divergence will trigger a rollback.&lt;/li&gt;&lt;/ol&gt;
         &lt;h2&gt;Closing thought&lt;/h2&gt;&lt;p&gt;Quantization is powerful, but faster is not free. Percentiles, output deltas, and slice-level evaluation tell you whether INT8 belongs in the production path—or whether FP32 is the more responsible choice.&lt;/p&gt;
-        &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://docs.openvino.ai/2026/openvino-workflow/model-optimization-guide/quantizing-models-post-training.html" target="_blank" rel="noreferrer"&gt;OpenVINO post-training quantization overview&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://docs.openvino.ai/2026/openvino-workflow/model-optimization-guide/quantizing-models-post-training/basic-quantization-flow.html" target="_blank" rel="noreferrer"&gt;NNCF basic quantization flow and calibration datasets&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://docs.openvino.ai/2026/openvino-workflow/running-inference/inference-devices-and-modes/cpu-device.html" target="_blank" rel="noreferrer"&gt;OpenVINO CPU device and supported inference precisions&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>Same Dockerfile, Different Build: Reproducible Container Builds</atom:title><atom:id>https://www.imshubh.com/articles/docker/reproducible-container-builds.html</atom:id><atom:link href="https://www.imshubh.com/articles/docker/reproducible-container-builds.html" rel="alternate" /><atom:published>2025-11-14T12:00:00-08:00</atom:published><atom:updated>2025-11-14T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Pin dependencies, use lock files, and verify container artifacts to make local and cloud builds more reproducible.</atom:summary><atom:category term="docker" /><atom:category term="containers" /><atom:content type="html">&lt;p class="article-lede"&gt;I once pushed a change after a healthy local run of &lt;code&gt;aceu-trust-demo&lt;/code&gt;. The cloud build resolved a newer FastAPI version—0.142.2 instead of 0.141.1 locally—and pulled an additional package, &lt;code&gt;opentelemetry-api&lt;/code&gt;. The Dockerfile was the same; the dependency ranges were not locked.&lt;/p&gt;
+        &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://docs.openvino.ai/2026/openvino-workflow/model-optimization-guide/quantizing-models-post-training.html" target="_blank" rel="noreferrer"&gt;OpenVINO post-training quantization overview&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://docs.openvino.ai/2026/openvino-workflow/model-optimization-guide/quantizing-models-post-training/basic-quantization-flow.html" target="_blank" rel="noreferrer"&gt;NNCF basic quantization flow and calibration datasets&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://docs.openvino.ai/2026/openvino-workflow/running-inference/inference-devices-and-modes/cpu-device.html" target="_blank" rel="noreferrer"&gt;OpenVINO CPU device and supported inference precisions&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>GHAS + Azure runners without ops debt</atom:title><atom:id>https://www.imshubh.com/articles/microsoft/ghas-azure-runners-without-ops-debt.html</atom:id><atom:link href="https://www.imshubh.com/articles/microsoft/ghas-azure-runners-without-ops-debt.html" rel="alternate" /><atom:published>2025-11-15T12:00:00-08:00</atom:published><atom:updated>2025-11-15T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>When GitHub Advanced Security delivers value on hosted runners, and how to host ephemeral self-hosted runners on Azure when you really need them.</atom:summary><atom:category term="microsoft" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;Teams want code, secret and dependency scanning wired into the pull request, not bolted on afterwards. GitHub Advanced Security (GHAS) does that, and for most repositories it runs fine on GitHub-hosted runners. The trouble starts when a build needs custom images, private network access or specialized hardware. Then you are running your own runners, and with them come token handling, scaling and isolation problems that did not exist before.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;GitHub-hosted runners with GHAS: the fastest path. There is no infrastructure to patch and each job gets a clean VM. The limit is that you take the images and network position GitHub gives you.&lt;/li&gt;
+        &lt;li&gt;Self-hosted runners on Azure Virtual Machine Scale Sets (VMSS): you control the image, the network and the hardware. In return you own scaling, patching, and the credential used to register runners.&lt;/li&gt;
+        &lt;li&gt;Persistent self-hosted runners: simple to set up, and the worst option for security. State and credentials from one job can leak into the next. Avoid them for anything that builds untrusted code.&lt;/li&gt;
+        &lt;li&gt;Scope the GHAS features separately: secret scanning and push protection, code scanning with CodeQL, and dependency review. They have different costs and different operational weight, so turn them on in the order that gives the most value for the least friction.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;My recommendation&lt;/h2&gt;
+        &lt;p&gt;Start on hosted runners and turn on code scanning and secret scanning. Only add self-hosted capacity for a specific reason you can name, and when you do, make every runner ephemeral: one job, then the VM is gone. Keep the registration credential out of the image and fetch it at boot through a managed identity.&lt;/p&gt;
+        &lt;h2&gt;Minimal working example&lt;/h2&gt;
+        &lt;p&gt;The flow: a VMSS instance boots, signs in with its managed identity, reads a registration secret from Key Vault, registers itself as an ephemeral runner, runs one job, and exits.&lt;/p&gt;
+        &lt;p&gt;Boot script (cloud-init or a custom script extension):&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;#!/usr/bin/env bash
+set -euo pipefail
+
+ORG="my-org"
+VAULT="my-runner-vault"
+RUNNER_DIR=/opt/actions-runner
+
+# 1. Sign in with the VM's managed identity (no secret on disk)
+az login --identity --output none
+
+# 2. Read the credential used to request registration tokens
+GH_TOKEN=$(az keyvault secret show --vault-name "$VAULT" --name gh-runner-admin --query value -o tsv)
+
+# 3. Ask GitHub for a short-lived registration token
+REG_TOKEN=$(curl -fsS -X POST \
+  -H "Authorization: Bearer $GH_TOKEN" \
+  -H "Accept: application/vnd.github+json" \
+  "https://api.github.com/orgs/$ORG/actions/runners/registration-token" | jq -r .token)
+
+# 4. Register as an ephemeral runner in a dedicated group, then run
+cd "$RUNNER_DIR"
+./config.sh --url "https://github.com/$ORG" --token "$REG_TOKEN" \
+  --ephemeral --unattended --runnergroup azure-vmss --labels azure-vmss,linux
+./run.sh&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Target the pool from a workflow, and add code scanning alongside it:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;name: ci
+on: [pull_request]
+
+jobs:
+  build:
+    runs-on: [self-hosted, linux, azure-vmss]
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./build.sh
+
+  codeql:
+    runs-on: ubuntu-latest        # hosted runner is enough for scanning most repos
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: java
+      - uses: github/codeql-action/analyze@v3&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Test it: queue a job, confirm a new VM registers, runs the job, and disappears from the runner list afterwards. Then check that a second job lands on a different VM.&lt;/p&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Confirm which GHAS features your plan includes and how active committers are counted before you roll out widely.&lt;/li&gt;
+        &lt;li&gt;Make every self-hosted runner ephemeral, and put them in a dedicated runner group restricted to the repositories that need them.&lt;/li&gt;
+        &lt;li&gt;Fetch the registration credential at boot through a managed identity and Key Vault. Never bake it into the image.&lt;/li&gt;
+        &lt;li&gt;Prefer a GitHub App over a personal access token for requesting registration tokens, so access is scoped and not tied to a person.&lt;/li&gt;
+        &lt;li&gt;Isolate the runner network. Allow only the egress the builds need.&lt;/li&gt;
+        &lt;li&gt;Autoscale on queue depth, and cap the maximum instance count so a burst cannot become a bill.&lt;/li&gt;
+        &lt;li&gt;Use hosted runners for CodeQL unless the build needs something they cannot provide.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Where this doesn't apply&lt;/h2&gt;
+        &lt;p&gt;Standard build stacks fit GitHub-hosted runners, and you should use them. Self-hosted capacity is justified by a real constraint (private network, custom hardware, compliance), not by habit.&lt;/p&gt;
+        &lt;h2&gt;Sources&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;GitHub security features overview — https://docs.github.com/en/code-security/getting-started/github-security-features&lt;/li&gt;
+        &lt;li&gt;Self-hosted runners — https://docs.github.com/en/actions/hosting-your-own-runners&lt;/li&gt;
+        &lt;li&gt;GH-500 study guide — https://learn.microsoft.com/en-us/credentials/certifications/resources/study-guides/gh-500&lt;/li&gt;
+        &lt;p&gt;---&lt;/p&gt;
+        &lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Same Dockerfile, Different Build: Reproducible Container Builds</atom:title><atom:id>https://www.imshubh.com/articles/docker/reproducible-container-builds.html</atom:id><atom:link href="https://www.imshubh.com/articles/docker/reproducible-container-builds.html" rel="alternate" /><atom:published>2025-11-14T12:00:00-08:00</atom:published><atom:updated>2025-11-14T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Pin dependencies, use lock files, and verify container artifacts to make local and cloud builds more reproducible.</atom:summary><atom:category term="docker" /><atom:category term="containers" /><atom:content type="html">&lt;p class="article-lede"&gt;I once pushed a change after a healthy local run of &lt;code&gt;aceu-trust-demo&lt;/code&gt;. The cloud build resolved a newer FastAPI version—0.142.2 instead of 0.141.1 locally—and pulled an additional package, &lt;code&gt;opentelemetry-api&lt;/code&gt;. The Dockerfile was the same; the dependency ranges were not locked.&lt;/p&gt;
         &lt;p&gt;That kind of drift is easy to miss. A repeatable build takes more than a Dockerfile: it needs a locked dependency graph, a deliberate base-image update policy, and a way to inspect the artifact that actually shipped.&lt;/p&gt;
         &lt;h2&gt;Why “same Dockerfile” can produce a different image&lt;/h2&gt;&lt;p&gt;Version ranges allow resolvers to choose newer compatible releases. A mutable base-image tag can also point to a newer image later. Build caches may keep an older layer locally while CI fetches fresh inputs. The source recipe is unchanged, but the resolved inputs differ.&lt;/p&gt;
         &lt;h2&gt;Lock the dependency graph&lt;/h2&gt;&lt;p&gt;Use exact direct-dependency pins and commit a lock file that records the resolved transitive versions. Where the package manager supports it, include hashes and install in locked mode. A short input file might look like this:&lt;/p&gt;
@@ -2496,7 +2982,82 @@ time docker build -t demo/app:dev .&lt;/code&gt;&lt;/pre&gt;
         &lt;h2&gt;One honest limitation&lt;/h2&gt;
         &lt;p&gt;Cache mounts live on the builder, not in the image, so a fresh CI runner starts cold unless you export and import the cache. A fast local build says little about a CI build.&lt;/p&gt;
         &lt;h2&gt;Sources&lt;/h2&gt;
-        &lt;ul&gt;&lt;li&gt;Docker Docs: Optimize cache usage in builds&lt;/li&gt;&lt;li&gt;Docker Docs: Multi-stage builds&lt;/li&gt;&lt;li&gt;Docker Docs: Dockerfile reference (RUN --mount)&lt;/li&gt;&lt;li&gt;Docker Docs: .dockerignore&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Dynamic groups with tag-based scoping (illustrative patterns)</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/dynamic-groups-with-tag-based-scoping-illustrative-patterns.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/dynamic-groups-with-tag-based-scoping-illustrative-patterns.html" rel="alternate" /><atom:published>2025-10-02T12:00:00-07:00</atom:published><atom:updated>2025-10-02T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Using compartment and tag rules so only the instances you intend can assume a group's permissions.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Docker Docs: Optimize cache usage in builds&lt;/li&gt;&lt;li&gt;Docker Docs: Multi-stage builds&lt;/li&gt;&lt;li&gt;Docker Docs: Dockerfile reference (RUN --mount)&lt;/li&gt;&lt;li&gt;Docker Docs: .dockerignore&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Serving ONNX models on AKS GPU without surprises</atom:title><atom:id>https://www.imshubh.com/articles/microsoft/serving-onnx-models-on-aks-gpu-without-surprises.html</atom:id><atom:link href="https://www.imshubh.com/articles/microsoft/serving-onnx-models-on-aks-gpu-without-surprises.html" rel="alternate" /><atom:published>2025-10-08T12:00:00-07:00</atom:published><atom:updated>2025-10-08T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>A hands-on path to deploy ONNX models with Triton or ORT, readiness checks, and GPU node pools.</atom:summary><atom:category term="microsoft" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;ONNX Runtime provides optimized inference across multiple accelerators. In production, AKS GPU node pools must be prepared (drivers/plugins), readiness and health checks must reflect model load state, and autoscaling must consider GPU allocation and throughput constraints.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;NVIDIA Triton with ONNX backend: Multi-framework server with health/readiness endpoints; simplifies model repos and supports gRPC/HTTP. Operationally richer; larger image footprint; excellent for multi-model serving.&lt;/li&gt;
+        &lt;li&gt;ORT server containers: Leaner; you must select images/runtime versions and wire health probes yourself; good for single model or simple stacks.&lt;/li&gt;
+        &lt;li&gt;Node pool strategy: Dedicated GPU node pools with NVIDIA device plugin; enforce nvidia.com/gpu limits; separate system and user pools for stable scheduling.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Minimal working example&lt;/h2&gt;
+        &lt;p&gt;Prereqs&lt;/p&gt;
+        &lt;ul&gt;
+        &lt;li&gt;AKS cluster; GPU node pool with NVIDIA device plugin; kubectl; Triton image; PVC for model repository.&lt;/li&gt;
+        &lt;li&gt;Model: ResNet-50 in ONNX.&lt;/li&gt;
+        &lt;p&gt;Deployment (Triton + ONNX)&lt;/p&gt;
+        &lt;/ul&gt;
+        &lt;pre&gt;&lt;code&gt;apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: triton-server
+  namespace: inference
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: triton-server
+  template:
+    metadata:
+      labels:
+        app: triton-server
+    spec:
+      containers:
+      - name: triton
+        image: nvcr.io/nvidia/tritonserver:24.08-py3
+        args: ["tritonserver","--model-repository=/models/repository","--strict-model-config=false"]
+        ports:
+        - containerPort: 8000
+          name: http
+        - containerPort: 8001
+          name: grpc
+        readinessProbe:
+          httpGet:
+            path: /v2/health/ready
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          failureThreshold: 6
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+        volumeMounts:
+        - name: model-vol
+          mountPath: /models
+      volumes:
+      - name: model-vol
+        persistentVolumeClaim:
+          claimName: triton-model-repository-pvc&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Test: kubectl get pods -n inference; wait for readiness; send inference to port 8000; confirm GPU assignment with kubectl describe. Version and runtime assumptions&lt;/p&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Triton 24.08; AKS GPU plugin installed; ONNX Runtime on server side via Triton; CUDA matching driver for your GPU.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Validate CUDA/cuDNN compatibility with the ORT/Triton image; mismatches silently fallback to CPU in some cases.&lt;/li&gt;
+        &lt;li&gt;Pin readinessProbe to /v2/health/ready; initialDelaySeconds accounts for model load.&lt;/li&gt;
+        &lt;li&gt;Use separate GPU node pools; confirm nvidia.com/gpu schedulable capacity.&lt;/li&gt;
+        &lt;li&gt;Cap replicas by GPU capacity; ensure PVC throughput supports model load.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Where this doesn't apply&lt;/h2&gt;
+        &lt;p&gt;CPU-only inference; use ORT CPU builds and different autoscaling signals.&lt;/p&gt;
+        &lt;h2&gt;Sources&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;AI Inference on AKS with Triton + ONNX (GA blog) — https://blog.aks.azure.com/2026/04/07/ai-inference-on-aks-arc-part-4 (accessed 2026-10-13).&lt;/li&gt;
+        &lt;li&gt;ONNX Runtime install and CUDA requirements (GA) — https://onnxruntime.ai/docs/install/ (accessed 2026-10-13).&lt;/li&gt;
+        &lt;li&gt;Use GPUs on AKS Hybrid/Edge node pools (GA) — https://github.com/MicrosoftDocs/azure-stack-docs/blob/main/AKS-Arc/deploy-gpu-node-pool.md (accessed 2026-10-13).&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;p&gt;---&lt;/p&gt;</atom:content></atom:entry><atom:entry><atom:title>Dynamic groups with tag-based scoping (illustrative patterns)</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/dynamic-groups-with-tag-based-scoping-illustrative-patterns.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/dynamic-groups-with-tag-based-scoping-illustrative-patterns.html" rel="alternate" /><atom:published>2025-10-02T12:00:00-07:00</atom:published><atom:updated>2025-10-02T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Using compartment and tag rules so only the instances you intend can assume a group's permissions.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
 &lt;p&gt;A dynamic group rule that says &amp;quot;every instance in compartment X&amp;quot; is easy to write and easy to regret. The day someone launches a test box or a bastion in that compartment, it silently picks up the same permissions as your production services.&lt;/p&gt;
 &lt;p&gt;I wanted membership that is predictable and explainable: this instance is in the group because it is in this compartment and carries this tag.&lt;/p&gt;
 &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
@@ -2635,7 +3196,78 @@ Allow group platform-admins to read policies in compartment apps&lt;/code&gt;&lt
           &lt;h2&gt;Trade-offs to make explicit&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;strong&gt;Strict readiness vs. first-green speed:&lt;/strong&gt; better gating can delay traffic, while reducing user-facing failures.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Longer soak vs. delivery pace:&lt;/strong&gt; more observation lowers rollout risk but delays full exposure.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Graceful drain vs. implementation effort:&lt;/strong&gt; draining takes work; skipping it risks incomplete operations.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Frequent liveness checks vs. flapping:&lt;/strong&gt; overly sensitive checks can restart a service during resource spikes and worsen an incident.&lt;/li&gt;&lt;/ul&gt;
           &lt;h2&gt;Try it in your service&lt;/h2&gt;&lt;ol&gt;&lt;li&gt;Add a separate &lt;code&gt;/ready&lt;/code&gt; endpoint that checks the critical dependency before returning success.&lt;/li&gt;&lt;li&gt;Write down a staged rollout, soak period, and rollback trigger before your next release.&lt;/li&gt;&lt;li&gt;Handle &lt;code&gt;SIGTERM&lt;/code&gt; by draining requests and closing resources cleanly.&lt;/li&gt;&lt;li&gt;Extend your runbook with infrastructure checks and first suspects for latency spikes.&lt;/li&gt;&lt;/ol&gt;
           &lt;h2&gt;Closing thought&lt;/h2&gt;&lt;p&gt;Separating startup, readiness, and liveness reduces confusion during incidents and helps limit their blast radius. The demo illustrates the distinction with a local health endpoint and a reversible deployment path. Its ACE-U dimensions—Authenticity, Credibility, Empathy, and Uniqueness—remain conceptual in this context, not a judgment of real people.&lt;/p&gt;
-          &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://docs.docker.com/reference/dockerfile/#healthcheck" target="_blank" rel="noreferrer"&gt;Dockerfile &lt;code&gt;HEALTHCHECK&lt;/code&gt; reference&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/" target="_blank" rel="noreferrer"&gt;Kubernetes startup, readiness, and liveness probes&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>Starting a local data pipeline in the right order, on a laptop that stays usable</atom:title><atom:id>https://www.imshubh.com/articles/docker/starting-a-local-data-pipeline-in-the-right-order.html</atom:id><atom:link href="https://www.imshubh.com/articles/docker/starting-a-local-data-pipeline-in-the-right-order.html" rel="alternate" /><atom:published>2025-08-20T12:00:00-07:00</atom:published><atom:updated>2025-08-20T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How I use Compose profiles, health-gated startup and hard resource caps so a multi-service stack boots predictably and does not eat my machine.</atom:summary><atom:category term="docker" /><atom:category term="containers" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+          &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://docs.docker.com/reference/dockerfile/#healthcheck" target="_blank" rel="noreferrer"&gt;Dockerfile &lt;code&gt;HEALTHCHECK&lt;/code&gt; reference&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/" target="_blank" rel="noreferrer"&gt;Kubernetes startup, readiness, and liveness probes&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>Azure OpenAI authentication patterns without API keys</atom:title><atom:id>https://www.imshubh.com/articles/microsoft/azure-openai-authentication-patterns-without-api-keys.html</atom:id><atom:link href="https://www.imshubh.com/articles/microsoft/azure-openai-authentication-patterns-without-api-keys.html" rel="alternate" /><atom:published>2025-09-07T12:00:00-07:00</atom:published><atom:updated>2025-09-07T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How to authenticate services and agents to Azure OpenAI using Entra ID, managed identity, and AKS Workload ID.</atom:summary><atom:category term="microsoft" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;API keys are static credentials that must be distributed, rotated, and audited; they are unsuitable for high-assurance environments and agent frameworks at scale. Azure OpenAI supports Microsoft Entra ID authentication, enabling keyless access via managed identities and workload identities. The friction points are: enabling identity where the app is hosted, scoping roles correctly, and handling client capability differences (service vs AKS vs user-interactive).&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;System-assigned managed identity (App Service/Functions/Container Apps): Azure hosts present a managed identity; applications obtain Entra access tokens (DefaultAzureCredential) and call Azure OpenAI via the resource's custom subdomain endpoint. Minimal credential handling; role assignment required ("Cognitive Services OpenAI User").&lt;/li&gt;
+        &lt;li&gt;User-assigned managed identity (App Service/ACA/VMs): Provides explicit identity reuse across multiple hosts; requires client_id configuration and role assignment at resource, RG, or subscription scope. Slightly more setup, clearer scoping.&lt;/li&gt;
+        &lt;li&gt;AKS Workload Identity: Pods use a Kubernetes service account projected token; a federated identity credential links the service account to a managed identity. This enables short-lived, passwordless authentication to Azure OpenAI from AKS without storing secrets in pods. Requires enabling OIDC issuer, Workload Identity, service account annotations, and pod labeling.&lt;/li&gt;
+        &lt;li&gt;User-delegated (interactive apps): Use user-based authentication in frontends/worker apps; appropriate when the user context is required (for example, per-user metering or consent). More complexity around token flows, less suitable for daemon agents.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Minimal working example&lt;/h2&gt;
+        &lt;p&gt;Prereqs&lt;/p&gt;
+        &lt;ul&gt;
+        &lt;li&gt;.NET 8 or Python 3.9+, Azure.Identity 1.10+ and Azure.AI.OpenAI/Microsoft.Extensions.AI for .NET, or openai 1.x with azure-identity for Python.&lt;/li&gt;
+        &lt;li&gt;Azure OpenAI resource with a custom subdomain endpoint (required for Entra tokens).&lt;/li&gt;
+        &lt;li&gt;Role: Cognitive Services OpenAI User assigned to the identity at the resource scope.&lt;/li&gt;
+        &lt;p&gt;A) .NET (App Service with system-assigned MI) Packages: Azure.Identity, Azure.AI.OpenAI, Microsoft.Extensions.AI&lt;/p&gt;
+        &lt;/ul&gt;
+        &lt;pre&gt;&lt;code&gt;using Azure.Identity;
+using Azure.AI.OpenAI;
+
+var credential = new DefaultAzureCredential();
+var client = new OpenAIClient(new Uri("https://YOUR-RESOURCE.openai.azure.com/"), credential);
+
+var resp = await client.GetChatCompletionsAsync("gpt-4o", new ChatCompletionsOptions
+{
+    Messages = { new ChatMessage(ChatRole.User, "Hello from Entra auth!") }
+});
+Console.WriteLine(resp.Value.Choices[0].Message.Content);&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Test: Deploy to App Service with identity enabled; assign Cognitive Services OpenAI User on the OpenAI resource; call endpoint and inspect server logs for successful token acquisition. B) AKS Workload Identity (secure access sample) Steps: Enable OIDC issuer and Workload Identity; create user-assigned MI; create federated credential; annotate service account; label pods. Pod manifest snippet:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-service
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: ai-service
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: workload-identity-sa
+      containers:
+      - name: ai-service
+        image: ghcr.io/azure-samples/aks-store-demo/ai-service:latest
+        env:
+        - name: USE_AZURE_OPENAI
+          value: "True"
+        - name: USE_AZURE_AD
+          value: "True"
+        - name: AZURE_OPENAI_DEPLOYMENT_NAME
+          value: "DEPLOYMENT"
+        - name: AZURE_OPENAI_ENDPOINT
+          value: "https://YOUR-RESOURCE.openai.azure.com/"&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Test: kubectl apply; confirm tokens acquired via Workload ID; verify successful calls to Azure OpenAI.&lt;/p&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Use the OpenAI resource's custom subdomain endpoint for Entra tokens.&lt;/li&gt;
+        &lt;li&gt;Assign the Cognitive Services OpenAI User role to the managed identity at the correct scope.&lt;/li&gt;
+        &lt;li&gt;On AKS, enable Workload Identity and OIDC issuer; configure service account annotations and azure.workload.identity/use label.&lt;/li&gt;
+        &lt;li&gt;Prefer DefaultAzureCredential for host portability; provide client_id for user-assigned MI.&lt;/li&gt;
+        &lt;li&gt;Map workloads to least-privilege scopes (resource vs RG vs subscription).&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Where this doesn't apply&lt;/h2&gt;
+        &lt;p&gt;Purely external, non-Azure hosting lacking managed identity support; use service principals with key vault-backed secrets only as a transitional measure (with rotation and audit).&lt;/p&gt;
+        &lt;h2&gt;Sources&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Authenticate an Azure hosted .NET app to Azure OpenAI using Entra ID (GA) — https://learn.microsoft.com/en-us/dotnet/ai/how-to/app-service-aoai-auth (accessed 2026-10-13).&lt;/li&gt;
+        &lt;li&gt;Foundry (classic) Entra auth for Azure OpenAI (GA) — https://learn.microsoft.com/en-us/azure/foundry-classic/openai/how-to/managed-identity (accessed 2026-10-13).&lt;/li&gt;
+        &lt;li&gt;Secure access to Azure OpenAI from AKS (GA) — https://learn.microsoft.com/en-us/azure/aks/open-ai-secure-access-quickstart (accessed 2026-10-13).&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;p&gt;---&lt;/p&gt;</atom:content></atom:entry><atom:entry><atom:title>Starting a local data pipeline in the right order, on a laptop that stays usable</atom:title><atom:id>https://www.imshubh.com/articles/docker/starting-a-local-data-pipeline-in-the-right-order.html</atom:id><atom:link href="https://www.imshubh.com/articles/docker/starting-a-local-data-pipeline-in-the-right-order.html" rel="alternate" /><atom:published>2025-08-20T12:00:00-07:00</atom:published><atom:updated>2025-08-20T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How I use Compose profiles, health-gated startup and hard resource caps so a multi-service stack boots predictably and does not eat my machine.</atom:summary><atom:category term="docker" /><atom:category term="containers" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
         &lt;p&gt;Everyone has had the local stack that mostly works. The database is still initialising when the API connects, a worker grabs a port something else expected, and a few minutes later the fans are screaming because three containers decided they own every core. None of this is exotic. It comes from three habits: relying on start order instead of readiness, letting ports be whatever they turn out to be, and leaving resource limits at their defaults. All three are cheap to fix in a Compose file.&lt;/p&gt;
         &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
         &lt;ul&gt;&lt;li&gt;Fixed sleeps in an entrypoint: easy to write, wrong on a slow day and wasteful on a fast one.&lt;/li&gt;&lt;li&gt;Wait-for scripts: they work, but you maintain a script per dependency and each one hides a different definition of ready.&lt;/li&gt;&lt;li&gt;Healthchecks plus depends_on with condition service_healthy: Compose does the waiting, and readiness is defined once, next to the service it describes.&lt;/li&gt;&lt;/ul&gt;

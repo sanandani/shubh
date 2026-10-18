@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A hands-on path to deploy ONNX models with Triton or ORT, readiness checks, and GPU node pools." />
+    <title>Serving ONNX models on AKS GPU without surprises — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/microsoft/serving-onnx-models-on-aks-gpu-without-surprises.html" />
+    <meta property="article:published_time" content="2025-10-08T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Serving ONNX models on AKS GPU without surprises" />
+    <meta property="og:description" content="A hands-on path to deploy ONNX models with Triton or ORT, readiness checks, and GPU node pools." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/microsoft/serving-onnx-models-on-aks-gpu-without-surprises.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="microsoft" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Serving ONNX models on AKS GPU without surprises","datePublished":"2025-10-08T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"A hands-on path to deploy ONNX models with Triton or ORT, readiness checks, and GPU node pools.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/microsoft/serving-onnx-models-on-aks-gpu-without-surprises.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#microsoft">← Microsoft articles</a>
+      <header class="article-document-header"><p class="kicker">Platform operations</p><h1>Serving ONNX models on AKS GPU without surprises</h1><p class="article-deck">A hands-on path to deploy ONNX models with Triton or ORT, readiness checks, and GPU node pools.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2025-10-08T12:00:00-07:00">Published October 8, 2025</time><span>·</span><span>10–12 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+        <p>ONNX Runtime provides optimized inference across multiple accelerators. In production, AKS GPU node pools must be prepared (drivers/plugins), readiness and health checks must reflect model load state, and autoscaling must consider GPU allocation and throughput constraints.</p>
+        <h2>Options and trade-offs</h2>
+        <ul>
+        <li>NVIDIA Triton with ONNX backend: Multi-framework server with health/readiness endpoints; simplifies model repos and supports gRPC/HTTP. Operationally richer; larger image footprint; excellent for multi-model serving.</li>
+        <li>ORT server containers: Leaner; you must select images/runtime versions and wire health probes yourself; good for single model or simple stacks.</li>
+        <li>Node pool strategy: Dedicated GPU node pools with NVIDIA device plugin; enforce nvidia.com/gpu limits; separate system and user pools for stable scheduling.</li>
+        </ul>
+        <h2>Minimal working example</h2>
+        <p>Prereqs</p>
+        <ul>
+        <li>AKS cluster; GPU node pool with NVIDIA device plugin; kubectl; Triton image; PVC for model repository.</li>
+        <li>Model: ResNet-50 in ONNX.</li>
+        <p>Deployment (Triton + ONNX)</p>
+        </ul>
+        <pre><code>apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: triton-server
+  namespace: inference
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: triton-server
+  template:
+    metadata:
+      labels:
+        app: triton-server
+    spec:
+      containers:
+      - name: triton
+        image: nvcr.io/nvidia/tritonserver:24.08-py3
+        args: ["tritonserver","--model-repository=/models/repository","--strict-model-config=false"]
+        ports:
+        - containerPort: 8000
+          name: http
+        - containerPort: 8001
+          name: grpc
+        readinessProbe:
+          httpGet:
+            path: /v2/health/ready
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          failureThreshold: 6
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+        volumeMounts:
+        - name: model-vol
+          mountPath: /models
+      volumes:
+      - name: model-vol
+        persistentVolumeClaim:
+          claimName: triton-model-repository-pvc</code></pre>
+        <p>Test: kubectl get pods -n inference; wait for readiness; send inference to port 8000; confirm GPU assignment with kubectl describe. Version and runtime assumptions</p>
+        <ul>
+        <li>Triton 24.08; AKS GPU plugin installed; ONNX Runtime on server side via Triton; CUDA matching driver for your GPU.</li>
+        </ul>
+        <h2>Checklist</h2>
+        <ul>
+        <li>Validate CUDA/cuDNN compatibility with the ORT/Triton image; mismatches silently fallback to CPU in some cases.</li>
+        <li>Pin readinessProbe to /v2/health/ready; initialDelaySeconds accounts for model load.</li>
+        <li>Use separate GPU node pools; confirm nvidia.com/gpu schedulable capacity.</li>
+        <li>Cap replicas by GPU capacity; ensure PVC throughput supports model load.</li>
+        </ul>
+        <h2>Where this doesn't apply</h2>
+        <p>CPU-only inference; use ORT CPU builds and different autoscaling signals.</p>
+        <h2>Sources</h2>
+        <ul>
+        <li>AI Inference on AKS with Triton + ONNX (GA blog) — https://blog.aks.azure.com/2026/04/07/ai-inference-on-aks-arc-part-4 (accessed 2026-10-13).</li>
+        <li>ONNX Runtime install and CUDA requirements (GA) — https://onnxruntime.ai/docs/install/ (accessed 2026-10-13).</li>
+        <li>Use GPUs on AKS Hybrid/Edge node pools (GA) — https://github.com/MicrosoftDocs/azure-stack-docs/blob/main/AKS-Arc/deploy-gpu-node-pool.md (accessed 2026-10-13).</li>
+        </ul>
+        <p>---</p></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

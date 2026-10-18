@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Scope, phasing and incident readiness when moving AKS workloads from AAD Pod Identity or static secrets to Workload Identity." />
+    <title>Programmatic rollout of Workload Identity — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/microsoft/programmatic-rollout-of-workload-identity.html" />
+    <meta property="article:published_time" content="2026-03-06T12:00:00-08:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Programmatic rollout of Workload Identity" />
+    <meta property="og:description" content="Scope, phasing and incident readiness when moving AKS workloads from AAD Pod Identity or static secrets to Workload Identity." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/microsoft/programmatic-rollout-of-workload-identity.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="microsoft" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Programmatic rollout of Workload Identity","datePublished":"2026-03-06T12:00:00-08:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"Scope, phasing and incident readiness when moving AKS workloads from AAD Pod Identity or static secrets to Workload Identity.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/microsoft/programmatic-rollout-of-workload-identity.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#microsoft">← Microsoft articles</a>
+      <header class="article-document-header"><p class="kicker">Engineering leadership</p><h1>Programmatic rollout of Workload Identity</h1><p class="article-deck">Scope, phasing and incident readiness when moving AKS workloads from AAD Pod Identity or static secrets to Workload Identity.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-03-06T12:00:00-08:00">Published March 6, 2026</time><span>·</span><span>9–11 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+        <p>AKS Workload Identity replaces the deprecated AAD Pod Identity and removes static secrets from pods. A rollout touches the control plane, depends on SDK versions in every workload, and can fail in ways that only show up under load or after a token refresh. Without a plan, the first sign of a problem is an application that cannot reach its database.</p>
+        <h2>Options and trade-offs</h2>
+        <ul>
+        <li>Enable the OIDC issuer and Workload Identity on the cluster: a one-time change with a short control-plane impact. Announce a window for it.</li>
+        <li>Parallel migration: run Workload Identity next to Pod Identity, move one workload at a time, verify each, then remove Pod Identity. It is slower, and it is the only approach with a clean rollback.</li>
+        <li>Sidecar proxy for older SDKs: a temporary bridge that intercepts calls to the instance metadata endpoint for workloads that cannot upgrade yet. Treat it as a deadline, not a destination.</li>
+        </ul>
+        <h2>My recommendation</h2>
+        <p>Migrate per namespace, starting with a low-risk internal workload. Define rollback criteria before the first change: error rate on token acquisition, authentication failures to the target service, and pod restarts. Do not remove Pod Identity until every workload has run on Workload Identity through at least one full token-renewal cycle.</p>
+        <h2>Minimal working example</h2>
+        <p>Enable the cluster features and look up the issuer:</p>
+        <pre><code>az aks update --resource-group &lt;rg&gt; --name &lt;aks&gt; \
+  --enable-oidc-issuer --enable-workload-identity
+
+OIDC_ISSUER=$(az aks show -g &lt;rg&gt; -n &lt;aks&gt; --query "oidcIssuerProfile.issuerUrl" -o tsv)</code></pre>
+        <p>Create a managed identity and federate it with one service account:</p>
+        <pre><code>az identity create --name app-identity --resource-group &lt;rg&gt;
+CLIENT_ID=$(az identity show -n app-identity -g &lt;rg&gt; --query clientId -o tsv)
+
+az identity federated-credential create \
+  --name app-fic \
+  --identity-name app-identity \
+  --resource-group &lt;rg&gt; \
+  --issuer "$OIDC_ISSUER" \
+  --subject system:serviceaccount:&lt;namespace&gt;:app-sa \
+  --audience api://AzureADTokenExchange</code></pre>
+        <p>Annotate the service account and label the pod:</p>
+        <pre><code>apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: app-sa
+  namespace: &lt;namespace&gt;
+  annotations:
+    azure.workload.identity/client-id: "&lt;client-id&gt;"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  namespace: &lt;namespace&gt;
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: app }
+  template:
+    metadata:
+      labels:
+        app: app
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: app-sa
+      containers:
+        - name: app
+          image: &lt;registry&gt;/app:&lt;tag&gt;</code></pre>
+        <p>Test it: deploy one workload, confirm it acquires a token and reaches its Azure dependency, then restart it and confirm it still does after the token refreshes.</p>
+        <h2>Checklist</h2>
+        <ul>
+        <li>Inventory workloads that still call the instance metadata endpoint or use older SDKs, and decide per workload whether to upgrade or bridge.</li>
+        <li>Use one service account and one federated credential per workload identity, and keep least-privilege Azure RBAC on the identity.</li>
+        <li>Write down rollback criteria and who decides, before the change window.</li>
+        <li>Migrate one namespace at a time, and watch token errors and pod restarts after each.</li>
+        <li>Remove Pod Identity only after every workload has been stable on Workload Identity, and confirm the add-on's end-of-support dates.</li>
+        <li>Keep a record of every federated credential so stale ones can be cleaned up.</li>
+        </ul>
+        <h2>Where this doesn't apply</h2>
+        <p>Kubernetes clusters outside Azure. They need the equivalent OIDC issuer configuration and federation, if the platform offers it.</p>
+        <h2>Sources</h2>
+        <ul>
+        <li>Workload Identity overview — https://learn.microsoft.com/en-us/azure/aks/workload-identity-overview</li>
+        <li>Migrate from Pod Identity — https://learn.microsoft.com/en-us/azure/aks/workload-identity-migrate-from-pod-identity</li>
+        <li>Use AAD Pod Identity (deprecation notice) — https://learn.microsoft.com/en-us/azure/aks/use-azure-ad-pod-identity</li>
+        <p>---</p>
+        </ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="When GitHub Advanced Security delivers value on hosted runners, and how to host ephemeral self-hosted runners on Azure when you really need them." />
+    <title>GHAS + Azure runners without ops debt — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/microsoft/ghas-azure-runners-without-ops-debt.html" />
+    <meta property="article:published_time" content="2025-11-15T12:00:00-08:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="GHAS + Azure runners without ops debt" />
+    <meta property="og:description" content="When GitHub Advanced Security delivers value on hosted runners, and how to host ephemeral self-hosted runners on Azure when you really need them." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/microsoft/ghas-azure-runners-without-ops-debt.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="microsoft" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"GHAS + Azure runners without ops debt","datePublished":"2025-11-15T12:00:00-08:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"When GitHub Advanced Security delivers value on hosted runners, and how to host ephemeral self-hosted runners on Azure when you really need them.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/microsoft/ghas-azure-runners-without-ops-debt.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#microsoft">← Microsoft articles</a>
+      <header class="article-document-header"><p class="kicker">Security operations</p><h1>GHAS + Azure runners without ops debt</h1><p class="article-deck">When GitHub Advanced Security delivers value on hosted runners, and how to host ephemeral self-hosted runners on Azure when you really need them.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2025-11-15T12:00:00-08:00">Published November 15, 2025</time><span>·</span><span>9–11 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+        <p>Teams want code, secret and dependency scanning wired into the pull request, not bolted on afterwards. GitHub Advanced Security (GHAS) does that, and for most repositories it runs fine on GitHub-hosted runners. The trouble starts when a build needs custom images, private network access or specialized hardware. Then you are running your own runners, and with them come token handling, scaling and isolation problems that did not exist before.</p>
+        <h2>Options and trade-offs</h2>
+        <ul>
+        <li>GitHub-hosted runners with GHAS: the fastest path. There is no infrastructure to patch and each job gets a clean VM. The limit is that you take the images and network position GitHub gives you.</li>
+        <li>Self-hosted runners on Azure Virtual Machine Scale Sets (VMSS): you control the image, the network and the hardware. In return you own scaling, patching, and the credential used to register runners.</li>
+        <li>Persistent self-hosted runners: simple to set up, and the worst option for security. State and credentials from one job can leak into the next. Avoid them for anything that builds untrusted code.</li>
+        <li>Scope the GHAS features separately: secret scanning and push protection, code scanning with CodeQL, and dependency review. They have different costs and different operational weight, so turn them on in the order that gives the most value for the least friction.</li>
+        </ul>
+        <h2>My recommendation</h2>
+        <p>Start on hosted runners and turn on code scanning and secret scanning. Only add self-hosted capacity for a specific reason you can name, and when you do, make every runner ephemeral: one job, then the VM is gone. Keep the registration credential out of the image and fetch it at boot through a managed identity.</p>
+        <h2>Minimal working example</h2>
+        <p>The flow: a VMSS instance boots, signs in with its managed identity, reads a registration secret from Key Vault, registers itself as an ephemeral runner, runs one job, and exits.</p>
+        <p>Boot script (cloud-init or a custom script extension):</p>
+        <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+
+ORG="my-org"
+VAULT="my-runner-vault"
+RUNNER_DIR=/opt/actions-runner
+
+# 1. Sign in with the VM's managed identity (no secret on disk)
+az login --identity --output none
+
+# 2. Read the credential used to request registration tokens
+GH_TOKEN=$(az keyvault secret show --vault-name "$VAULT" --name gh-runner-admin --query value -o tsv)
+
+# 3. Ask GitHub for a short-lived registration token
+REG_TOKEN=$(curl -fsS -X POST \
+  -H "Authorization: Bearer $GH_TOKEN" \
+  -H "Accept: application/vnd.github+json" \
+  "https://api.github.com/orgs/$ORG/actions/runners/registration-token" | jq -r .token)
+
+# 4. Register as an ephemeral runner in a dedicated group, then run
+cd "$RUNNER_DIR"
+./config.sh --url "https://github.com/$ORG" --token "$REG_TOKEN" \
+  --ephemeral --unattended --runnergroup azure-vmss --labels azure-vmss,linux
+./run.sh</code></pre>
+        <p>Target the pool from a workflow, and add code scanning alongside it:</p>
+        <pre><code>name: ci
+on: [pull_request]
+
+jobs:
+  build:
+    runs-on: [self-hosted, linux, azure-vmss]
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./build.sh
+
+  codeql:
+    runs-on: ubuntu-latest        # hosted runner is enough for scanning most repos
+    permissions:
+      security-events: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: java
+      - uses: github/codeql-action/analyze@v3</code></pre>
+        <p>Test it: queue a job, confirm a new VM registers, runs the job, and disappears from the runner list afterwards. Then check that a second job lands on a different VM.</p>
+        <h2>Checklist</h2>
+        <ul>
+        <li>Confirm which GHAS features your plan includes and how active committers are counted before you roll out widely.</li>
+        <li>Make every self-hosted runner ephemeral, and put them in a dedicated runner group restricted to the repositories that need them.</li>
+        <li>Fetch the registration credential at boot through a managed identity and Key Vault. Never bake it into the image.</li>
+        <li>Prefer a GitHub App over a personal access token for requesting registration tokens, so access is scoped and not tied to a person.</li>
+        <li>Isolate the runner network. Allow only the egress the builds need.</li>
+        <li>Autoscale on queue depth, and cap the maximum instance count so a burst cannot become a bill.</li>
+        <li>Use hosted runners for CodeQL unless the build needs something they cannot provide.</li>
+        </ul>
+        <h2>Where this doesn't apply</h2>
+        <p>Standard build stacks fit GitHub-hosted runners, and you should use them. Self-hosted capacity is justified by a real constraint (private network, custom hardware, compliance), not by habit.</p>
+        <h2>Sources</h2>
+        <ul>
+        <li>GitHub security features overview — https://docs.github.com/en/code-security/getting-started/github-security-features</li>
+        <li>Self-hosted runners — https://docs.github.com/en/actions/hosting-your-own-runners</li>
+        <li>GH-500 study guide — https://learn.microsoft.com/en-us/credentials/certifications/resources/study-guides/gh-500</li>
+        <p>---</p>
+        </ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

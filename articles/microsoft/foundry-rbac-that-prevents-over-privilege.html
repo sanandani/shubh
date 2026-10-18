@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Mapping Microsoft Foundry roles to tasks for projects, models and agent endpoints, so developers get what they need and nothing more." />
+    <title>Foundry RBAC that prevents over-privilege — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/microsoft/foundry-rbac-that-prevents-over-privilege.html" />
+    <meta property="article:published_time" content="2026-02-02T12:00:00-08:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Foundry RBAC that prevents over-privilege" />
+    <meta property="og:description" content="Mapping Microsoft Foundry roles to tasks for projects, models and agent endpoints, so developers get what they need and nothing more." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/microsoft/foundry-rbac-that-prevents-over-privilege.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="microsoft" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Foundry RBAC that prevents over-privilege","datePublished":"2026-02-02T12:00:00-08:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"Mapping Microsoft Foundry roles to tasks for projects, models and agent endpoints, so developers get what they need and nothing more.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/microsoft/foundry-rbac-that-prevents-over-privilege.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#microsoft">← Microsoft articles</a>
+      <header class="article-document-header"><p class="kicker">AI platform operations</p><h1>Foundry RBAC that prevents over-privilege</h1><p class="article-deck">Mapping Microsoft Foundry roles to tasks for projects, models and agent endpoints, so developers get what they need and nothing more.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-02-02T12:00:00-08:00">Published February 2, 2026</time><span>·</span><span>10–12 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+        <p>Teams over-assign roles because it is faster. One person ends up able to create projects, deploy models and publish agents because it was easier to grant a broad role once than to think about it. Foundry has built-in roles that separate these tasks, and using them well is the cheapest security improvement available. One thing to know up front: the roles were renamed. What used to be called Azure AI User is now Foundry User, and Azure AI Project Manager is now Foundry Project Manager. If your infrastructure code still uses the old names, update it.</p>
+        <h2>Options and trade-offs</h2>
+        <ul>
+        <li>Foundry User: the least-privilege developer role. It gives reader access to the project and resource plus the data actions needed to build and test agents. It does not allow deploying or managing models.</li>
+        <li>Foundry Project Manager: everything Foundry User can do, plus creating and managing projects, publishing agents, and assigning the Foundry User role to others. It does not include model deployment.</li>
+        <li>Foundry Account Owner and Foundry Owner: manage the account and projects, including deploying models. These are broad. Use them sparingly and for platform owners only.</li>
+        <li>Agent consumers: callers who only need to invoke a published agent should get access to the agent endpoint, not a build or admin role.</li>
+        </ul>
+        <h2>My recommendation</h2>
+        <p>Give developers Foundry User and nothing else on the resource. Give team leads Foundry Project Manager so they can create projects and invite developers without waiting on a platform team. Reserve Foundry Account Owner for the few people who actually deploy models. Review assignments on a schedule, because over-privilege creeps back.</p>
+        <h2>Minimal working example</h2>
+        <p>Assign roles by name at the narrowest scope that works:</p>
+        <pre><code>SUB=&lt;subscription-id&gt;
+RG=&lt;resource-group&gt;
+ACCOUNT=&lt;foundry-resource-name&gt;
+SCOPE="/subscriptions/$SUB/resourceGroups/$RG/providers/Microsoft.CognitiveServices/accounts/$ACCOUNT"
+
+# Developers: least privilege
+az role assignment create \
+  --assignee &lt;developer-object-id&gt; \
+  --role "Foundry User" \
+  --scope "$SCOPE"
+
+# Team lead: can create projects, publish agents, invite developers
+az role assignment create \
+  --assignee &lt;lead-object-id&gt; \
+  --role "Foundry Project Manager" \
+  --scope "$SCOPE"
+
+# Platform owner who deploys models
+az role assignment create \
+  --assignee &lt;platform-owner-object-id&gt; \
+  --role "Foundry Account Owner" \
+  --scope "$SCOPE"</code></pre>
+        <p>Audit who has what:</p>
+        <pre><code>az role assignment list --scope "$SCOPE" \
+  --query "[].{principal:principalName, role:roleDefinitionName}" -o table</code></pre>
+        <p>Test it: sign in as a Foundry User and confirm you can build and run an agent but cannot deploy a model. Sign in as a Project Manager and confirm you can publish an agent but still cannot deploy a model.</p>
+        <h2>Checklist</h2>
+        <ul>
+        <li>Start every developer at Foundry User on the resource, and elevate only for a named task.</li>
+        <li>Check the permission tables for "manage models" and deployment before granting Account Owner or Owner.</li>
+        <li>Remember that Project Manager can assign only the Foundry User role, which makes delegated onboarding safe.</li>
+        <li>Give service principals and end users that only invoke agents the narrowest role that allows it.</li>
+        <li>Update scripts and templates that still reference the old Azure AI role names.</li>
+        <li>Review role assignments at a regular interval, and remove access when people change teams.</li>
+        </ul>
+        <h2>Where this doesn't apply</h2>
+        <p>Older hub-based (classic) projects have a different role surface. If you run both, map roles carefully and do not assume names carry across.</p>
+        <h2>Sources</h2>
+        <ul>
+        <li>Role-based access control for Microsoft Foundry — https://learn.microsoft.com/en-us/azure/foundry/concepts/rbac-foundry</li>
+        <li>Elevated-role tasks in Microsoft Foundry — https://learn.microsoft.com/en-us/azure/foundry/concepts/administrator-guide</li>
+        <li>Azure built-in roles for AI + machine learning — https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/ai-machine-learning</li>
+        <p>---</p>
+        </ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="What kata-cc isolates, how attestation ties to key release, and operational constraints." />
+    <title>AKS confidential containers for model isolation — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/microsoft/aks-confidential-containers-for-model-isolation.html" />
+    <meta property="article:published_time" content="2026-09-21T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="AKS confidential containers for model isolation" />
+    <meta property="og:description" content="What kata-cc isolates, how attestation ties to key release, and operational constraints." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/microsoft/aks-confidential-containers-for-model-isolation.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="microsoft" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"AKS confidential containers for model isolation","datePublished":"2026-09-21T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"What kata-cc isolates, how attestation ties to key release, and operational constraints.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/microsoft/aks-confidential-containers-for-model-isolation.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#microsoft">← Microsoft articles</a>
+      <header class="article-document-header"><p class="kicker">Identity and trust</p><h1>AKS confidential containers for model isolation</h1><p class="article-deck">What kata-cc isolates, how attestation ties to key release, and operational constraints.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-09-21T12:00:00-07:00">Published September 21, 2026</time><span>·</span><span>12–14 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+        <p>Some AI workloads need runtime confidentiality: protect model artifacts and user data from the host OS/kernel and operators. AKS confidential containers (kata-cc) isolate the pod in a confidential utility VM with attestation and policy controls. Trade-offs include startup time, debugging limitations, and preview status constraints.</p>
+        <h2>Options and trade-offs</h2>
+        <ul>
+        <li>AKS confidential VM node pool: Node-level boundary; simpler lift-and-shift; not per-pod sandbox.</li>
+        <li>AKS confidential containers (kata-cc): Pod-level confidential sandbox, policy generator and attestation; more operational constraints; supports Azure Linux and specific VM SKUs; preview limitations apply.</li>
+        <li>ACI confidential containers: Container group boundary; suitable for event-driven jobs; fewer orchestration features than AKS.</li>
+        </ul>
+        <h2>Minimal working example</h2>
+        <p>Prereqs</p>
+        <ul>
+        <li>Azure CLI 2.44.1+; aks-preview and confcom extensions; Azure Linux; KataCcIsolation on node pool; enable workload identity and OIDC issuer if key release requires identity linkage.</li>
+        <p>Create cluster (example)</p>
+        </ul>
+        <pre><code>az aks create --resource-group rg --name aks-cc \
+  --kubernetes-version 1.25.0 \
+  --os-sku AzureLinux \
+  --node-vm-size Standard_DC8as_cc_v5 \
+  --workload-runtime KataCcIsolation \
+  --enable-oidc-issuer --enable-workload-identity</code></pre>
+        <p>Deploy consumer with attestation sidecar and policy Generate policy with confcom; apply as annotation; tie Key Vault key release to attestation measurement. Test: Remove kata-cc spec and policy; confirm ciphertext (no key release).</p>
+        <h2>Checklist</h2>
+        <ul>
+        <li>Confirm supported SKUs and OS; Azure Linux only for kata-cc at present.</li>
+        <li>Enable and maintain policy (do not use :latest tags because layers are measured).</li>
+        <li>Expect longer pod startup and limited troubleshooting (exec/stdio require policy change).</li>
+        <li>Integrate attestation with Key Vault for secure key release.</li>
+        </ul>
+        <h2>Where this doesn't apply</h2>
+        <p>Windows node pools; or workloads requiring frequent interactive debugging incompatible with kata-cc constraints.</p>
+        <h2>Sources</h2>
+        <ul>
+        <li>Confidential containers (Preview) — https://learn.microsoft.com/en-us/azure/aks/confidential-containers-overview (accessed 2026-10-13).</li>
+        <li>Deploy AKS with confidential containers policy — https://learn.microsoft.com/en-us/azure/aks/deploy-confidential-containers-default-policy (accessed 2026-10-13).</li>
+        <li>Confidential containers overview (Azure confidential computing) — https://github.com/MicrosoftDocs/azure-docs/blob/main/articles/confidential-computing/confidential-containers.md (accessed 2026-10-13).</li>
+        </ul>
+        <p>---</p></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

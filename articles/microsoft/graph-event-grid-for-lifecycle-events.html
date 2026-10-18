@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Receiving tenant-wide identity change notifications at scale with Microsoft Graph and Event Grid partner topics, including the renewal events that people…" />
+    <title>Graph + Event Grid for lifecycle events — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/microsoft/graph-event-grid-for-lifecycle-events.html" />
+    <meta property="article:published_time" content="2025-12-27T12:00:00-08:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Graph + Event Grid for lifecycle events" />
+    <meta property="og:description" content="Receiving tenant-wide identity change notifications at scale with Microsoft Graph and Event Grid partner topics, including the renewal events that people…" />
+    <meta property="og:url" content="https://www.imshubh.com/articles/microsoft/graph-event-grid-for-lifecycle-events.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="microsoft" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Graph + Event Grid for lifecycle events","datePublished":"2025-12-27T12:00:00-08:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"Receiving tenant-wide identity change notifications at scale with Microsoft Graph and Event Grid partner topics, including the renewal events that people…","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/microsoft/graph-event-grid-for-lifecycle-events.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#microsoft">← Microsoft articles</a>
+      <header class="article-document-header"><p class="kicker">Identity operations</p><h1>Graph + Event Grid for lifecycle events</h1><p class="article-deck">Receiving tenant-wide identity change notifications at scale with Microsoft Graph and Event Grid partner topics, including the renewal events that people forget.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2025-12-27T12:00:00-08:00">Published December 27, 2025</time><span>·</span><span>9–11 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+        <p>Microsoft Graph change notifications tell your system when something changes, for example a user is created, updated or deleted. The default delivery method is a webhook, and webhooks are brittle at scale. Endpoints time out, retries pile up, cold starts add latency, and a missed lifecycle event means a subscription quietly expires and you stop hearing about changes. Event Grid partner topics replace the webhook with managed delivery, retries, dead-lettering and fan-out to serverless handlers.</p>
+        <h2>Options and trade-offs</h2>
+        <ul>
+        <li>Direct webhook to a Function or web app: the simplest to build. You own scaling, retry behavior and response-time limits, and a slow validation response can lose the subscription.</li>
+        <li>Event Grid partner topic: Graph delivers to a topic in your Azure subscription, and you attach event subscriptions to route the events. There is more setup, but delivery, retry and dead-lettering are handled for you.</li>
+        <li>Event Hubs: the right choice for very high-volume streams where you want partitioned, replayable consumption rather than per-event routing.</li>
+        </ul>
+        <h2>My recommendation</h2>
+        <p>Use an Event Grid partner topic for anything that must not lose events: identity lifecycle changes that drive access removal or deprovisioning. Subscribe to lifecycle notifications as well as change notifications, and treat renewal as part of the design, not an afterthought.</p>
+        <h2>Minimal working example</h2>
+        <p>Step 1: create the Graph subscription. The notification URL points at Event Grid instead of a web address:</p>
+        <pre><code>POST https://graph.microsoft.com/v1.0/subscriptions
+Content-Type: application/json
+Authorization: Bearer &lt;token&gt;
+
+{
+  "changeType": "created,updated,deleted",
+  "notificationUrl": "EventGrid:?azuresubscriptionid=&lt;subscription-id&gt;&amp;resourcegroup=&lt;resource-group&gt;&amp;partnertopic=&lt;topic-name&gt;&amp;location=&lt;region&gt;",
+  "lifecycleNotificationUrl": "EventGrid:?azuresubscriptionid=&lt;subscription-id&gt;&amp;resourcegroup=&lt;resource-group&gt;&amp;partnertopic=&lt;topic-name&gt;&amp;location=&lt;region&gt;",
+  "resource": "users",
+  "expirationDateTime": "2026-12-01T00:00:00Z",
+  "clientState": "&lt;random-secret-value&gt;"
+}</code></pre>
+        <p>Step 2: activate the partner topic that Graph created in your resource group, then route it:</p>
+        <pre><code>az eventgrid partner topic activate \
+  --name &lt;topic-name&gt; \
+  --resource-group &lt;resource-group&gt;</code></pre>
+        <p>Then add an event subscription on the topic that sends events to an Azure Function (portal or CLI).</p>
+        <p>Step 3: handle events asynchronously. The function should do as little as possible before returning:</p>
+        <pre><code>using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.Logging;
+using System.Text.Json;
+
+public class OnGraphEvent
+{
+    private readonly ILogger&lt;OnGraphEvent&gt; _log;
+    public OnGraphEvent(ILogger&lt;OnGraphEvent&gt; log) =&gt; _log = log;
+
+    [Function("OnGraphEvent")]
+    public void Run([EventGridTrigger] string eventJson)
+    {
+        using var doc = JsonDocument.Parse(eventJson);
+        var type = doc.RootElement.GetProperty("type").GetString();
+
+        if (type != null &amp;&amp; type.Contains("lifecycleNotification", StringComparison.OrdinalIgnoreCase))
+        {
+            _log.LogInformation("Lifecycle event received, renew the subscription: {Type}", type);
+            // enqueue a renewal job
+            return;
+        }
+
+        _log.LogInformation("Change event: {Type}", type);
+        // enqueue the change for processing, do not do slow work here
+    }
+}</code></pre>
+        <p>Check the exact event schema and type names against your own partner topic before you rely on them, since they differ by resource and Graph version.</p>
+        <p>Test it: create a test user, confirm an event reaches the function, then delete the user and confirm the delete event arrives. Let a short-lived subscription run to expiry in a test tenant and confirm the lifecycle event fires.</p>
+        <h2>Checklist</h2>
+        <ul>
+        <li>Subscribe to lifecycle notifications as well as change notifications, and renew subscriptions when the lifecycle events say so.</li>
+        <li>Check the maximum subscription lifetime for the resource type, and set renewal well before it.</li>
+        <li>Put a <code>clientState</code> secret in the subscription and validate it on receipt where your handler can see it.</li>
+        <li>Keep handlers fast and idempotent. Queue work and return, since events can be delivered more than once.</li>
+        <li>Configure dead-lettering on the event subscription and alert when messages land there.</li>
+        <li>Use encrypted rich notifications where the resource supports them, and manage the certificates as documented.</li>
+        </ul>
+        <h2>Where this doesn't apply</h2>
+        <p>Extremely high-volume streams, where Event Hubs is a better fit. Also, resources that Graph does not support through Event Grid partner topics still need a webhook.</p>
+        <h2>Sources</h2>
+        <ul>
+        <li>Change notifications overview — https://learn.microsoft.com/en-us/graph/change-notifications-overview</li>
+        <li>Microsoft Graph Event Grid sample (.NET) — https://github.com/microsoftgraph/msgraph-sample-eventgrid-notifications-dotnet</li>
+        <li>Microsoft Graph Event Grid sample (Java) — https://github.com/microsoftgraph/msgraph-sample-eventgrid-notifications-java</li>
+        <p>---</p>
+        </ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

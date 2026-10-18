@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Putting Azure API Management in front of Azure OpenAI: managed identity to the backend, token validation at the edge, and rate limits per caller." />
+    <title>API gateway enforcement for LLM APIs — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/microsoft/api-gateway-enforcement-for-llm-apis.html" />
+    <meta property="article:published_time" content="2026-09-09T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="API gateway enforcement for LLM APIs" />
+    <meta property="og:description" content="Putting Azure API Management in front of Azure OpenAI: managed identity to the backend, token validation at the edge, and rate limits per caller." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/microsoft/api-gateway-enforcement-for-llm-apis.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="microsoft" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"API gateway enforcement for LLM APIs","datePublished":"2026-09-09T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"Putting Azure API Management in front of Azure OpenAI: managed identity to the backend, token validation at the edge, and rate limits per caller.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/microsoft/api-gateway-enforcement-for-llm-apis.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#microsoft">← Microsoft articles</a>
+      <header class="article-document-header"><p class="kicker">Platform operations</p><h1>API gateway enforcement for LLM APIs</h1><p class="article-deck">Putting Azure API Management in front of Azure OpenAI: managed identity to the backend, token validation at the edge, and rate limits per caller.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-09-09T12:00:00-07:00">Published September 9, 2026</time><span>·</span><span>9–11 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+        <p>When every team calls the model endpoint directly, governance is a spreadsheet: who has access, how much they use, and what they send. Putting a gateway in front of the model gives you one place to authenticate callers, enforce limits and log usage. Azure API Management (APIM) can authenticate to Azure OpenAI with its own managed identity, so no API keys are stored or shared, and it can validate caller tokens before anything reaches the model.</p>
+        <h2>Options and trade-offs</h2>
+        <ul>
+        <li>Managed identity to the backend: APIM holds the identity, callers hold nothing that works against the model directly. It is simple for service-to-service access, and every caller shares the same backend privileges.</li>
+        <li>OAuth 2.0 validation at the gateway: callers present Entra tokens, and APIM checks audience and roles before forwarding. You get per-caller control and audit, with more setup.</li>
+        <li>Per-caller limits: rate limits keyed on the caller's identity stop one team's runaway loop from using the shared quota.</li>
+        </ul>
+        <h2>My recommendation</h2>
+        <p>Use both layers. Validate the caller's token at the gateway, then use the gateway's managed identity to call the backend. Add a rate limit keyed on the caller. Disable key-based access on the model resource once traffic flows through the gateway, so there is no way around it.</p>
+        <h2>Minimal working example</h2>
+        <p>Enable a managed identity on the APIM instance and grant it access to the model resource:</p>
+        <pre><code>az role assignment create \
+  --assignee &lt;apim-principal-id&gt; \
+  --role "Cognitive Services OpenAI User" \
+  --scope &lt;azure-openai-resource-id&gt;</code></pre>
+        <p>Then add the inbound policy. It validates the caller, limits usage, and swaps the caller's token for the gateway's backend token:</p>
+        <pre><code>&lt;inbound&gt;
+  &lt;base /&gt;
+
+  &lt;!-- 1. Validate the caller's Entra token --&gt;
+  &lt;validate-jwt header-name="Authorization" failed-validation-httpcode="401"
+                failed-validation-error-message="Unauthorized"&gt;
+    &lt;openid-config url="https://login.microsoftonline.com/&lt;tenant-id&gt;/v2.0/.well-known/openid-configuration" /&gt;
+    &lt;audiences&gt;
+      &lt;audience&gt;&lt;gateway-app-id&gt;&lt;/audience&gt;
+    &lt;/audiences&gt;
+    &lt;required-claims&gt;
+      &lt;claim name="roles" match="any"&gt;
+        &lt;value&gt;LLM.Invoke&lt;/value&gt;
+      &lt;/claim&gt;
+    &lt;/required-claims&gt;
+  &lt;/validate-jwt&gt;
+
+  &lt;!-- 2. Limit usage per caller --&gt;
+  &lt;rate-limit-by-key calls="60" renewal-period="60"
+      counter-key="@(context.Request.Headers.GetValueOrDefault("Authorization","").AsJwt()?.Subject)" /&gt;
+
+  &lt;!-- 3. Authenticate to the backend with the gateway's managed identity --&gt;
+  &lt;authentication-managed-identity resource="https://cognitiveservices.azure.com"
+      output-token-variable-name="managed-id-access-token" ignore-error="false" /&gt;
+  &lt;set-header name="Authorization" exists-action="override"&gt;
+    &lt;value&gt;@("Bearer " + (string)context.Variables["managed-id-access-token"])&lt;/value&gt;
+  &lt;/set-header&gt;
+&lt;/inbound&gt;</code></pre>
+        <p>Test it: call the gateway with a valid token and confirm a normal response, call without a token and confirm a 401, and call in a loop to confirm the rate limit returns 429.</p>
+        <h2>Checklist</h2>
+        <ul>
+        <li>Use the model resource's custom subdomain endpoint, and confirm the role assignment scope.</li>
+        <li>Validate the audience and a role claim at the gateway, not just that a token exists.</li>
+        <li>Key the rate limit on the caller's identity, not on an IP address that may be shared.</li>
+        <li>Disable local (key) authentication on the model resource after cutover.</li>
+        <li>Log request metadata for audit, and keep prompt and completion content out of default logs.</li>
+        <li>Check that your policy ordering does what you expect: validation first, then limits, then backend authentication.</li>
+        </ul>
+        <h2>Where this doesn't apply</h2>
+        <p>Backends that do not support Entra authentication or gateway integration. There, the gateway still helps with limits and audit, but backend authentication needs another design.</p>
+        <h2>Sources</h2>
+        <ul>
+        <li>Authenticate and authorize to LLM APIs with Azure API Management — https://learn.microsoft.com/en-us/azure/api-management/api-management-authenticate-authorize-ai-apis</li>
+        <li>authentication-managed-identity policy — https://learn.microsoft.com/en-us/azure/api-management/authentication-managed-identity-policy</li>
+        </ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

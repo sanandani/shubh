@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="How to authenticate services and agents to Azure OpenAI using Entra ID, managed identity, and AKS Workload ID." />
+    <title>Azure OpenAI authentication patterns without API keys — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/microsoft/azure-openai-authentication-patterns-without-api-keys.html" />
+    <meta property="article:published_time" content="2025-09-07T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Azure OpenAI authentication patterns without API keys" />
+    <meta property="og:description" content="How to authenticate services and agents to Azure OpenAI using Entra ID, managed identity, and AKS Workload ID." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/microsoft/azure-openai-authentication-patterns-without-api-keys.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="microsoft" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Azure OpenAI authentication patterns without API keys","datePublished":"2025-09-07T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"How to authenticate services and agents to Azure OpenAI using Entra ID, managed identity, and AKS Workload ID.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/microsoft/azure-openai-authentication-patterns-without-api-keys.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#microsoft">← Microsoft articles</a>
+      <header class="article-document-header"><p class="kicker">Identity operations</p><h1>Azure OpenAI authentication patterns without API keys</h1><p class="article-deck">How to authenticate services and agents to Azure OpenAI using Entra ID, managed identity, and AKS Workload ID.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2025-09-07T12:00:00-07:00">Published September 7, 2025</time><span>·</span><span>10–12 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+        <p>API keys are static credentials that must be distributed, rotated, and audited; they are unsuitable for high-assurance environments and agent frameworks at scale. Azure OpenAI supports Microsoft Entra ID authentication, enabling keyless access via managed identities and workload identities. The friction points are: enabling identity where the app is hosted, scoping roles correctly, and handling client capability differences (service vs AKS vs user-interactive).</p>
+        <h2>Options and trade-offs</h2>
+        <ul>
+        <li>System-assigned managed identity (App Service/Functions/Container Apps): Azure hosts present a managed identity; applications obtain Entra access tokens (DefaultAzureCredential) and call Azure OpenAI via the resource's custom subdomain endpoint. Minimal credential handling; role assignment required ("Cognitive Services OpenAI User").</li>
+        <li>User-assigned managed identity (App Service/ACA/VMs): Provides explicit identity reuse across multiple hosts; requires client_id configuration and role assignment at resource, RG, or subscription scope. Slightly more setup, clearer scoping.</li>
+        <li>AKS Workload Identity: Pods use a Kubernetes service account projected token; a federated identity credential links the service account to a managed identity. This enables short-lived, passwordless authentication to Azure OpenAI from AKS without storing secrets in pods. Requires enabling OIDC issuer, Workload Identity, service account annotations, and pod labeling.</li>
+        <li>User-delegated (interactive apps): Use user-based authentication in frontends/worker apps; appropriate when the user context is required (for example, per-user metering or consent). More complexity around token flows, less suitable for daemon agents.</li>
+        </ul>
+        <h2>Minimal working example</h2>
+        <p>Prereqs</p>
+        <ul>
+        <li>.NET 8 or Python 3.9+, Azure.Identity 1.10+ and Azure.AI.OpenAI/Microsoft.Extensions.AI for .NET, or openai 1.x with azure-identity for Python.</li>
+        <li>Azure OpenAI resource with a custom subdomain endpoint (required for Entra tokens).</li>
+        <li>Role: Cognitive Services OpenAI User assigned to the identity at the resource scope.</li>
+        <p>A) .NET (App Service with system-assigned MI) Packages: Azure.Identity, Azure.AI.OpenAI, Microsoft.Extensions.AI</p>
+        </ul>
+        <pre><code>using Azure.Identity;
+using Azure.AI.OpenAI;
+
+var credential = new DefaultAzureCredential();
+var client = new OpenAIClient(new Uri("https://YOUR-RESOURCE.openai.azure.com/"), credential);
+
+var resp = await client.GetChatCompletionsAsync("gpt-4o", new ChatCompletionsOptions
+{
+    Messages = { new ChatMessage(ChatRole.User, "Hello from Entra auth!") }
+});
+Console.WriteLine(resp.Value.Choices[0].Message.Content);</code></pre>
+        <p>Test: Deploy to App Service with identity enabled; assign Cognitive Services OpenAI User on the OpenAI resource; call endpoint and inspect server logs for successful token acquisition. B) AKS Workload Identity (secure access sample) Steps: Enable OIDC issuer and Workload Identity; create user-assigned MI; create federated credential; annotate service account; label pods. Pod manifest snippet:</p>
+        <pre><code>apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-service
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: ai-service
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: workload-identity-sa
+      containers:
+      - name: ai-service
+        image: ghcr.io/azure-samples/aks-store-demo/ai-service:latest
+        env:
+        - name: USE_AZURE_OPENAI
+          value: "True"
+        - name: USE_AZURE_AD
+          value: "True"
+        - name: AZURE_OPENAI_DEPLOYMENT_NAME
+          value: "DEPLOYMENT"
+        - name: AZURE_OPENAI_ENDPOINT
+          value: "https://YOUR-RESOURCE.openai.azure.com/"</code></pre>
+        <p>Test: kubectl apply; confirm tokens acquired via Workload ID; verify successful calls to Azure OpenAI.</p>
+        <h2>Checklist</h2>
+        <ul>
+        <li>Use the OpenAI resource's custom subdomain endpoint for Entra tokens.</li>
+        <li>Assign the Cognitive Services OpenAI User role to the managed identity at the correct scope.</li>
+        <li>On AKS, enable Workload Identity and OIDC issuer; configure service account annotations and azure.workload.identity/use label.</li>
+        <li>Prefer DefaultAzureCredential for host portability; provide client_id for user-assigned MI.</li>
+        <li>Map workloads to least-privilege scopes (resource vs RG vs subscription).</li>
+        </ul>
+        <h2>Where this doesn't apply</h2>
+        <p>Purely external, non-Azure hosting lacking managed identity support; use service principals with key vault-backed secrets only as a transitional measure (with rotation and audit).</p>
+        <h2>Sources</h2>
+        <ul>
+        <li>Authenticate an Azure hosted .NET app to Azure OpenAI using Entra ID (GA) — https://learn.microsoft.com/en-us/dotnet/ai/how-to/app-service-aoai-auth (accessed 2026-10-13).</li>
+        <li>Foundry (classic) Entra auth for Azure OpenAI (GA) — https://learn.microsoft.com/en-us/azure/foundry-classic/openai/how-to/managed-identity (accessed 2026-10-13).</li>
+        <li>Secure access to Azure OpenAI from AKS (GA) — https://learn.microsoft.com/en-us/azure/aks/open-ai-secure-access-quickstart (accessed 2026-10-13).</li>
+        </ul>
+        <p>---</p></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>
