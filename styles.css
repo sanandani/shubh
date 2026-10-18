@@ -6,6 +6,9 @@
   --lavender: #c6bde9;
   --muted: #5f6174;
   --line: rgba(24, 26, 54, 0.18);
+  --article-link: #625184;
+  --article-link-visited: #51406f;
+  --article-link-hover: #44335f;
 }
 
 * {
@@ -1002,10 +1005,35 @@ footer .brand {
   margin: 8px 0;
 }
 
-.article-prose a {
-  color: #625184;
+.article-prose a,
+.article-references a {
+  color: var(--article-link);
+  text-decoration: underline;
   text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
+  text-underline-offset: 2px;
+  pointer-events: auto;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.article-prose a:visited,
+.article-references a:visited {
+  color: var(--article-link-visited);
+}
+
+.article-prose a:hover,
+.article-references a:hover,
+.article-prose a:focus-visible,
+.article-references a:focus-visible {
+  color: var(--article-link-hover);
+  text-decoration-thickness: 2px;
+}
+
+.article-prose a:focus-visible,
+.article-references a:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 3px;
+  border-radius: 2px;
 }
 
 .article-prose code {

@@ -204,6 +204,47 @@ def visible_unlinked_links(text: str) -> tuple[int, int]:
     return len(markdown), len(bare)
 
 
+def validate_article_link_css(css: str) -> list[str]:
+    errors: list[str] = []
+    rules = [(selectors, declarations) for selectors, declarations in
+             re.findall(r"([^{}]+)\{([^{}]*)\}", css, re.S)]
+
+    def article_anchor(selector: str) -> bool:
+        has_anchor = bool(re.search(r"(?:^|[\s>+~])a(?=[:.#\s]|$)", selector.strip()))
+        article_context = bool(re.search(r"(?:^|[\s>+~])(?:body|main|article|ul|li)(?=[\s>.:#]|$)|\.(?:article|prose|post|content|sources|references)(?:[-_\w]*)?", selector))
+        return has_anchor and (article_context or selector.strip() == "a")
+
+    matched = []
+    for selectors, declarations in rules:
+        selected = [item.strip() for item in selectors.split(",")]
+        if not any(article_anchor(item) for item in selected):
+            continue
+        props = {name.strip().lower(): value.strip() for name, value in
+                 re.findall(r"([\w-]+)\s*:\s*([^;]+)", declarations)}
+        matched.append((selected, props))
+        if props.get("pointer-events", "").lower() == "none":
+            errors.append("pointer-events:none applies to article-content links")
+
+    base = [props for selectors, props in matched
+            if any(".article-prose" in selector and re.search(r"(?:^|\s)a(?=[:.#\s]|$)", selector)
+                   and not re.search(r":(?:visited|hover|focus-visible|active)", selector)
+                   for selector in selectors)]
+    base_colors = {props.get("color", "").lower() for props in base}
+    good_color = any(color and color not in {"inherit", "var(--ink)", "var(--muted)"} for color in base_colors)
+    good_decoration = any(props.get("text-decoration", "").lower() not in {"", "none"} or
+                          props.get("text-decoration-line", "").lower() not in {"", "none"}
+                          for props in base)
+    if not good_color:
+        errors.append("article-content links need a distinct color")
+    if not good_decoration:
+        errors.append("article-content links need visible text decoration")
+    visited_colors = {props.get("color", "").lower() for selectors, props in matched
+                      if any(":visited" in selector and ".article-prose" in selector for selector in selectors)}
+    if not visited_colors or not any(color and color not in base_colors for color in visited_colors):
+        errors.append("article-content visited links need a distinct color")
+    return errors
+
+
 def load_articles() -> list[dict]:
     source = ROOT / "data/articles.json"
     articles = json.loads(source.read_text())
@@ -594,6 +635,11 @@ def validate(articles: list[dict]) -> list[str]:
                 errors.append(f"{page.relative_to(ROOT)}: {markdown_count} visible markdown links, {bare_count} bare visible URLs")
         except (OSError, UnicodeError) as exc:
             errors.append(f"{page.relative_to(ROOT)}: cannot check visible links: {exc}")
+    try:
+        errors.extend(f"styles.css: {error}" for error in
+                      validate_article_link_css((ROOT / "styles.css").read_text(encoding="utf-8")))
+    except (OSError, UnicodeError) as exc:
+        errors.append(f"styles.css: cannot validate article link styles: {exc}")
     return errors
 
 
