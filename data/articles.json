@@ -381,7 +381,7 @@
     "archive_label": "JAVA / PARTIAL DATA",
     "section": "java",
     "minutes": "5",
-    "archive_order": 2
+    "archive_order": 14
   },
   {
     "title": "Flaky Tests Are a Concurrency Bug: Fixing Shared State Under Parallel Execution",
@@ -405,7 +405,7 @@
     "archive_label": "TEST RELIABILITY",
     "section": "java",
     "minutes": "5",
-    "archive_order": 6
+    "archive_order": 10
   },
   {
     "title": "Records Aren’t Just Less Typing: Modeling Ambiguity Without Nulls",
@@ -429,7 +429,7 @@
     "archive_label": "JAVA / DOMAIN MODELING",
     "section": "java",
     "minutes": "5",
-    "archive_order": 10
+    "archive_order": 6
   },
   {
     "title": "Reproducible Java Builds: Pinning, Locking, and Clean-Room Verification",
@@ -453,7 +453,7 @@
     "archive_label": "BUILD SYSTEMS",
     "section": "java",
     "minutes": "5",
-    "archive_order": 4
+    "archive_order": 12
   },
   {
     "title": "Virtual Threads Changed My Mental Model: Practical Lessons From I/O Fan-Out",
@@ -1247,7 +1247,7 @@
     "archive_label": "JAVA NOTES",
     "archive_summary": "Using `--release`, Gradle toolchains, and a bytecode gate to upgrade one module at a time",
     "read_label": "~10 MIN READ ↗",
-    "archive_order": 15
+    "archive_order": 1
   },
   {
     "title": "G1 vs ZGC at JDK 17+: Choosing a Collector and Sizing the Heap",
@@ -1273,7 +1273,7 @@
     "archive_label": "JAVA NOTES",
     "archive_summary": "When G1 still wins, what ZGC costs in memory and CPU, and how to measure it yourself",
     "read_label": "~10 MIN READ ↗",
-    "archive_order": 14
+    "archive_order": 2
   },
   {
     "title": "JFR as the Default: Enabling Continuous Flight Recording Safely",
@@ -1299,7 +1299,7 @@
     "archive_label": "JAVA NOTES",
     "archive_summary": "Bounded, always-on recordings you can dump during an incident, and a parser that turns them into flame graph input",
     "read_label": "~9 MIN READ ↗",
-    "archive_order": 13
+    "archive_order": 3
   },
   {
     "title": "Error Modeling in a Java REST Service: Translate Exceptions Without Changing the Wire Contract",
@@ -1325,7 +1325,7 @@
     "archive_label": "JAVA NOTES",
     "archive_summary": "Typed vs untyped error details, and why \"helpful\" mapping can quietly break your clients",
     "read_label": "~9 MIN READ ↗",
-    "archive_order": 12
+    "archive_order": 4
   },
   {
     "title": "Java Records and Jackson: Null Safety, Schema Evolution, and Round-Trip Tests",
@@ -1351,7 +1351,7 @@
     "archive_label": "JAVA NOTES",
     "archive_summary": "Designing JSON contracts that survive years of change, with property-based tests",
     "read_label": "~9 MIN READ ↗",
-    "archive_order": 11
+    "archive_order": 5
   },
   {
     "title": "Contract Testing a Legacy-to-gRPC Bridge in JUnit 5",
@@ -1377,7 +1377,7 @@
     "archive_label": "JAVA NOTES",
     "archive_summary": "One contract, two implementations, recorded fixtures, and fewer flaky tests",
     "read_label": "~9 MIN READ ↗",
-    "archive_order": 9
+    "archive_order": 7
   },
   {
     "title": "Reproducible Gradle Builds: Why It Passes Locally and Fails in CI",
@@ -1403,7 +1403,7 @@
     "archive_label": "JAVA NOTES",
     "archive_summary": "Resource paths, dependency locking, and byte-for-byte reproducible jars",
     "read_label": "~9 MIN READ ↗",
-    "archive_order": 7
+    "archive_order": 9
   },
   {
     "title": "Allocation Hotspot Hunting with JFR and async-profiler",
@@ -1429,7 +1429,7 @@
     "archive_label": "JAVA NOTES",
     "archive_summary": "Why collection-heavy code hurts your tail latency, and how to measure before optimizing",
     "read_label": "~9 MIN READ ↗",
-    "archive_order": 5
+    "archive_order": 11
   },
   {
     "title": "The Hidden Price of \"One More Log\": Observability Costs on the JVM",
@@ -1455,7 +1455,7 @@
     "archive_label": "JAVA NOTES",
     "archive_summary": "Logging, tracing, and sampling choices that protect your p99",
     "read_label": "~9 MIN READ ↗",
-    "archive_order": 3
+    "archive_order": 13
   },
   {
     "title": "API Evolution: Keep Wire Contracts Stable for Java Clients",
@@ -1481,6 +1481,6 @@
     "archive_label": "JAVA NOTES",
     "archive_summary": "Tolerant readers, batch error handling, and golden-file tests",
     "read_label": "~9 MIN READ ↗",
-    "archive_order": 1
+    "archive_order": 15
   }
 ]
