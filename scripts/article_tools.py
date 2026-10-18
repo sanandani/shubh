@@ -165,6 +165,45 @@ class StrictArticleParser(HTMLParser):
         return json.loads("".join(self.jsonld_parts))
 
 
+class VisibleLinkParser(HTMLParser):
+    """Collect visible text while excluding code, raw-text blocks, and anchors."""
+    VOID_TAGS = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
+    EXCLUDED_TAGS = {"pre", "code", "script", "style"}
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.stack: list[str] = []
+        self.parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag not in self.VOID_TAGS:
+            self.stack.append(tag)
+
+    def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        pass
+
+    def handle_endtag(self, tag: str) -> None:
+        for index in range(len(self.stack) - 1, -1, -1):
+            if self.stack[index] == tag:
+                del self.stack[index:]
+                break
+
+    def handle_data(self, data: str) -> None:
+        hidden = bool(set(self.stack) & (self.EXCLUDED_TAGS | {"a"}))
+        self.parts.append(" " if hidden else data)
+
+
+VISIBLE_MARKDOWN_LINK = re.compile(r"\[[^\]]+\]\(https?://[^)\s]+\)")
+VISIBLE_URL = re.compile(r"https?://[^\s<>\"']+", re.I)
+
+
+def visible_unlinked_links(text: str) -> tuple[int, int]:
+    markdown = list(VISIBLE_MARKDOWN_LINK.finditer(text))
+    bare = [match for match in VISIBLE_URL.finditer(text)
+            if not any(match.start() < link.end() and match.end() > link.start() for link in markdown)]
+    return len(markdown), len(bare)
+
+
 def load_articles() -> list[dict]:
     source = ROOT / "data/articles.json"
     articles = json.loads(source.read_text())
@@ -544,6 +583,17 @@ def validate(articles: list[dict]) -> list[str]:
                 errors.append(f"{name}: missing RSS or Atom alternate link")
         except OSError as exc:
             errors.append(f"{name}: missing or invalid HTML: {exc}")
+    for page in ROOT.rglob("*.html"):
+        if ".git" in page.parts:
+            continue
+        try:
+            parser = VisibleLinkParser()
+            parser.feed(page.read_text(encoding="utf-8")); parser.close()
+            markdown_count, bare_count = visible_unlinked_links("".join(parser.parts))
+            if markdown_count or bare_count:
+                errors.append(f"{page.relative_to(ROOT)}: {markdown_count} visible markdown links, {bare_count} bare visible URLs")
+        except (OSError, UnicodeError) as exc:
+            errors.append(f"{page.relative_to(ROOT)}: cannot check visible links: {exc}")
     return errors
 
 
