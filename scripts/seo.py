@@ -163,6 +163,9 @@ def add_article_metadata(path: Path) -> str:
         before = head
         head = set_link(head, "canonical", canonical)
         head = set_meta(head, "name", "description", description)
+        head = set_meta(head, "name", "twitter:card", "summary")
+        head = set_meta(head, "name", "twitter:title", title)
+        head = set_meta(head, "name", "twitter:description", description)
         for key, value in (("og:title", title), ("og:description", description), ("og:type", "article"), ("og:url", canonical)):
             head = set_meta(head, "property", key, value)
         ld_start = find_tag(head, "script", lambda a: a.get("type", "").lower() == "application/ld+json")
@@ -177,7 +180,7 @@ def add_article_metadata(path: Path) -> str:
             except json.JSONDecodeError as exc:
                 raise ValueError(f"{relative}: invalid existing JSON-LD: {exc}") from exc
             structured["@context"] = structured.get("@context", "https://schema.org")
-            structured["@type"] = "BlogPosting"
+            structured["@type"] = "Article"
             structured["headline"] = title
             structured["description"] = description
             structured["datePublished"] = publish_date
@@ -191,7 +194,7 @@ def add_article_metadata(path: Path) -> str:
             head = head[:ld_start.start()] + script + head[ld_end:]
         else:
             structured = {
-                "@context": "https://schema.org", "@type": "BlogPosting", "headline": title,
+                "@context": "https://schema.org", "@type": "Article", "headline": title,
                 "description": description, "datePublished": publish_date,
                 "author": {"@type": "Person", "name": "Shubham Anandani"},
                 "mainEntityOfPage": {"@type": "WebPage", "@id": canonical},

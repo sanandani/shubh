@@ -195,6 +195,11 @@ class VisibleLinkParser(HTMLParser):
 
 VISIBLE_MARKDOWN_LINK = re.compile(r"\[[^\]]+\]\(https?://[^)\s]+\)")
 VISIBLE_URL = re.compile(r"https?://[^\s<>\"']+", re.I)
+SOURCE_LIST = re.compile(r"(<h2\b[^>]*>\s*[^<]*\bSources\b[^<]*</h2>\s*<ul\b[^>]*>)(.*?)(</ul>)", re.I | re.S)
+SOURCE_ITEM = re.compile(r"<li\b[^>]*>.*?</li>", re.I | re.S)
+SOURCE_TEXT_TOKEN = re.compile(r"<a\b[^>]*>.*?</a>|<code\b[^>]*>.*?</code>|<[^>]+>|[^<]+", re.I | re.S)
+SOURCE_MARKDOWN = re.compile(r"\[([^\]]+)\]\((https?://[^)\s]+)\)")
+SOURCE_URL = re.compile(r"https?://[^\s<>\"']+", re.I)
 
 
 def visible_unlinked_links(text: str) -> tuple[int, int]:
@@ -202,6 +207,72 @@ def visible_unlinked_links(text: str) -> tuple[int, int]:
     bare = [match for match in VISIBLE_URL.finditer(text)
             if not any(match.start() < link.end() and match.end() > link.start() for link in markdown)]
     return len(markdown), len(bare)
+
+
+def unlinked_source_items(body: str) -> int:
+    return sum(1 for section in SOURCE_LIST.finditer(body)
+               for item in SOURCE_ITEM.finditer(section.group(2))
+               if not re.search(r"<a\b", item.group(), re.I))
+
+
+def clip_meta_description(value: str) -> str:
+    value = re.sub(r"\s+", " ", html.unescape(value)).strip()
+    if len(value) <= 155:
+        return value
+    shortened = value[:154]
+    if " " in shortened:
+        shortened = shortened.rsplit(" ", 1)[0]
+    return shortened.rstrip(" ,;:-") + "…"
+
+
+def linkify_source_text(text: str) -> str:
+    text = html.unescape(text)
+    markdown = list(SOURCE_MARKDOWN.finditer(text))
+    replacements: list[tuple[int, int, str]] = []
+
+    def anchor(url: str, label: str) -> str:
+        return f'<a href="{html.escape(url, quote=True)}" target="_blank" rel="noreferrer">{html.escape(label, quote=False)}</a>'
+
+    def clean_url(value: str) -> tuple[str, str]:
+        suffix = ""
+        while value and value[-1] in ".,;:!?":
+            suffix = value[-1] + suffix
+            value = value[:-1]
+        while value.endswith(")") and value.count(")") > value.count("("):
+            suffix = ")" + suffix
+            value = value[:-1]
+        return value, suffix
+
+    for match in markdown:
+        url, suffix = clean_url(match.group(2))
+        replacements.append((match.start(), match.end(), anchor(url, match.group(1)) + suffix))
+    for match in SOURCE_URL.finditer(text):
+        if any(match.start() < item.end() and match.end() > item.start() for item in markdown):
+            continue
+        url, suffix = clean_url(match.group())
+        if url:
+            replacements.append((match.start(), match.start() + len(url), anchor(url, url)))
+    if not replacements:
+        return html.escape(text, quote=False) if text != html.unescape(text) else text
+    result: list[str] = []
+    last = 0
+    for start, end, value in sorted(replacements):
+        result.extend((html.escape(text[last:start], quote=False), value))
+        last = end
+    result.append(html.escape(text[last:], quote=False))
+    return "".join(result)
+
+
+def linkify_source_item(item: str) -> str:
+    return "".join(token if token.startswith("<") else linkify_source_text(token)
+                   for token in SOURCE_TEXT_TOKEN.findall(item))
+
+
+def linkify_sources(body: str) -> str:
+    def replace_section(match: re.Match) -> str:
+        contents = SOURCE_ITEM.sub(lambda item: linkify_source_item(item.group()), match.group(2))
+        return match.group(1) + contents + match.group(3)
+    return SOURCE_LIST.sub(replace_section, body)
 
 
 def validate_article_link_css(css: str) -> list[str]:
@@ -413,9 +484,13 @@ def validate(articles: list[dict]) -> list[str]:
         if not page.is_file():
             errors.append(f"{slug}: page missing: {article['page']}")
             continue
+        page_html = page.read_text(encoding="utf-8")
+        missing_source_links = unlinked_source_items(page_html)
+        if missing_source_links:
+            errors.append(f"{slug}: {missing_source_links} Sources list items missing links")
         parser = StrictArticleParser()
         try:
-            parser.feed(page.read_text(encoding="utf-8")); parser.close()
+            parser.feed(page_html); parser.close()
         except Exception as exc:
             errors.append(f"{slug}: invalid HTML: {exc}")
             continue
@@ -438,7 +513,7 @@ def validate(articles: list[dict]) -> list[str]:
         if any(not img.get("alt") for img in parser.imgs):
             errors.append(f"{slug}: article image missing alt text")
         for prop, expected in (("og:type", "article"), ("og:title", article["title"]),
-            ("og:description", article["summary"]), ("og:url", article["url"]), ("og:image", article["cover"]),
+            ("og:description", clip_meta_description(article["summary"])), ("og:url", article["url"]), ("og:image", article["cover"]),
             ("article:author", article["author"])):
             if parser.meta.get(prop) != expected:
                 errors.append(f"{slug}: {prop} mismatch")
@@ -647,6 +722,7 @@ def ensure_article_page(article: dict) -> None:
     path = ROOT / article["page"]
     published = article["published"]
     summary = article["summary"]
+    description = clip_meta_description(summary)
     canonical = article["url"]
     cover = article["cover"]
 
@@ -655,8 +731,11 @@ def ensure_article_page(article: dict) -> None:
 
     new_meta = [
         meta_tag("article:published_time", published),
+        '<meta name="twitter:card" content="summary" />',
+        f'<meta name="twitter:title" content="{html.escape(article["title"], quote=True)}" />',
+        f'<meta name="twitter:description" content="{html.escape(description, quote=True)}" />',
         meta_tag("og:type", "article"), meta_tag("og:title", article["title"]),
-        meta_tag("og:description", summary), meta_tag("og:url", canonical),
+        meta_tag("og:description", description), meta_tag("og:url", canonical),
         meta_tag("og:image", cover), meta_tag("article:author", article["author"]),
     ]
     if article.get("updated"):
@@ -667,16 +746,17 @@ def ensure_article_page(article: dict) -> None:
         ld["dateModified"] = article["updated"]
     back_href = "../../blog.html#" + article.get("section", article["category"].lower())
     back_label = html.escape(article.get("category", "Writing"))
-    path.write_text(ARTICLE_TEMPLATE.format(
-        title=html.escape(article["title"]), summary=html.escape(summary, quote=True),
+    rendered = ARTICLE_TEMPLATE.format(
+        title=html.escape(article["title"]), summary=html.escape(description, quote=True),
         canonical=html.escape(canonical, quote=True), meta="\n    ".join(new_meta),
         kicker=html.escape(article.get("kicker", article["category"])),
         subtitle=html.escape(article.get("subtitle", "")),
         published=html.escape(published, quote=True),
         visible_date=datetime.fromisoformat(published).strftime("%B %-d, %Y"),
         author=html.escape(article["author"]), minutes=article.get("minutes", ""),
-        body=article["body"], jsonld=json.dumps(ld, ensure_ascii=False),
-    ).replace("← All articles", "← " + back_label + " articles").replace('../../blog.html">←', html.escape(back_href, quote=True) + '">←'))
+        body=linkify_sources(article["body"]), jsonld=json.dumps(ld, ensure_ascii=False),
+    ).replace("← All articles", "← " + back_label + " articles").replace('../../blog.html">←', html.escape(back_href, quote=True) + '">←')
+    path.write_text(rendered.rstrip("\n"), encoding="utf-8")
 
 
 def render_all(articles: list[dict]) -> None:
