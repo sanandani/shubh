@@ -141,7 +141,7 @@
     "archive_label": "CONTRIBUTOR EXPERIENCE",
     "section": "github",
     "minutes": "5",
-    "archive_order": 5
+    "archive_order": 7
   },
   {
     "title": "A Breaking Change in Someone Else’s PR: Guarding Extension Points Without Blocking Contributions",
@@ -165,7 +165,7 @@
     "archive_label": "API COMPATIBILITY",
     "section": "github",
     "minutes": "5",
-    "archive_order": 4
+    "archive_order": 8
   },
   {
     "title": "Semantic Versioning Is a Promise, Not a Formality",
@@ -189,7 +189,7 @@
     "archive_label": "RELEASE PRACTICE",
     "section": "github",
     "minutes": "5",
-    "archive_order": 3
+    "archive_order": 9
   },
   {
     "title": "Triage Without Burning Out: Sustainable Patterns for Issues and PRs",
@@ -213,7 +213,7 @@
     "archive_label": "MAINTAINER HEALTH",
     "section": "github",
     "minutes": "5",
-    "archive_order": 2
+    "archive_order": 10
   },
   {
     "title": "Designing for Other People’s Code: A Plugin API That Welcomes Contributions",
@@ -237,7 +237,7 @@
     "archive_label": "PLUGIN DESIGN",
     "section": "github",
     "minutes": "5",
-    "archive_order": 1
+    "archive_order": 12
   },
   {
     "title": "Benchmarking Honestly: Building a Repeatable, Trustworthy Inference Benchmark",
@@ -1734,7 +1734,7 @@
     "archive_label": "SOFTWARE SUPPLY CHAIN",
     "archive_summary": "How to add signed build provenance and SBOM attestations to a release, so anyone downstream can check what was built, from which commit, by which workflow.",
     "read_label": "9–11 MINUTES ↗",
-    "archive_order": 8
+    "archive_order": 4
   },
   {
     "title": "Code scanning and rulesets: make a green check mean something",
@@ -1757,7 +1757,7 @@
     "archive_label": "CODE SECURITY",
     "archive_summary": "How to turn CodeQL from a report you read after the merge into a gate that blocks risky changes, using rulesets, required checks and code owners.",
     "read_label": "9–11 MINUTES ↗",
-    "archive_order": 7
+    "archive_order": 5
   },
   {
     "title": "Dependabot and security advisories: tame the update flood",
@@ -1781,5 +1781,166 @@
     "archive_summary": "How to combine grouped Dependabot updates, safe auto-merge, code owners and advisories so dependencies stay current without drowning reviewers or merging risk blindly.",
     "read_label": "9–11 MINUTES ↗",
     "archive_order": 6
+  },
+  {
+    "title": "Copilot That Respects Your Repo: Policies, Credits, and Seat Types",
+    "slug": "copilot-that-respects-your-repo-policies-credits-and-seat-types",
+    "page": "articles/github/copilot-that-respects-your-repo-policies-credits-and-seat-types.html",
+    "url": "https://www.imshubh.com/articles/github/copilot-that-respects-your-repo-policies-credits-and-seat-types.html",
+    "published": "2026-06-15T12:00:00-07:00",
+    "summary": "How to match Copilot seat types to roles, limit agent actions on sensitive paths, and keep credit use visible across a platform team's repositories.",
+    "tags": [
+      "github"
+    ],
+    "cover": "https://www.imshubh.com/assets/shubham-anandani.jpg",
+    "author": "Shubham Anandani",
+    "category": "GitHub",
+    "kicker": "Copilot helps most when its scope matches the work. Without a policy, it becomes noise and an unplanned cost.",
+    "subtitle": "How to match Copilot seat types to roles, limit agent actions on sensitive paths, and keep credit use visible across a platform team's repositories.",
+    "minutes": "3",
+    "body": "<h2>Problem</h2>\n        <p>Copilot works well for many tasks, but its behavior depends on how it is licensed and configured. Individual plans and organization plans have different governance features. Pooled credits behave differently from per-user allowances. If seat types, credit budgets, and repository rules are not aligned with each other, Copilot can drift from helpful suggestions into unreviewed changes in critical code. Check the current plan page for seat prices and included credit amounts, since these change.</p>\n        <h2>Options and trade-offs</h2>\n        <ul>\n        <li>Individual plans: suited to solo work. They have no organization-level policy controls.</li>\n        <li>Business plans: add organization policy management and pooled usage. Suitable for most teams that need governance.</li>\n        <li>Enterprise plans: add codebase-aware features and stronger administrative controls. They require Enterprise Cloud, so confirm your account type first.</li>\n        <li>Content exclusions: stop Copilot from reading or suggesting changes in designated paths. They reduce exposure but add admin upkeep.</li>\n        <li>Audit logs: show who used which features. Useful for high-risk repositories, at the cost of more review work.</li>\n        </ul>\n        <h2>My take</h2>\n        <p>Start with Business seats for most contributors and reserve higher tiers for maintainers who need deeper repository context. For directories like infrastructure or authentication code, use content exclusions and treat any agent-generated diff the same as a human-written one. Review it, test it, and request changes when needed.</p>\n        <p>Decision lens: security risk and maintenance cost.</p>\n        <p>Example setup: a monorepo with infrastructure and product code. Give most contributors Business seats, exclude infrastructure paths from Copilot, and limit agent edits to non-sensitive directories.</p>\n        <h2>Template repository</h2>\n        <p><strong>README.md (excerpt):</strong> Describe which activities are allowed in the repository, such as summaries and code explanation, and which are restricted, such as agent edits in sensitive directories. Link to the current plan and credit documentation.</p>\n        <p><strong>CONTRIBUTING.md (excerpt):</strong> Explain how to request the right seat type, how content exclusions are configured, and that agent-generated diffs go through normal review.</p>\n        <p><strong>.github/policies/copilot.md:</strong> Document allowed agent scopes, default model choices, and the list of paths where agent edits are restricted.</p>\n        <h2>Checklist</h2>\n        <ol>\n        <li>Map each role to a seat type.</li>\n        <li>Configure content exclusions for sensitive paths.</li>\n        <li>Enable audit logging for high-risk repositories.</li>\n        <li>Set a monthly credit budget and an owner for overages.</li>\n        <li>Write down which agent actions are allowed in each directory.</li>\n        <li>Require review for agent-generated changes.</li>\n        <li>Keep a discussion thread open for policy adjustments.</li>\n        </ol>\n        <h2>Common mistakes</h2>\n        <ul>\n        <li>Mixing individual and organization plans, which leads to uneven governance.</li>\n        <li>Skipping content exclusions, so agents can read secrets or policy documents.</li>\n        <li>Leaving credit use unbounded, which causes unexpected charges.</li>\n        </ul>\n        <h2>Where this doesn't apply</h2>\n        <ul>\n        <li>Organizations without access to the plan tiers you need.</li>\n        <li>Repositories with legal restrictions on AI-assisted development.</li>\n        </ul>\n        <h2>How to get involved</h2>\n        <ul>\n        <li>Good first issue: propose a minimal content-exclusion list for one repository.</li>\n        <li>Discussion: share where Copilot helps and where it gets in the way.</li>\n        </ul>\n        <h2>Sources (accessed 2026-10-18; verify current status)</h2>\n        <ul>\n        <li>Copilot plans: https://docs.github.com/en/copilot/get-started/plans. Current plans and credits.</li>\n        <li>Copilot billing for organizations and enterprises: https://docs.github.com/en/enterprise-cloud@latest/copilot/concepts/billing/organizations-and-enterprises. Seat and credit administration.</li>\n        </ul>\n        <p>---</p>",
+    "section": "github",
+    "archive_label": "COPILOT HELPS MOST WHEN ITS SCOPE MATCHES THE WORK. WITHOUT A POLICY, IT BECOMES NOISE AND AN UNPLANNED COST.",
+    "archive_summary": "How to match Copilot seat types to roles, limit agent actions on sensitive paths, and keep credit use visible across a platform team's repositories.",
+    "read_label": "3 MINUTES ↗",
+    "archive_order": 11
+  },
+  {
+    "title": "Codespaces Without Surprise Bills: Devcontainers, Prebuilds, and Policies",
+    "slug": "codespaces-without-surprise-bills-devcontainers-prebuilds-and-policies",
+    "page": "articles/github/codespaces-without-surprise-bills-devcontainers-prebuilds-and-policies.html",
+    "url": "https://www.imshubh.com/articles/github/codespaces-without-surprise-bills-devcontainers-prebuilds-and-policies.html",
+    "published": "2026-08-15T12:00:00-07:00",
+    "summary": "How to use devcontainers and prebuilds for fast contributor setup, and how to set machine limits, retention, and spending caps so costs stay predictable.",
+    "tags": [
+      "github"
+    ],
+    "cover": "https://www.imshubh.com/assets/shubham-anandani.jpg",
+    "author": "Shubham Anandani",
+    "category": "GitHub",
+    "kicker": "Codespaces can turn a days-long setup into a short one. Its metered billing needs the same attention as any other cloud resource.",
+    "subtitle": "How to use devcontainers and prebuilds for fast contributor setup, and how to set machine limits, retention, and spending caps so costs stay predictable.",
+    "minutes": "3",
+    "body": "<h2>Problem</h2>\n        <p>Codespaces is fast to start and well integrated with GitHub, but it is metered. Compute is billed by the hour, and storage is billed by the gigabyte-month. Stopped codespaces can keep accruing storage until they are deleted. Personal accounts and organizations have different included quotas, so check the billing page for your account type.</p>\n        <h2>Options and trade-offs</h2>\n        <ul>\n        <li>Devcontainers: make environments reproducible and speed up onboarding. They need ongoing maintenance of the image and its setup scripts.</li>\n        <li>Prebuilds: speed up opening large repositories. They consume Actions minutes, so they suit heavy projects.</li>\n        <li>Machine size policy: limit the cores and memory contributors can pick. Smaller machines cost less but run slower.</li>\n        <li>Retention and idle timeouts: reduce storage and runaway compute. They add some admin overhead.</li>\n        <li>Spending limits: cap organization spend. Set them before rollout, not after the first surprise bill.</li>\n        </ul>\n        <h2>My take</h2>\n        <p>Ship one default devcontainer sized for typical work, enable prebuilds only on the main branch, and set a short idle timeout. Teach contributors to delete codespaces they no longer need rather than only stopping them.</p>\n        <p>Decision lens: new-contributor friction and maintenance cost.</p>\n        <p>Example setup: a service repository with a 4-core default devcontainer, prebuilds on the main branch, a 30-minute idle timeout, automatic deletion after 7 days of inactivity, and a monthly spending cap for the organization.</p>\n        <h2>Template repository</h2>\n        <p><strong>.devcontainer/devcontainer.json:</strong> Base image, post-create commands, default machine size, and recommended extensions.</p>\n        <p><strong>.github/workflows/prebuild.yml:</strong> Prebuild configuration limited to main and release branches. Check the Codespaces prebuild docs for the current configuration syntax.</p>\n        <p><strong>README.md (\"Use Codespaces\" section):</strong> Machine choices, the difference between stopping and deleting, budget notes, and a link to contributor docs.</p>\n        <h2>Checklist</h2>\n        <ol>\n        <li>Define a devcontainer with a sensible default machine size.</li>\n        <li>Enable prebuilds for large repositories and watch Actions minutes.</li>\n        <li>Set idle timeout, retention, and spending limits at the organization level.</li>\n        <li>Document the differences between personal and organization billing.</li>\n        <li>Tell contributors to delete unused codespaces.</li>\n        </ol>\n        <h2>Common mistakes</h2>\n        <ul>\n        <li>Assuming a stopped codespace costs nothing. Storage keeps accruing until deletion.</li>\n        <li>Leaving machine sizes unlimited, so contributors default to the largest option.</li>\n        <li>Enabling prebuilds without tracking the Actions minutes they consume.</li>\n        </ul>\n        <h2>Where this doesn't apply</h2>\n        <ul>\n        <li>Teams that need local-only development or hardware that Codespaces does not support.</li>\n        <li>Toolchains that need macOS, iOS, or Windows-only environments.</li>\n        </ul>\n        <h2>How to get involved</h2>\n        <ul>\n        <li>Good first issue: add a prebuild for a documentation repository.</li>\n        <li>Discussion: share your default machine size and budget caps.</li>\n        </ul>\n        <h2>Sources (accessed 2026-10-18; verify current rates)</h2>\n        <ul>\n        <li>Codespaces billing: https://docs.github.com/billing/managing-billing-for-github-codespaces/about-billing-for-github-codespaces. Compute and storage billing, included quotas, and organization metering.</li>\n        <li>GitHub plans: https://docs.github.com/en/get-started/learning-about-github/githubs-plans. Personal and organization plan differences.</li>\n        </ul>\n        <p>---</p>",
+    "section": "github",
+    "archive_label": "CODESPACES CAN TURN A DAYS-LONG SETUP INTO A SHORT ONE. ITS METERED BILLING NEEDS THE SAME ATTENTION AS ANY OTHER CLOUD RESOURCE.",
+    "archive_summary": "How to use devcontainers and prebuilds for fast contributor setup, and how to set machine limits, retention, and spending caps so costs stay predictable.",
+    "read_label": "3 MINUTES ↗",
+    "archive_order": 13
+  },
+  {
+    "title": "Roadmaps Next to Your Code: GitHub Projects for Platform Teams",
+    "slug": "roadmaps-next-to-your-code-github-projects-for-platform-teams",
+    "page": "articles/github/roadmaps-next-to-your-code-github-projects-for-platform-teams.html",
+    "url": "https://www.imshubh.com/articles/github/roadmaps-next-to-your-code-github-projects-for-platform-teams.html",
+    "published": "2026-09-15T12:00:00-07:00",
+    "summary": "How to run a roadmap in GitHub Projects using table, board, and roadmap views, custom fields, and built-in automations.",
+    "tags": [
+      "github"
+    ],
+    "cover": "https://www.imshubh.com/assets/shubham-anandani.jpg",
+    "author": "Shubham Anandani",
+    "category": "GitHub",
+    "kicker": "A roadmap kept in a separate spreadsheet drifts from the issues it is supposed to describe. Keeping planning next to the code avoids that split.",
+    "subtitle": "How to run a roadmap in GitHub Projects using table, board, and roadmap views, custom fields, and built-in automations.",
+    "minutes": "3",
+    "body": "<h2>Problem</h2>\n        <p>External roadmap tools fall out of date because they are not connected to issues and pull requests. GitHub Projects sits alongside issues and PRs and gives each team a view suited to its question: a prioritized backlog, the current iteration board, or a timeline roadmap.</p>\n        <h2>Options and trade-offs</h2>\n        <ul>\n        <li>Table view: dense and good for prioritization. It needs consistent field values.</li>\n        <li>Board view: a status-based layout for iteration planning. It works best with work-in-progress limits.</li>\n        <li>Roadmap view: a timeline across dates or iterations. It suits communicating schedules to others.</li>\n        <li>Built-in workflows: add items, set status, and archive without code. They are limited compared with custom automation.</li>\n        <li>Insights: charts for status and progress. Useful for a quick read, not a full reporting tool.</li>\n        </ul>\n        <h2>My take</h2>\n        <p>Use one organization-level project for the platform roadmap, keep tactical bug work out of it, and save a small set of views that answer the questions people actually ask.</p>\n        <p>Decision lens: review latency and team workload.</p>\n        <p>Example setup: a platform roadmap project with Priority, Estimate, Iteration, and Owner fields, auto-add filters for the relevant repositories, and three saved views: backlog by priority, the current iteration board, and the quarter roadmap.</p>\n        <h2>Template</h2>\n        <p><strong>Project fields:</strong> a single-select Priority field, a number field for Estimate, and an iteration field.</p>\n        <p><strong>Views:</strong> Table for the backlog, Board for the current iteration, and Roadmap for milestones.</p>\n        <p><strong>Workflows:</strong> auto-add issues with a chosen label, set new items to Todo, and archive items that have been Done for a set period.</p>\n        <p><strong>Project README:</strong> link the saved views and describe the naming and labeling rules.</p>\n        <h2>Checklist</h2>\n        <ol>\n        <li>Create an organization project and define the fields.</li>\n        <li>Save table, board, and roadmap views.</li>\n        <li>Configure auto-add and status workflows.</li>\n        <li>Add milestone markers to the roadmap view.</li>\n        <li>Document label and ownership conventions.</li>\n        <li>Set work-in-progress limits on the board.</li>\n        </ol>\n        <h2>Common mistakes</h2>\n        <ul>\n        <li>Mixing bug triage with strategic planning in one project. Split them.</li>\n        <li>Not saving views, so collaborators lose context.</li>\n        <li>Skipping automation, which lets status drift from reality.</li>\n        </ul>\n        <h2>Where this doesn't apply</h2>\n        <ul>\n        <li>Teams required to use an external project management system. Mirror the data through the API if needed.</li>\n        </ul>\n        <h2>How to get involved</h2>\n        <ul>\n        <li>Good first issue: propose a saved view that would improve backlog triage.</li>\n        <li>Discussion: what fields should the roadmap track?</li>\n        </ul>\n        <h2>Sources (accessed 2026-10-18)</h2>\n        <ul>\n        <li>About Projects: https://docs.github.com/en/issues/planning-and-tracking-with-projects/learning-about-projects/about-projects. Views, fields, automation, and insights.</li>\n        <li>Quickstart for Projects: https://docs.github.com/en/issues/planning-and-tracking-with-projects/learning-about-projects/quickstart-for-projects. Creating views, fields, and workflows.</li>\n        <li>Roadmaps generally available: https://github.blog/changelog/2025-03-22-roadmaps-in-projects-are-now-generally-available/. Roadmap view status and markers.</li>\n        </ul>\n        <p>---</p>",
+    "section": "github",
+    "archive_label": "A ROADMAP KEPT IN A SEPARATE SPREADSHEET DRIFTS FROM THE ISSUES IT IS SUPPOSED TO DESCRIBE. KEEPING PLANNING NEXT TO THE CODE AVOIDS THAT SPLIT.",
+    "archive_summary": "How to run a roadmap in GitHub Projects using table, board, and roadmap views, custom fields, and built-in automations.",
+    "read_label": "3 MINUTES ↗",
+    "archive_order": 14
+  },
+  {
+    "title": "Discussions as Your Community Front Door",
+    "slug": "discussions-as-your-community-front-door",
+    "page": "articles/github/discussions-as-your-community-front-door.html",
+    "url": "https://www.imshubh.com/articles/github/discussions-as-your-community-front-door.html",
+    "published": "2026-10-15T12:00:00-07:00",
+    "summary": "How to enable Discussions, set up categories, pin canonical threads, and convert between issues and discussions as conversations change shape.",
+    "tags": [
+      "github"
+    ],
+    "cover": "https://www.imshubh.com/assets/shubham-anandani.jpg",
+    "author": "Shubham Anandani",
+    "category": "GitHub",
+    "kicker": "When questions land in the issue tracker, real work gets buried. Moving open-ended conversation to Discussions keeps the work queue readable.",
+    "subtitle": "How to enable Discussions, set up categories, pin canonical threads, and convert between issues and discussions as conversations change shape.",
+    "minutes": "3",
+    "body": "<h2>Problem</h2>\n        <p>Issues should track work. Discussions suit open-ended questions, ideas, and announcements. Discussions supports categories with different formats, pinned threads, accepted answers, upvotes, and conversion between issues and discussions. Defining these early keeps the work queue clean and reduces duplicate issues.</p>\n        <h2>Options and trade-offs</h2>\n        <ul>\n        <li>Categories: group conversations by purpose. Each category can have a format such as announcement, Q&amp;A, or open-ended. Check the current category limit in the docs.</li>\n        <li>Pinning: highlight canonical threads such as the FAQ or onboarding guide.</li>\n        <li>Accepted answers and upvotes: surface solutions and priorities. They need moderator attention to stay useful.</li>\n        <li>Conversion: move a thread from issue to discussion, or back, when its nature changes.</li>\n        </ul>\n        <h2>My take</h2>\n        <p>Keep a small set of categories, pin the threads newcomers need first, and use a category form for Q&amp;A so questions arrive with the details needed to answer them.</p>\n        <p>Decision lens: new-contributor friction and review latency.</p>\n        <p>Example setup: categories for Announcements, Q&amp;A, and Ideas. The FAQ and a first-thirty-minutes guide are pinned. The Q&amp;A category uses a form that asks for version, steps to reproduce, and expected versus actual behavior.</p>\n        <h2>Template</h2>\n        <p><strong>.github/DISCUSSION_TEMPLATE/qna.yml:</strong> a category form with prompts for version, steps, expected behavior, and actual behavior.</p>\n        <p><strong>Welcome post:</strong> the purpose of the space, the code of conduct, and the rules for converting between issues and discussions.</p>\n        <p><strong>Category setup:</strong> Announcements restricted to maintainers, and Q&amp;A with accepted answers enabled.</p>\n        <h2>Checklist</h2>\n        <ol>\n        <li>Enable Discussions and create categories.</li>\n        <li>Pin the FAQ and onboarding threads.</li>\n        <li>Add a Q&amp;A category form.</li>\n        <li>Write down the conversion rules between issues and discussions.</li>\n        <li>Review the category setup each quarter.</li>\n        </ol>\n        <h2>Common mistakes</h2>\n        <ul>\n        <li>Running without categories, which makes threads hard to find.</li>\n        <li>Not pinning canonical answers, so the same questions keep coming back.</li>\n        <li>Never converting issues, so the work queue fills with general chat.</li>\n        </ul>\n        <h2>Where this doesn't apply</h2>\n        <ul>\n        <li>Organizations required to use an external forum or ticketing system.</li>\n        </ul>\n        <h2>How to get involved</h2>\n        <ul>\n        <li>Good first issue: propose a new pinned FAQ entry.</li>\n        <li>Discussion: what should the Q&amp;A form ask first?</li>\n        </ul>\n        <h2>Sources (accessed 2026-10-18)</h2>\n        <ul>\n        <li>Managing categories for discussions: https://docs.github.com/en/discussions/managing-discussions-for-your-community/managing-categories-for-discussions. Formats and limits.</li>\n        <li>Managing discussions: https://docs.github.com/en/discussions/managing-discussions-for-your-community/managing-discussions. Pinning, permissions, and transfers.</li>\n        <li>Collaborating with maintainers using discussions: https://docs.github.com/en/discussions/collaborating-with-your-community-using-discussions/collaborating-with-maintainers-using-discussions. Accepted answers, upvotes, and conversion.</li>\n        <li>Category forms: https://docs.github.com/en/discussions/managing-discussions-for-your-community/creating-discussion-category-forms.</li>\n        </ul>\n        <p>---</p>",
+    "section": "github",
+    "archive_label": "WHEN QUESTIONS LAND IN THE ISSUE TRACKER, REAL WORK GETS BURIED. MOVING OPEN-ENDED CONVERSATION TO DISCUSSIONS KEEPS THE WORK QUEUE READABLE.",
+    "archive_summary": "How to enable Discussions, set up categories, pin canonical threads, and convert between issues and discussions as conversations change shape.",
+    "read_label": "3 MINUTES ↗",
+    "archive_order": 15
+  },
+  {
+    "title": "Zero-Friction Docs: Deploy Static Sites to GitHub Pages with Actions",
+    "slug": "zero-friction-docs-deploy-static-sites-to-github-pages-with-actions",
+    "page": "articles/github/zero-friction-docs-deploy-static-sites-to-github-pages-with-actions.html",
+    "url": "https://www.imshubh.com/articles/github/zero-friction-docs-deploy-static-sites-to-github-pages-with-actions.html",
+    "published": "2025-06-18T12:00:00-07:00",
+    "summary": "How to build and deploy a static documentation site with GitHub's Pages actions, using a short workflow and no manual steps.",
+    "tags": [
+      "github"
+    ],
+    "cover": "https://www.imshubh.com/assets/shubham-anandani.jpg",
+    "author": "Shubham Anandani",
+    "category": "GitHub",
+    "kicker": "Documentation that is not deployed automatically goes stale quickly. Publishing on every push removes that gap.",
+    "subtitle": "How to build and deploy a static documentation site with GitHub's Pages actions, using a short workflow and no manual steps.",
+    "minutes": "3",
+    "body": "<h2>Problem</h2>\n        <p>Static docs should update when the code does. GitHub Pages can deploy from a branch or from a workflow. The Actions-based path uses configure-pages, upload-pages-artifact, and deploy-pages, with explicit permissions and a concurrency group that cancels outdated deploys.</p>\n        <h2>Options and trade-offs</h2>\n        <ul>\n        <li>Deploy from a branch: the simplest setup, with limited build control. Jekyll runs by default unless you add a .nojekyll file.</li>\n        <li>Deploy with Actions: supports any static site generator and explicit permissions and concurrency controls.</li>\n        <li>Environment protection: require checks before the github-pages environment deploys.</li>\n        </ul>\n        <h2>My take</h2>\n        <p>Use the Actions path for any project that needs a build step. Protect the deployment environment so a failing build cannot publish.</p>\n        <p>Decision lens: maintenance cost and review latency.</p>\n        <p>Example setup: a documentation site built with a JavaScript toolchain, split into a build job that uploads an artifact and a deploy job that publishes it.</p>\n        <h2>Template</h2>\n        <p><strong>.github/workflows/deploy-pages.yml:</strong></p>\n        <pre><code>name: Deploy static site to Pages\non:\n  push:\n    branches: [ main ]\n  workflow_dispatch:\n\npermissions:\n  contents: read\n  pages: write\n  id-token: write\n\nconcurrency:\n  group: pages\n  cancel-in-progress: true\n\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/configure-pages@v5\n      - name: Build site\n        run: |\n          npm ci\n          npm run build\n      - uses: actions/upload-pages-artifact@v3\n        with:\n          path: ./dist\n  deploy:\n    needs: build\n    runs-on: ubuntu-latest\n    environment:\n      name: github-pages\n      url: ${{ steps.deployment.outputs.page_url }}\n    steps:\n      - id: deployment\n        uses: actions/deploy-pages@v4</code></pre>\n        <p>Adjust the build commands and the artifact path for your generator.</p>\n        <p><strong>README:</strong> describe the directory layout and note that Pages should be set to deploy from GitHub Actions.</p>\n        <h2>Checklist</h2>\n        <ol>\n        <li>Set Pages to deploy from GitHub Actions.</li>\n        <li>Add the workflow above and adjust it for your build.</li>\n        <li>Protect the github-pages environment.</li>\n        <li>Add .nojekyll if you deploy from a branch with a non-Jekyll generator.</li>\n        <li>Test the build on a pull request before merging.</li>\n        </ol>\n        <h2>Common mistakes</h2>\n        <ul>\n        <li>Missing the pages and id-token permissions, so the deploy fails.</li>\n        <li>No concurrency group, so an older deploy can overwrite a newer one.</li>\n        <li>Expecting Pages to host dynamic backends. It serves static files only.</li>\n        </ul>\n        <h2>Where this doesn't apply</h2>\n        <ul>\n        <li>Projects that need server-side rendering or a dynamic backend.</li>\n        </ul>\n        <h2>How to get involved</h2>\n        <ul>\n        <li>Good first issue: convert a manual deploy to a Pages workflow.</li>\n        <li>Discussion: which build steps does your docs site need in CI?</li>\n        </ul>\n        <h2>Sources (accessed 2026-10-18)</h2>\n        <ul>\n        <li>Creating a GitHub Pages site: https://docs.github.com/articles/creating-project-pages-manually. Branch versus Actions deployment and .nojekyll.</li>\n        <li>Pages deploy actions: the actions/deploy-pages and actions/upload-pages-artifact repositories on GitHub. Current action versions and inputs.</li>\n        </ul>\n        <p>---</p>",
+    "section": "github",
+    "archive_label": "DOCUMENTATION THAT IS NOT DEPLOYED AUTOMATICALLY GOES STALE QUICKLY. PUBLISHING ON EVERY PUSH REMOVES THAT GAP.",
+    "archive_summary": "How to build and deploy a static documentation site with GitHub's Pages actions, using a short workflow and no manual steps.",
+    "read_label": "3 MINUTES ↗",
+    "archive_order": 1
+  },
+  {
+    "title": "Triage and Ship from the Terminal: gh CLI for Platform Teams",
+    "slug": "triage-and-ship-from-the-terminal-gh-cli-for-platform-teams",
+    "page": "articles/github/triage-and-ship-from-the-terminal-gh-cli-for-platform-teams.html",
+    "url": "https://www.imshubh.com/articles/github/triage-and-ship-from-the-terminal-gh-cli-for-platform-teams.html",
+    "published": "2025-07-18T12:00:00-07:00",
+    "summary": "How to use gh CLI to create issues, review and merge pull requests, and rerun workflows, with small scripts that keep the commands consistent.",
+    "tags": [
+      "github"
+    ],
+    "cover": "https://www.imshubh.com/assets/shubham-anandani.jpg",
+    "author": "Shubham Anandani",
+    "category": "GitHub",
+    "kicker": "Reviewing pull requests and rerunning failed jobs through a browser takes longer than it should. The terminal can do both.",
+    "subtitle": "How to use gh CLI to create issues, review and merge pull requests, and rerun workflows, with small scripts that keep the commands consistent.",
+    "minutes": "3",
+    "body": "<h2>Problem</h2>\n        <p>Platform teams spend much of their day in a shell. The gh CLI covers many everyday GitHub operations: issues, pull requests, projects, releases, and workflow runs. In CI, the GH_TOKEN environment variable provides authentication. With a few scripts, triage and review stop depending on tab-switching.</p>\n        <h2>Options and trade-offs</h2>\n        <ul>\n        <li>Pull requests: list, check out, review, and merge from the terminal. Fast, but comments need discipline.</li>\n        <li>Issues: create, list, assign, and comment. Templates can be applied through body files.</li>\n        <li>Workflows: run, watch, and rerun. Rerunning only failed jobs saves time.</li>\n        <li>gh api: reach any REST or GraphQL endpoint and filter the output with jq. Powerful, and easy to misuse without authentication.</li>\n        </ul>\n        <h2>My take</h2>\n        <p>Write a short list of scripts for the actions you repeat most, keep them in the repository, and teach the team a small core set of commands before introducing anything more complex.</p>\n        <p>Decision lens: review latency and maintenance cost.</p>\n        <p>Example setup: three scripts for approving and squash-merging a pull request, rerunning failed jobs, and opening a bug issue from a template, each logging its output to a file for an audit trail.</p>\n        <h2>Template</h2>\n        <p><strong>scripts/approve_and_squash.sh:</strong></p>\n        <pre><code>#!/usr/bin/env bash\nset -euo pipefail\ngh pr review \"$1\" --approve\ngh pr merge \"$1\" --squash --delete-branch</code></pre>\n        <p><strong>scripts/rerun_failed.sh:</strong></p>\n        <pre><code>#!/usr/bin/env bash\nset -euo pipefail\ngh run rerun \"$1\" --failed\ngh run watch \"$1\"</code></pre>\n        <p><strong>scripts/new_bug.sh:</strong></p>\n        <pre><code>#!/usr/bin/env bash\nset -euo pipefail\ngh issue create --title \"$1\" --body-file .github/ISSUE_TEMPLATE/bug.md --label bug --assignee @me</code></pre>\n        <p>In CI, set GH_TOKEN so gh commands authenticate.</p>\n        <h2>Checklist</h2>\n        <ol>\n        <li>Install gh and run gh auth login.</li>\n        <li>Set GH_TOKEN in any workflow that calls gh.</li>\n        <li>Add scripts for pull request review and workflow reruns.</li>\n        <li>Create issues from templates to keep them consistent.</li>\n        <li>Log script output for audit trails.</li>\n        <li>Teach a short list of core commands first.</li>\n        </ol>\n        <h2>Common mistakes</h2>\n        <ul>\n        <li>Missing GH_TOKEN in workflows, so gh calls fail.</li>\n        <li>Merging without deleting the branch, so stale branches pile up.</li>\n        <li>Rerunning an entire workflow when only the failed jobs need it.</li>\n        </ul>\n        <h2>Where this doesn't apply</h2>\n        <ul>\n        <li>Locked-down environments where the CLI is not available.</li>\n        </ul>\n        <h2>How to get involved</h2>\n        <ul>\n        <li>Good first issue: add a script that opens the logs for a failing run.</li>\n        <li>Discussion: which ten gh commands should new team members learn first?</li>\n        </ul>\n        <h2>Sources (accessed 2026-10-18)</h2>\n        <ul>\n        <li>Using GitHub CLI in workflows: https://docs.github.com/en/actions/using-workflows/using-github-cli-in-workflows. GH_TOKEN and examples.</li>\n        <li>gh pr checks manual: https://cli.github.com/manual/gh_pr_checks. Behavior and exit codes.</li>\n        </ul>\n        <p>---</p>",
+    "section": "github",
+    "archive_label": "REVIEWING PULL REQUESTS AND RERUNNING FAILED JOBS THROUGH A BROWSER TAKES LONGER THAN IT SHOULD. THE TERMINAL CAN DO BOTH.",
+    "archive_summary": "How to use gh CLI to create issues, review and merge pull requests, and rerun workflows, with small scripts that keep the commands consistent.",
+    "read_label": "3 MINUTES ↗",
+    "archive_order": 2
+  },
+  {
+    "title": "Build a Scoped Bot: GitHub Apps and Octokit, the Right Way",
+    "slug": "build-a-scoped-bot-github-apps-and-octokit-the-right-way",
+    "page": "articles/github/build-a-scoped-bot-github-apps-and-octokit-the-right-way.html",
+    "url": "https://www.imshubh.com/articles/github/build-a-scoped-bot-github-apps-and-octokit-the-right-way.html",
+    "published": "2025-08-16T12:00:00-07:00",
+    "summary": "How to authenticate a GitHub App as an installation, limit it to specific repositories and permissions, and use short-lived tokens.",
+    "tags": [
+      "github"
+    ],
+    "cover": "https://www.imshubh.com/assets/shubham-anandani.jpg",
+    "author": "Shubham Anandani",
+    "category": "GitHub",
+    "kicker": "A bot that uses a broad personal token can do far more than it needs to. A GitHub App limits access to what the bot actually requires.",
+    "subtitle": "How to authenticate a GitHub App as an installation, limit it to specific repositories and permissions, and use short-lived tokens.",
+    "minutes": "3",
+    "body": "<h2>Problem</h2>\n        <p>Personal access tokens are broad. They grant access across every repository the account can reach. GitHub Apps define explicit permissions, install on chosen repositories, and issue installation tokens that expire. Octokit libraries handle token generation and refresh, and actions/create-github-app-token creates scoped tokens inside CI.</p>\n        <h2>Options and trade-offs</h2>\n        <ul>\n        <li>GitHub App versus OAuth app: Apps offer per-permission and per-repository control. OAuth relies on user-granted scopes.</li>\n        <li>Octokit versus manual token handling: Octokit handles installation tokens and refresh. Manual handling gives more control and more code to maintain.</li>\n        <li>CI token action: mints a scoped token for each job, so you avoid a broad long-lived credential.</li>\n        </ul>\n        <h2>My take</h2>\n        <p>Give the app the smallest permission that does the job, install it only on the repositories it needs, and avoid write access to contents unless the bot must change code.</p>\n        <p>Decision lens: security risk and maintenance cost.</p>\n        <p>Example setup: a triage bot installed on two repositories with issue write access only. Each CI run mints a token limited to those repositories, adds a comment or label, and never gets contents write access.</p>\n        <h2>Template</h2>\n        <p><strong>src/appClient.js:</strong></p>\n        <pre><code>import { Octokit } from \"@octokit/core\";\nimport { createAppAuth } from \"@octokit/auth-app\";\n\nexport function installationOctokit(appId, privateKey, installationId) {\n  return new Octokit({\n    authStrategy: createAppAuth,\n    auth: { appId, privateKey, installationId }\n  });\n}</code></pre>\n        <p><strong>CI:</strong> use actions/create-github-app-token with the narrowest permissions and repository list the job needs. Check its README for the current input names.</p>\n        <h2>Checklist</h2>\n        <ol>\n        <li>Register a GitHub App and generate a private key.</li>\n        <li>Set the minimum permissions the bot needs.</li>\n        <li>Install the app on the target repositories only.</li>\n        <li>Use Octokit's app authentication for installation tokens.</li>\n        <li>Mint scoped tokens in CI for each job.</li>\n        <li>Avoid long-lived personal tokens.</li>\n        </ol>\n        <h2>Common mistakes</h2>\n        <ul>\n        <li>Granting contents write when only issue write is needed.</li>\n        <li>Using a personal access token, which gives the bot a wider blast radius.</li>\n        <li>Assuming tokens never expire. Installation tokens are short-lived, so refresh them.</li>\n        </ul>\n        <h2>Where this doesn't apply</h2>\n        <ul>\n        <li>Organizations that do not allow GitHub Apps or require a different authentication flow.</li>\n        </ul>\n        <h2>How to get involved</h2>\n        <ul>\n        <li>Good first issue: reduce the permissions of an existing bot and add repository scoping.</li>\n        <li>Discussion: what else should a triage bot be allowed to do?</li>\n        </ul>\n        <h2>Sources (accessed 2026-10-18)</h2>\n        <ul>\n        <li>Generating an installation access token for a GitHub App: https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app. Installation tokens, permissions, and expiry.</li>\n        <li>Authenticating as a GitHub App installation: https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation.</li>\n        <li>Octokit.js: https://github.com/octokit/octokit.js/. App authentication and installation behavior.</li>\n        <li>create-github-app-token action: https://github.com/actions/create-github-app-token.</li>\n        </ul>",
+    "section": "github",
+    "archive_label": "A BOT THAT USES A BROAD PERSONAL TOKEN CAN DO FAR MORE THAN IT NEEDS TO. A GITHUB APP LIMITS ACCESS TO WHAT THE BOT ACTUALLY REQUIRES.",
+    "archive_summary": "How to authenticate a GitHub App as an installation, limit it to specific repositories and permissions, and use short-lived tokens.",
+    "read_label": "3 MINUTES ↗",
+    "archive_order": 3
   }
 ]

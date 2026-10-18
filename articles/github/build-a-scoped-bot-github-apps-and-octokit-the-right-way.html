@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="How to authenticate a GitHub App as an installation, limit it to specific repositories and permissions, and use short-lived tokens." />
+    <title>Build a Scoped Bot: GitHub Apps and Octokit, the Right Way — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/github/build-a-scoped-bot-github-apps-and-octokit-the-right-way.html" />
+    <meta property="article:published_time" content="2025-08-16T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Build a Scoped Bot: GitHub Apps and Octokit, the Right Way" />
+    <meta property="og:description" content="How to authenticate a GitHub App as an installation, limit it to specific repositories and permissions, and use short-lived tokens." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/github/build-a-scoped-bot-github-apps-and-octokit-the-right-way.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="github" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Build a Scoped Bot: GitHub Apps and Octokit, the Right Way","datePublished":"2025-08-16T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"How to authenticate a GitHub App as an installation, limit it to specific repositories and permissions, and use short-lived tokens.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/github/build-a-scoped-bot-github-apps-and-octokit-the-right-way.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#github">← GitHub articles</a>
+      <header class="article-document-header"><p class="kicker">A bot that uses a broad personal token can do far more than it needs to. A GitHub App limits access to what the bot actually requires.</p><h1>Build a Scoped Bot: GitHub Apps and Octokit, the Right Way</h1><p class="article-deck">How to authenticate a GitHub App as an installation, limit it to specific repositories and permissions, and use short-lived tokens.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2025-08-16T12:00:00-07:00">Published August 16, 2025</time><span>·</span><span>3 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+        <p>Personal access tokens are broad. They grant access across every repository the account can reach. GitHub Apps define explicit permissions, install on chosen repositories, and issue installation tokens that expire. Octokit libraries handle token generation and refresh, and actions/create-github-app-token creates scoped tokens inside CI.</p>
+        <h2>Options and trade-offs</h2>
+        <ul>
+        <li>GitHub App versus OAuth app: Apps offer per-permission and per-repository control. OAuth relies on user-granted scopes.</li>
+        <li>Octokit versus manual token handling: Octokit handles installation tokens and refresh. Manual handling gives more control and more code to maintain.</li>
+        <li>CI token action: mints a scoped token for each job, so you avoid a broad long-lived credential.</li>
+        </ul>
+        <h2>My take</h2>
+        <p>Give the app the smallest permission that does the job, install it only on the repositories it needs, and avoid write access to contents unless the bot must change code.</p>
+        <p>Decision lens: security risk and maintenance cost.</p>
+        <p>Example setup: a triage bot installed on two repositories with issue write access only. Each CI run mints a token limited to those repositories, adds a comment or label, and never gets contents write access.</p>
+        <h2>Template</h2>
+        <p><strong>src/appClient.js:</strong></p>
+        <pre><code>import { Octokit } from "@octokit/core";
+import { createAppAuth } from "@octokit/auth-app";
+
+export function installationOctokit(appId, privateKey, installationId) {
+  return new Octokit({
+    authStrategy: createAppAuth,
+    auth: { appId, privateKey, installationId }
+  });
+}</code></pre>
+        <p><strong>CI:</strong> use actions/create-github-app-token with the narrowest permissions and repository list the job needs. Check its README for the current input names.</p>
+        <h2>Checklist</h2>
+        <ol>
+        <li>Register a GitHub App and generate a private key.</li>
+        <li>Set the minimum permissions the bot needs.</li>
+        <li>Install the app on the target repositories only.</li>
+        <li>Use Octokit's app authentication for installation tokens.</li>
+        <li>Mint scoped tokens in CI for each job.</li>
+        <li>Avoid long-lived personal tokens.</li>
+        </ol>
+        <h2>Common mistakes</h2>
+        <ul>
+        <li>Granting contents write when only issue write is needed.</li>
+        <li>Using a personal access token, which gives the bot a wider blast radius.</li>
+        <li>Assuming tokens never expire. Installation tokens are short-lived, so refresh them.</li>
+        </ul>
+        <h2>Where this doesn't apply</h2>
+        <ul>
+        <li>Organizations that do not allow GitHub Apps or require a different authentication flow.</li>
+        </ul>
+        <h2>How to get involved</h2>
+        <ul>
+        <li>Good first issue: reduce the permissions of an existing bot and add repository scoping.</li>
+        <li>Discussion: what else should a triage bot be allowed to do?</li>
+        </ul>
+        <h2>Sources (accessed 2026-10-18)</h2>
+        <ul>
+        <li>Generating an installation access token for a GitHub App: https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app. Installation tokens, permissions, and expiry.</li>
+        <li>Authenticating as a GitHub App installation: https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation.</li>
+        <li>Octokit.js: https://github.com/octokit/octokit.js/. App authentication and installation behavior.</li>
+        <li>create-github-app-token action: https://github.com/actions/create-github-app-token.</li>
+        </ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

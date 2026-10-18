@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="How to match Copilot seat types to roles, limit agent actions on sensitive paths, and keep credit use visible across a platform team&#x27;s repositories." />
+    <title>Copilot That Respects Your Repo: Policies, Credits, and Seat Types — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/github/copilot-that-respects-your-repo-policies-credits-and-seat-types.html" />
+    <meta property="article:published_time" content="2026-06-15T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Copilot That Respects Your Repo: Policies, Credits, and Seat Types" />
+    <meta property="og:description" content="How to match Copilot seat types to roles, limit agent actions on sensitive paths, and keep credit use visible across a platform team&#x27;s repositories." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/github/copilot-that-respects-your-repo-policies-credits-and-seat-types.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="github" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Copilot That Respects Your Repo: Policies, Credits, and Seat Types","datePublished":"2026-06-15T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"How to match Copilot seat types to roles, limit agent actions on sensitive paths, and keep credit use visible across a platform team's repositories.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/github/copilot-that-respects-your-repo-policies-credits-and-seat-types.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#github">← GitHub articles</a>
+      <header class="article-document-header"><p class="kicker">Copilot helps most when its scope matches the work. Without a policy, it becomes noise and an unplanned cost.</p><h1>Copilot That Respects Your Repo: Policies, Credits, and Seat Types</h1><p class="article-deck">How to match Copilot seat types to roles, limit agent actions on sensitive paths, and keep credit use visible across a platform team&#x27;s repositories.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-06-15T12:00:00-07:00">Published June 15, 2026</time><span>·</span><span>3 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+        <p>Copilot works well for many tasks, but its behavior depends on how it is licensed and configured. Individual plans and organization plans have different governance features. Pooled credits behave differently from per-user allowances. If seat types, credit budgets, and repository rules are not aligned with each other, Copilot can drift from helpful suggestions into unreviewed changes in critical code. Check the current plan page for seat prices and included credit amounts, since these change.</p>
+        <h2>Options and trade-offs</h2>
+        <ul>
+        <li>Individual plans: suited to solo work. They have no organization-level policy controls.</li>
+        <li>Business plans: add organization policy management and pooled usage. Suitable for most teams that need governance.</li>
+        <li>Enterprise plans: add codebase-aware features and stronger administrative controls. They require Enterprise Cloud, so confirm your account type first.</li>
+        <li>Content exclusions: stop Copilot from reading or suggesting changes in designated paths. They reduce exposure but add admin upkeep.</li>
+        <li>Audit logs: show who used which features. Useful for high-risk repositories, at the cost of more review work.</li>
+        </ul>
+        <h2>My take</h2>
+        <p>Start with Business seats for most contributors and reserve higher tiers for maintainers who need deeper repository context. For directories like infrastructure or authentication code, use content exclusions and treat any agent-generated diff the same as a human-written one. Review it, test it, and request changes when needed.</p>
+        <p>Decision lens: security risk and maintenance cost.</p>
+        <p>Example setup: a monorepo with infrastructure and product code. Give most contributors Business seats, exclude infrastructure paths from Copilot, and limit agent edits to non-sensitive directories.</p>
+        <h2>Template repository</h2>
+        <p><strong>README.md (excerpt):</strong> Describe which activities are allowed in the repository, such as summaries and code explanation, and which are restricted, such as agent edits in sensitive directories. Link to the current plan and credit documentation.</p>
+        <p><strong>CONTRIBUTING.md (excerpt):</strong> Explain how to request the right seat type, how content exclusions are configured, and that agent-generated diffs go through normal review.</p>
+        <p><strong>.github/policies/copilot.md:</strong> Document allowed agent scopes, default model choices, and the list of paths where agent edits are restricted.</p>
+        <h2>Checklist</h2>
+        <ol>
+        <li>Map each role to a seat type.</li>
+        <li>Configure content exclusions for sensitive paths.</li>
+        <li>Enable audit logging for high-risk repositories.</li>
+        <li>Set a monthly credit budget and an owner for overages.</li>
+        <li>Write down which agent actions are allowed in each directory.</li>
+        <li>Require review for agent-generated changes.</li>
+        <li>Keep a discussion thread open for policy adjustments.</li>
+        </ol>
+        <h2>Common mistakes</h2>
+        <ul>
+        <li>Mixing individual and organization plans, which leads to uneven governance.</li>
+        <li>Skipping content exclusions, so agents can read secrets or policy documents.</li>
+        <li>Leaving credit use unbounded, which causes unexpected charges.</li>
+        </ul>
+        <h2>Where this doesn't apply</h2>
+        <ul>
+        <li>Organizations without access to the plan tiers you need.</li>
+        <li>Repositories with legal restrictions on AI-assisted development.</li>
+        </ul>
+        <h2>How to get involved</h2>
+        <ul>
+        <li>Good first issue: propose a minimal content-exclusion list for one repository.</li>
+        <li>Discussion: share where Copilot helps and where it gets in the way.</li>
+        </ul>
+        <h2>Sources (accessed 2026-10-18; verify current status)</h2>
+        <ul>
+        <li>Copilot plans: https://docs.github.com/en/copilot/get-started/plans. Current plans and credits.</li>
+        <li>Copilot billing for organizations and enterprises: https://docs.github.com/en/enterprise-cloud@latest/copilot/concepts/billing/organizations-and-enterprises. Seat and credit administration.</li>
+        </ul>
+        <p>---</p></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

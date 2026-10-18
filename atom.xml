@@ -166,7 +166,54 @@ Allow group TeamC to use instance-family in compartment A:B:C&lt;/code&gt;&lt;/p
 &lt;h2&gt;One honest limitation&lt;/h2&gt;
 &lt;p&gt;Changes in implicit access are easy to miss. Treat a move as a planned change with a validation step afterwards, and do not call it finished until you have checked.&lt;/p&gt;
 &lt;h2&gt;Sources&lt;/h2&gt;
-&lt;ul&gt;&lt;li&gt;OCI Documentation: Managing Compartments (moving a compartment)&lt;/li&gt;&lt;li&gt;OCI Documentation: Policy Syntax (compartment paths)&lt;/li&gt;&lt;li&gt;OCI Documentation: Compartment Quotas and Budgets&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>AI Language and Vision: secure triage pipelines (illustrative)</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/ai-language-and-vision-secure-triage-pipelines-illustrative.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/ai-language-and-vision-secure-triage-pipelines-illustrative.html" rel="alternate" /><atom:published>2026-10-10T12:00:00-07:00</atom:published><atom:updated>2026-10-10T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Wiring OCI Language and Vision into a document triage flow while keeping personal data out of places it should not be.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+&lt;ul&gt;&lt;li&gt;OCI Documentation: Managing Compartments (moving a compartment)&lt;/li&gt;&lt;li&gt;OCI Documentation: Policy Syntax (compartment paths)&lt;/li&gt;&lt;li&gt;OCI Documentation: Compartment Quotas and Budgets&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Discussions as Your Community Front Door</atom:title><atom:id>https://www.imshubh.com/articles/github/discussions-as-your-community-front-door.html</atom:id><atom:link href="https://www.imshubh.com/articles/github/discussions-as-your-community-front-door.html" rel="alternate" /><atom:published>2026-10-15T12:00:00-07:00</atom:published><atom:updated>2026-10-15T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How to enable Discussions, set up categories, pin canonical threads, and convert between issues and discussions as conversations change shape.</atom:summary><atom:category term="github" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;Issues should track work. Discussions suit open-ended questions, ideas, and announcements. Discussions supports categories with different formats, pinned threads, accepted answers, upvotes, and conversion between issues and discussions. Defining these early keeps the work queue clean and reduces duplicate issues.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Categories: group conversations by purpose. Each category can have a format such as announcement, Q&amp;amp;A, or open-ended. Check the current category limit in the docs.&lt;/li&gt;
+        &lt;li&gt;Pinning: highlight canonical threads such as the FAQ or onboarding guide.&lt;/li&gt;
+        &lt;li&gt;Accepted answers and upvotes: surface solutions and priorities. They need moderator attention to stay useful.&lt;/li&gt;
+        &lt;li&gt;Conversion: move a thread from issue to discussion, or back, when its nature changes.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;My take&lt;/h2&gt;
+        &lt;p&gt;Keep a small set of categories, pin the threads newcomers need first, and use a category form for Q&amp;amp;A so questions arrive with the details needed to answer them.&lt;/p&gt;
+        &lt;p&gt;Decision lens: new-contributor friction and review latency.&lt;/p&gt;
+        &lt;p&gt;Example setup: categories for Announcements, Q&amp;amp;A, and Ideas. The FAQ and a first-thirty-minutes guide are pinned. The Q&amp;amp;A category uses a form that asks for version, steps to reproduce, and expected versus actual behavior.&lt;/p&gt;
+        &lt;h2&gt;Template&lt;/h2&gt;
+        &lt;p&gt;&lt;strong&gt;.github/DISCUSSION_TEMPLATE/qna.yml:&lt;/strong&gt; a category form with prompts for version, steps, expected behavior, and actual behavior.&lt;/p&gt;
+        &lt;p&gt;&lt;strong&gt;Welcome post:&lt;/strong&gt; the purpose of the space, the code of conduct, and the rules for converting between issues and discussions.&lt;/p&gt;
+        &lt;p&gt;&lt;strong&gt;Category setup:&lt;/strong&gt; Announcements restricted to maintainers, and Q&amp;amp;A with accepted answers enabled.&lt;/p&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ol&gt;
+        &lt;li&gt;Enable Discussions and create categories.&lt;/li&gt;
+        &lt;li&gt;Pin the FAQ and onboarding threads.&lt;/li&gt;
+        &lt;li&gt;Add a Q&amp;amp;A category form.&lt;/li&gt;
+        &lt;li&gt;Write down the conversion rules between issues and discussions.&lt;/li&gt;
+        &lt;li&gt;Review the category setup each quarter.&lt;/li&gt;
+        &lt;/ol&gt;
+        &lt;h2&gt;Common mistakes&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Running without categories, which makes threads hard to find.&lt;/li&gt;
+        &lt;li&gt;Not pinning canonical answers, so the same questions keep coming back.&lt;/li&gt;
+        &lt;li&gt;Never converting issues, so the work queue fills with general chat.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Where this doesn't apply&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Organizations required to use an external forum or ticketing system.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;How to get involved&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Good first issue: propose a new pinned FAQ entry.&lt;/li&gt;
+        &lt;li&gt;Discussion: what should the Q&amp;amp;A form ask first?&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Sources (accessed 2026-10-18)&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Managing categories for discussions: https://docs.github.com/en/discussions/managing-discussions-for-your-community/managing-categories-for-discussions. Formats and limits.&lt;/li&gt;
+        &lt;li&gt;Managing discussions: https://docs.github.com/en/discussions/managing-discussions-for-your-community/managing-discussions. Pinning, permissions, and transfers.&lt;/li&gt;
+        &lt;li&gt;Collaborating with maintainers using discussions: https://docs.github.com/en/discussions/collaborating-with-your-community-using-discussions/collaborating-with-maintainers-using-discussions. Accepted answers, upvotes, and conversion.&lt;/li&gt;
+        &lt;li&gt;Category forms: https://docs.github.com/en/discussions/managing-discussions-for-your-community/creating-discussion-category-forms.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;p&gt;---&lt;/p&gt;</atom:content></atom:entry><atom:entry><atom:title>AI Language and Vision: secure triage pipelines (illustrative)</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/ai-language-and-vision-secure-triage-pipelines-illustrative.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/ai-language-and-vision-secure-triage-pipelines-illustrative.html" rel="alternate" /><atom:published>2026-10-10T12:00:00-07:00</atom:published><atom:updated>2026-10-10T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Wiring OCI Language and Vision into a document triage flow while keeping personal data out of places it should not be.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
 &lt;p&gt;Support tickets, scanned forms and screenshots all contain personal data, and the people asking for automated triage rarely want to train a model. OCI Language and Vision offer pretrained models behind regional endpoints, which is a good fit when the goal is to route and summarize rather than to research.&lt;/p&gt;
 &lt;p&gt;The design question is where personal data goes. I wanted the masking to happen before anything gets stored or forwarded, and I wanted a trail showing which call touched which document.&lt;/p&gt;
 &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
@@ -419,7 +466,56 @@ curl -s http://127.0.0.1:8080/health&lt;/code&gt;&lt;/pre&gt;
         &lt;h2&gt;One honest limitation&lt;/h2&gt;
         &lt;p&gt;A cold start on a JVM service can take seconds. You can soften it with a smaller image and class-data sharing, but you cannot remove it, so decide whether a slow first visit is acceptable for the demo.&lt;/p&gt;
         &lt;h2&gt;Sources&lt;/h2&gt;
-        &lt;ul&gt;&lt;li&gt;Docker Docs: Compose file reference (ports)&lt;/li&gt;&lt;li&gt;Docker Docs: Dockerfile HEALTHCHECK&lt;/li&gt;&lt;li&gt;Oracle Java Documentation: com.sun.net.httpserver package&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>API gateway enforcement for LLM APIs</atom:title><atom:id>https://www.imshubh.com/articles/microsoft/api-gateway-enforcement-for-llm-apis.html</atom:id><atom:link href="https://www.imshubh.com/articles/microsoft/api-gateway-enforcement-for-llm-apis.html" rel="alternate" /><atom:published>2026-09-09T12:00:00-07:00</atom:published><atom:updated>2026-09-09T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Putting Azure API Management in front of Azure OpenAI: managed identity to the backend, token validation at the edge, and rate limits per caller.</atom:summary><atom:category term="microsoft" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Docker Docs: Compose file reference (ports)&lt;/li&gt;&lt;li&gt;Docker Docs: Dockerfile HEALTHCHECK&lt;/li&gt;&lt;li&gt;Oracle Java Documentation: com.sun.net.httpserver package&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Roadmaps Next to Your Code: GitHub Projects for Platform Teams</atom:title><atom:id>https://www.imshubh.com/articles/github/roadmaps-next-to-your-code-github-projects-for-platform-teams.html</atom:id><atom:link href="https://www.imshubh.com/articles/github/roadmaps-next-to-your-code-github-projects-for-platform-teams.html" rel="alternate" /><atom:published>2026-09-15T12:00:00-07:00</atom:published><atom:updated>2026-09-15T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How to run a roadmap in GitHub Projects using table, board, and roadmap views, custom fields, and built-in automations.</atom:summary><atom:category term="github" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;External roadmap tools fall out of date because they are not connected to issues and pull requests. GitHub Projects sits alongside issues and PRs and gives each team a view suited to its question: a prioritized backlog, the current iteration board, or a timeline roadmap.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Table view: dense and good for prioritization. It needs consistent field values.&lt;/li&gt;
+        &lt;li&gt;Board view: a status-based layout for iteration planning. It works best with work-in-progress limits.&lt;/li&gt;
+        &lt;li&gt;Roadmap view: a timeline across dates or iterations. It suits communicating schedules to others.&lt;/li&gt;
+        &lt;li&gt;Built-in workflows: add items, set status, and archive without code. They are limited compared with custom automation.&lt;/li&gt;
+        &lt;li&gt;Insights: charts for status and progress. Useful for a quick read, not a full reporting tool.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;My take&lt;/h2&gt;
+        &lt;p&gt;Use one organization-level project for the platform roadmap, keep tactical bug work out of it, and save a small set of views that answer the questions people actually ask.&lt;/p&gt;
+        &lt;p&gt;Decision lens: review latency and team workload.&lt;/p&gt;
+        &lt;p&gt;Example setup: a platform roadmap project with Priority, Estimate, Iteration, and Owner fields, auto-add filters for the relevant repositories, and three saved views: backlog by priority, the current iteration board, and the quarter roadmap.&lt;/p&gt;
+        &lt;h2&gt;Template&lt;/h2&gt;
+        &lt;p&gt;&lt;strong&gt;Project fields:&lt;/strong&gt; a single-select Priority field, a number field for Estimate, and an iteration field.&lt;/p&gt;
+        &lt;p&gt;&lt;strong&gt;Views:&lt;/strong&gt; Table for the backlog, Board for the current iteration, and Roadmap for milestones.&lt;/p&gt;
+        &lt;p&gt;&lt;strong&gt;Workflows:&lt;/strong&gt; auto-add issues with a chosen label, set new items to Todo, and archive items that have been Done for a set period.&lt;/p&gt;
+        &lt;p&gt;&lt;strong&gt;Project README:&lt;/strong&gt; link the saved views and describe the naming and labeling rules.&lt;/p&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ol&gt;
+        &lt;li&gt;Create an organization project and define the fields.&lt;/li&gt;
+        &lt;li&gt;Save table, board, and roadmap views.&lt;/li&gt;
+        &lt;li&gt;Configure auto-add and status workflows.&lt;/li&gt;
+        &lt;li&gt;Add milestone markers to the roadmap view.&lt;/li&gt;
+        &lt;li&gt;Document label and ownership conventions.&lt;/li&gt;
+        &lt;li&gt;Set work-in-progress limits on the board.&lt;/li&gt;
+        &lt;/ol&gt;
+        &lt;h2&gt;Common mistakes&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Mixing bug triage with strategic planning in one project. Split them.&lt;/li&gt;
+        &lt;li&gt;Not saving views, so collaborators lose context.&lt;/li&gt;
+        &lt;li&gt;Skipping automation, which lets status drift from reality.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Where this doesn't apply&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Teams required to use an external project management system. Mirror the data through the API if needed.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;How to get involved&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Good first issue: propose a saved view that would improve backlog triage.&lt;/li&gt;
+        &lt;li&gt;Discussion: what fields should the roadmap track?&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Sources (accessed 2026-10-18)&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;About Projects: https://docs.github.com/en/issues/planning-and-tracking-with-projects/learning-about-projects/about-projects. Views, fields, automation, and insights.&lt;/li&gt;
+        &lt;li&gt;Quickstart for Projects: https://docs.github.com/en/issues/planning-and-tracking-with-projects/learning-about-projects/quickstart-for-projects. Creating views, fields, and workflows.&lt;/li&gt;
+        &lt;li&gt;Roadmaps generally available: https://github.blog/changelog/2025-03-22-roadmaps-in-projects-are-now-generally-available/. Roadmap view status and markers.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;p&gt;---&lt;/p&gt;</atom:content></atom:entry><atom:entry><atom:title>API gateway enforcement for LLM APIs</atom:title><atom:id>https://www.imshubh.com/articles/microsoft/api-gateway-enforcement-for-llm-apis.html</atom:id><atom:link href="https://www.imshubh.com/articles/microsoft/api-gateway-enforcement-for-llm-apis.html" rel="alternate" /><atom:published>2026-09-09T12:00:00-07:00</atom:published><atom:updated>2026-09-09T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Putting Azure API Management in front of Azure OpenAI: managed identity to the backend, token validation at the edge, and rate limits per caller.</atom:summary><atom:category term="microsoft" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
         &lt;p&gt;When every team calls the model endpoint directly, governance is a spreadsheet: who has access, how much they use, and what they send. Putting a gateway in front of the model gives you one place to authenticate callers, enforce limits and log usage. Azure API Management (APIM) can authenticate to Azure OpenAI with its own managed identity, so no API keys are stored or shared, and it can validate caller tokens before anything reaches the model.&lt;/p&gt;
         &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
         &lt;ul&gt;
@@ -575,7 +671,54 @@ case Unverifiable unv -&amp;gt; Map.of("type", "Unverifiable", "note", unv.note(
         &lt;p&gt;Refactor one DTO to embed a sealed state rather than a nullable numeric field. Add a type field in JSON. Update consumers to switch on type.&lt;/p&gt;
         &lt;p&gt;Write aggregation policies that return NaN or omit fields when inputs are fully unknown. Test behavior explicitly.&lt;/p&gt;
         &lt;p&gt;Add metrics that count unknowns and unverifiable states separately from numeric distributions.&lt;/p&gt;
-        &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://openjdk.org/jeps/395" target="_blank" rel="noreferrer"&gt;Records (JEP 395)&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://openjdk.org/jeps/409" target="_blank" rel="noreferrer"&gt;Sealed Classes (JEP 409)&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://openjdk.org/jeps/441" target="_blank" rel="noreferrer"&gt;Pattern Matching for switch (JEP 441)&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>Debugging a container that gives you nothing: exit codes, thread dumps and ephemeral tools</atom:title><atom:id>https://www.imshubh.com/articles/docker/debugging-minimal-containers.html</atom:id><atom:link href="https://www.imshubh.com/articles/docker/debugging-minimal-containers.html" rel="alternate" /><atom:published>2026-08-13T12:00:00-07:00</atom:published><atom:updated>2026-08-13T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How I diagnose a failing Java container without baking a shell and a toolbox into the production image.</atom:summary><atom:category term="docker" /><atom:category term="containers" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://openjdk.org/jeps/395" target="_blank" rel="noreferrer"&gt;Records (JEP 395)&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://openjdk.org/jeps/409" target="_blank" rel="noreferrer"&gt;Sealed Classes (JEP 409)&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://openjdk.org/jeps/441" target="_blank" rel="noreferrer"&gt;Pattern Matching for switch (JEP 441)&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>Codespaces Without Surprise Bills: Devcontainers, Prebuilds, and Policies</atom:title><atom:id>https://www.imshubh.com/articles/github/codespaces-without-surprise-bills-devcontainers-prebuilds-and-policies.html</atom:id><atom:link href="https://www.imshubh.com/articles/github/codespaces-without-surprise-bills-devcontainers-prebuilds-and-policies.html" rel="alternate" /><atom:published>2026-08-15T12:00:00-07:00</atom:published><atom:updated>2026-08-15T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How to use devcontainers and prebuilds for fast contributor setup, and how to set machine limits, retention, and spending caps so costs stay predictable.</atom:summary><atom:category term="github" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;Codespaces is fast to start and well integrated with GitHub, but it is metered. Compute is billed by the hour, and storage is billed by the gigabyte-month. Stopped codespaces can keep accruing storage until they are deleted. Personal accounts and organizations have different included quotas, so check the billing page for your account type.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Devcontainers: make environments reproducible and speed up onboarding. They need ongoing maintenance of the image and its setup scripts.&lt;/li&gt;
+        &lt;li&gt;Prebuilds: speed up opening large repositories. They consume Actions minutes, so they suit heavy projects.&lt;/li&gt;
+        &lt;li&gt;Machine size policy: limit the cores and memory contributors can pick. Smaller machines cost less but run slower.&lt;/li&gt;
+        &lt;li&gt;Retention and idle timeouts: reduce storage and runaway compute. They add some admin overhead.&lt;/li&gt;
+        &lt;li&gt;Spending limits: cap organization spend. Set them before rollout, not after the first surprise bill.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;My take&lt;/h2&gt;
+        &lt;p&gt;Ship one default devcontainer sized for typical work, enable prebuilds only on the main branch, and set a short idle timeout. Teach contributors to delete codespaces they no longer need rather than only stopping them.&lt;/p&gt;
+        &lt;p&gt;Decision lens: new-contributor friction and maintenance cost.&lt;/p&gt;
+        &lt;p&gt;Example setup: a service repository with a 4-core default devcontainer, prebuilds on the main branch, a 30-minute idle timeout, automatic deletion after 7 days of inactivity, and a monthly spending cap for the organization.&lt;/p&gt;
+        &lt;h2&gt;Template repository&lt;/h2&gt;
+        &lt;p&gt;&lt;strong&gt;.devcontainer/devcontainer.json:&lt;/strong&gt; Base image, post-create commands, default machine size, and recommended extensions.&lt;/p&gt;
+        &lt;p&gt;&lt;strong&gt;.github/workflows/prebuild.yml:&lt;/strong&gt; Prebuild configuration limited to main and release branches. Check the Codespaces prebuild docs for the current configuration syntax.&lt;/p&gt;
+        &lt;p&gt;&lt;strong&gt;README.md ("Use Codespaces" section):&lt;/strong&gt; Machine choices, the difference between stopping and deleting, budget notes, and a link to contributor docs.&lt;/p&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ol&gt;
+        &lt;li&gt;Define a devcontainer with a sensible default machine size.&lt;/li&gt;
+        &lt;li&gt;Enable prebuilds for large repositories and watch Actions minutes.&lt;/li&gt;
+        &lt;li&gt;Set idle timeout, retention, and spending limits at the organization level.&lt;/li&gt;
+        &lt;li&gt;Document the differences between personal and organization billing.&lt;/li&gt;
+        &lt;li&gt;Tell contributors to delete unused codespaces.&lt;/li&gt;
+        &lt;/ol&gt;
+        &lt;h2&gt;Common mistakes&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Assuming a stopped codespace costs nothing. Storage keeps accruing until deletion.&lt;/li&gt;
+        &lt;li&gt;Leaving machine sizes unlimited, so contributors default to the largest option.&lt;/li&gt;
+        &lt;li&gt;Enabling prebuilds without tracking the Actions minutes they consume.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Where this doesn't apply&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Teams that need local-only development or hardware that Codespaces does not support.&lt;/li&gt;
+        &lt;li&gt;Toolchains that need macOS, iOS, or Windows-only environments.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;How to get involved&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Good first issue: add a prebuild for a documentation repository.&lt;/li&gt;
+        &lt;li&gt;Discussion: share your default machine size and budget caps.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Sources (accessed 2026-10-18; verify current rates)&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Codespaces billing: https://docs.github.com/billing/managing-billing-for-github-codespaces/about-billing-for-github-codespaces. Compute and storage billing, included quotas, and organization metering.&lt;/li&gt;
+        &lt;li&gt;GitHub plans: https://docs.github.com/en/get-started/learning-about-github/githubs-plans. Personal and organization plan differences.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;p&gt;---&lt;/p&gt;</atom:content></atom:entry><atom:entry><atom:title>Debugging a container that gives you nothing: exit codes, thread dumps and ephemeral tools</atom:title><atom:id>https://www.imshubh.com/articles/docker/debugging-minimal-containers.html</atom:id><atom:link href="https://www.imshubh.com/articles/docker/debugging-minimal-containers.html" rel="alternate" /><atom:published>2026-08-13T12:00:00-07:00</atom:published><atom:updated>2026-08-13T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How I diagnose a failing Java container without baking a shell and a toolbox into the production image.</atom:summary><atom:category term="docker" /><atom:category term="containers" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
         &lt;p&gt;A container fails and all you get is an exit code and perhaps a log line. The tempting response is to add a shell, curl, a debugger and a package manager to the image so that next time you can look around. That is the wrong trade. Production images should be small and boring, and your tools should arrive only when needed and leave no trace.&lt;/p&gt;
         &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
         &lt;ul&gt;&lt;li&gt;Bake debugging tools into the image: convenient, but it enlarges the attack surface and the image.&lt;/li&gt;&lt;li&gt;Add an admin endpoint: useful for version and uptime, but it is one more thing to secure.&lt;/li&gt;&lt;li&gt;Use the platform: logs, exit codes, signals, and a separate short-lived container that shares the target's network.&lt;/li&gt;&lt;/ul&gt;
@@ -1129,7 +1272,56 @@ public class SetBenchmark {
         &lt;h2&gt;Failure modes&lt;/h2&gt;
         &lt;ul&gt;&lt;li&gt;&lt;strong&gt;Optimizing the wrong layer.&lt;/strong&gt; A faster set does nothing if the allocation comes from JSON parsing upstream.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Benchmarking unrealistic data.&lt;/strong&gt; Use sizes and distributions that match production.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Trading readability for nothing.&lt;/strong&gt; Adopt a specialized library only where the profile justifies it.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Forgetting dependencies.&lt;/strong&gt; A new library adds maintenance and upgrade cost.&lt;/li&gt;&lt;/ul&gt;
         &lt;h2&gt;Takeaways&lt;/h2&gt;
-        &lt;ul&gt;&lt;li&gt;Profile allocation with two tools before touching code.&lt;/li&gt;&lt;li&gt;Boxing and per-entry nodes in collections are common sources of garbage.&lt;/li&gt;&lt;li&gt;Prove a fix in JMH with &lt;code&gt;-prof gc&lt;/code&gt;, then confirm with a production-like recording.&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Keeping secrets out of container images, builds and logs</atom:title><atom:id>https://www.imshubh.com/articles/docker/keeping-secrets-out-of-images-builds-and-logs.html</atom:id><atom:link href="https://www.imshubh.com/articles/docker/keeping-secrets-out-of-images-builds-and-logs.html" rel="alternate" /><atom:published>2026-06-06T12:00:00-07:00</atom:published><atom:updated>2026-06-06T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>A practical playbook for build-time tokens, runtime credentials and log redaction in a Java service, using BuildKit secrets and mounted files.</atom:summary><atom:category term="docker" /><atom:category term="containers" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Profile allocation with two tools before touching code.&lt;/li&gt;&lt;li&gt;Boxing and per-entry nodes in collections are common sources of garbage.&lt;/li&gt;&lt;li&gt;Prove a fix in JMH with &lt;code&gt;-prof gc&lt;/code&gt;, then confirm with a production-like recording.&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Copilot That Respects Your Repo: Policies, Credits, and Seat Types</atom:title><atom:id>https://www.imshubh.com/articles/github/copilot-that-respects-your-repo-policies-credits-and-seat-types.html</atom:id><atom:link href="https://www.imshubh.com/articles/github/copilot-that-respects-your-repo-policies-credits-and-seat-types.html" rel="alternate" /><atom:published>2026-06-15T12:00:00-07:00</atom:published><atom:updated>2026-06-15T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How to match Copilot seat types to roles, limit agent actions on sensitive paths, and keep credit use visible across a platform team's repositories.</atom:summary><atom:category term="github" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;Copilot works well for many tasks, but its behavior depends on how it is licensed and configured. Individual plans and organization plans have different governance features. Pooled credits behave differently from per-user allowances. If seat types, credit budgets, and repository rules are not aligned with each other, Copilot can drift from helpful suggestions into unreviewed changes in critical code. Check the current plan page for seat prices and included credit amounts, since these change.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Individual plans: suited to solo work. They have no organization-level policy controls.&lt;/li&gt;
+        &lt;li&gt;Business plans: add organization policy management and pooled usage. Suitable for most teams that need governance.&lt;/li&gt;
+        &lt;li&gt;Enterprise plans: add codebase-aware features and stronger administrative controls. They require Enterprise Cloud, so confirm your account type first.&lt;/li&gt;
+        &lt;li&gt;Content exclusions: stop Copilot from reading or suggesting changes in designated paths. They reduce exposure but add admin upkeep.&lt;/li&gt;
+        &lt;li&gt;Audit logs: show who used which features. Useful for high-risk repositories, at the cost of more review work.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;My take&lt;/h2&gt;
+        &lt;p&gt;Start with Business seats for most contributors and reserve higher tiers for maintainers who need deeper repository context. For directories like infrastructure or authentication code, use content exclusions and treat any agent-generated diff the same as a human-written one. Review it, test it, and request changes when needed.&lt;/p&gt;
+        &lt;p&gt;Decision lens: security risk and maintenance cost.&lt;/p&gt;
+        &lt;p&gt;Example setup: a monorepo with infrastructure and product code. Give most contributors Business seats, exclude infrastructure paths from Copilot, and limit agent edits to non-sensitive directories.&lt;/p&gt;
+        &lt;h2&gt;Template repository&lt;/h2&gt;
+        &lt;p&gt;&lt;strong&gt;README.md (excerpt):&lt;/strong&gt; Describe which activities are allowed in the repository, such as summaries and code explanation, and which are restricted, such as agent edits in sensitive directories. Link to the current plan and credit documentation.&lt;/p&gt;
+        &lt;p&gt;&lt;strong&gt;CONTRIBUTING.md (excerpt):&lt;/strong&gt; Explain how to request the right seat type, how content exclusions are configured, and that agent-generated diffs go through normal review.&lt;/p&gt;
+        &lt;p&gt;&lt;strong&gt;.github/policies/copilot.md:&lt;/strong&gt; Document allowed agent scopes, default model choices, and the list of paths where agent edits are restricted.&lt;/p&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ol&gt;
+        &lt;li&gt;Map each role to a seat type.&lt;/li&gt;
+        &lt;li&gt;Configure content exclusions for sensitive paths.&lt;/li&gt;
+        &lt;li&gt;Enable audit logging for high-risk repositories.&lt;/li&gt;
+        &lt;li&gt;Set a monthly credit budget and an owner for overages.&lt;/li&gt;
+        &lt;li&gt;Write down which agent actions are allowed in each directory.&lt;/li&gt;
+        &lt;li&gt;Require review for agent-generated changes.&lt;/li&gt;
+        &lt;li&gt;Keep a discussion thread open for policy adjustments.&lt;/li&gt;
+        &lt;/ol&gt;
+        &lt;h2&gt;Common mistakes&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Mixing individual and organization plans, which leads to uneven governance.&lt;/li&gt;
+        &lt;li&gt;Skipping content exclusions, so agents can read secrets or policy documents.&lt;/li&gt;
+        &lt;li&gt;Leaving credit use unbounded, which causes unexpected charges.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Where this doesn't apply&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Organizations without access to the plan tiers you need.&lt;/li&gt;
+        &lt;li&gt;Repositories with legal restrictions on AI-assisted development.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;How to get involved&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Good first issue: propose a minimal content-exclusion list for one repository.&lt;/li&gt;
+        &lt;li&gt;Discussion: share where Copilot helps and where it gets in the way.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Sources (accessed 2026-10-18; verify current status)&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Copilot plans: https://docs.github.com/en/copilot/get-started/plans. Current plans and credits.&lt;/li&gt;
+        &lt;li&gt;Copilot billing for organizations and enterprises: https://docs.github.com/en/enterprise-cloud@latest/copilot/concepts/billing/organizations-and-enterprises. Seat and credit administration.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;p&gt;---&lt;/p&gt;</atom:content></atom:entry><atom:entry><atom:title>Keeping secrets out of container images, builds and logs</atom:title><atom:id>https://www.imshubh.com/articles/docker/keeping-secrets-out-of-images-builds-and-logs.html</atom:id><atom:link href="https://www.imshubh.com/articles/docker/keeping-secrets-out-of-images-builds-and-logs.html" rel="alternate" /><atom:published>2026-06-06T12:00:00-07:00</atom:published><atom:updated>2026-06-06T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>A practical playbook for build-time tokens, runtime credentials and log redaction in a Java service, using BuildKit secrets and mounted files.</atom:summary><atom:category term="docker" /><atom:category term="containers" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
         &lt;p&gt;Secrets leak in boring ways. A token passed as a build argument ends up in image history. An exception handler prints the whole configuration. An environment variable set for a quick test is still there six months later. The fix is not one tool. It is a set of small defaults that make the safe path the easy path, covering the build, the runtime and the logs.&lt;/p&gt;
         &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
         &lt;ul&gt;&lt;li&gt;ARG and ENV for credentials: simple, but both are stored in image metadata and can be read back from the image.&lt;/li&gt;&lt;li&gt;BuildKit secret mounts: the secret is available to one build step and is never written to a layer.&lt;/li&gt;&lt;li&gt;Runtime secrets as environment variables: convenient, but they show up in diagnostics and process listings.&lt;/li&gt;&lt;li&gt;Runtime secrets as mounted files: easier to restrict, audit and rotate without rebuilding.&lt;/li&gt;&lt;/ul&gt;
@@ -3755,4 +3947,197 @@ Allow dynamic-group app-runtimes to use log-content in compartment apps&lt;/code
 &lt;h2&gt;One honest limitation&lt;/h2&gt;
 &lt;p&gt;Anyone who can get a shell on the instance inherits its permissions. Instance principals take away the secret, not the access, so SSH access and the policy have to be designed together.&lt;/p&gt;
 &lt;h2&gt;Sources&lt;/h2&gt;
-&lt;ul&gt;&lt;li&gt;OCI Documentation: Calling Services from an Instance&lt;/li&gt;&lt;li&gt;OCI Documentation: Managing Dynamic Groups&lt;/li&gt;&lt;li&gt;OCI Documentation: OCI SDK for Java, Instance Principals authentication&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry></atom:feed>
+&lt;ul&gt;&lt;li&gt;OCI Documentation: Calling Services from an Instance&lt;/li&gt;&lt;li&gt;OCI Documentation: Managing Dynamic Groups&lt;/li&gt;&lt;li&gt;OCI Documentation: OCI SDK for Java, Instance Principals authentication&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Build a Scoped Bot: GitHub Apps and Octokit, the Right Way</atom:title><atom:id>https://www.imshubh.com/articles/github/build-a-scoped-bot-github-apps-and-octokit-the-right-way.html</atom:id><atom:link href="https://www.imshubh.com/articles/github/build-a-scoped-bot-github-apps-and-octokit-the-right-way.html" rel="alternate" /><atom:published>2025-08-16T12:00:00-07:00</atom:published><atom:updated>2025-08-16T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How to authenticate a GitHub App as an installation, limit it to specific repositories and permissions, and use short-lived tokens.</atom:summary><atom:category term="github" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;Personal access tokens are broad. They grant access across every repository the account can reach. GitHub Apps define explicit permissions, install on chosen repositories, and issue installation tokens that expire. Octokit libraries handle token generation and refresh, and actions/create-github-app-token creates scoped tokens inside CI.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;GitHub App versus OAuth app: Apps offer per-permission and per-repository control. OAuth relies on user-granted scopes.&lt;/li&gt;
+        &lt;li&gt;Octokit versus manual token handling: Octokit handles installation tokens and refresh. Manual handling gives more control and more code to maintain.&lt;/li&gt;
+        &lt;li&gt;CI token action: mints a scoped token for each job, so you avoid a broad long-lived credential.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;My take&lt;/h2&gt;
+        &lt;p&gt;Give the app the smallest permission that does the job, install it only on the repositories it needs, and avoid write access to contents unless the bot must change code.&lt;/p&gt;
+        &lt;p&gt;Decision lens: security risk and maintenance cost.&lt;/p&gt;
+        &lt;p&gt;Example setup: a triage bot installed on two repositories with issue write access only. Each CI run mints a token limited to those repositories, adds a comment or label, and never gets contents write access.&lt;/p&gt;
+        &lt;h2&gt;Template&lt;/h2&gt;
+        &lt;p&gt;&lt;strong&gt;src/appClient.js:&lt;/strong&gt;&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;import { Octokit } from "@octokit/core";
+import { createAppAuth } from "@octokit/auth-app";
+
+export function installationOctokit(appId, privateKey, installationId) {
+  return new Octokit({
+    authStrategy: createAppAuth,
+    auth: { appId, privateKey, installationId }
+  });
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;&lt;strong&gt;CI:&lt;/strong&gt; use actions/create-github-app-token with the narrowest permissions and repository list the job needs. Check its README for the current input names.&lt;/p&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ol&gt;
+        &lt;li&gt;Register a GitHub App and generate a private key.&lt;/li&gt;
+        &lt;li&gt;Set the minimum permissions the bot needs.&lt;/li&gt;
+        &lt;li&gt;Install the app on the target repositories only.&lt;/li&gt;
+        &lt;li&gt;Use Octokit's app authentication for installation tokens.&lt;/li&gt;
+        &lt;li&gt;Mint scoped tokens in CI for each job.&lt;/li&gt;
+        &lt;li&gt;Avoid long-lived personal tokens.&lt;/li&gt;
+        &lt;/ol&gt;
+        &lt;h2&gt;Common mistakes&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Granting contents write when only issue write is needed.&lt;/li&gt;
+        &lt;li&gt;Using a personal access token, which gives the bot a wider blast radius.&lt;/li&gt;
+        &lt;li&gt;Assuming tokens never expire. Installation tokens are short-lived, so refresh them.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Where this doesn't apply&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Organizations that do not allow GitHub Apps or require a different authentication flow.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;How to get involved&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Good first issue: reduce the permissions of an existing bot and add repository scoping.&lt;/li&gt;
+        &lt;li&gt;Discussion: what else should a triage bot be allowed to do?&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Sources (accessed 2026-10-18)&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Generating an installation access token for a GitHub App: https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app. Installation tokens, permissions, and expiry.&lt;/li&gt;
+        &lt;li&gt;Authenticating as a GitHub App installation: https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation.&lt;/li&gt;
+        &lt;li&gt;Octokit.js: https://github.com/octokit/octokit.js/. App authentication and installation behavior.&lt;/li&gt;
+        &lt;li&gt;create-github-app-token action: https://github.com/actions/create-github-app-token.&lt;/li&gt;
+        &lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Triage and Ship from the Terminal: gh CLI for Platform Teams</atom:title><atom:id>https://www.imshubh.com/articles/github/triage-and-ship-from-the-terminal-gh-cli-for-platform-teams.html</atom:id><atom:link href="https://www.imshubh.com/articles/github/triage-and-ship-from-the-terminal-gh-cli-for-platform-teams.html" rel="alternate" /><atom:published>2025-07-18T12:00:00-07:00</atom:published><atom:updated>2025-07-18T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How to use gh CLI to create issues, review and merge pull requests, and rerun workflows, with small scripts that keep the commands consistent.</atom:summary><atom:category term="github" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;Platform teams spend much of their day in a shell. The gh CLI covers many everyday GitHub operations: issues, pull requests, projects, releases, and workflow runs. In CI, the GH_TOKEN environment variable provides authentication. With a few scripts, triage and review stop depending on tab-switching.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Pull requests: list, check out, review, and merge from the terminal. Fast, but comments need discipline.&lt;/li&gt;
+        &lt;li&gt;Issues: create, list, assign, and comment. Templates can be applied through body files.&lt;/li&gt;
+        &lt;li&gt;Workflows: run, watch, and rerun. Rerunning only failed jobs saves time.&lt;/li&gt;
+        &lt;li&gt;gh api: reach any REST or GraphQL endpoint and filter the output with jq. Powerful, and easy to misuse without authentication.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;My take&lt;/h2&gt;
+        &lt;p&gt;Write a short list of scripts for the actions you repeat most, keep them in the repository, and teach the team a small core set of commands before introducing anything more complex.&lt;/p&gt;
+        &lt;p&gt;Decision lens: review latency and maintenance cost.&lt;/p&gt;
+        &lt;p&gt;Example setup: three scripts for approving and squash-merging a pull request, rerunning failed jobs, and opening a bug issue from a template, each logging its output to a file for an audit trail.&lt;/p&gt;
+        &lt;h2&gt;Template&lt;/h2&gt;
+        &lt;p&gt;&lt;strong&gt;scripts/approve_and_squash.sh:&lt;/strong&gt;&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;#!/usr/bin/env bash
+set -euo pipefail
+gh pr review "$1" --approve
+gh pr merge "$1" --squash --delete-branch&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;&lt;strong&gt;scripts/rerun_failed.sh:&lt;/strong&gt;&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;#!/usr/bin/env bash
+set -euo pipefail
+gh run rerun "$1" --failed
+gh run watch "$1"&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;&lt;strong&gt;scripts/new_bug.sh:&lt;/strong&gt;&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;#!/usr/bin/env bash
+set -euo pipefail
+gh issue create --title "$1" --body-file .github/ISSUE_TEMPLATE/bug.md --label bug --assignee @me&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;In CI, set GH_TOKEN so gh commands authenticate.&lt;/p&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ol&gt;
+        &lt;li&gt;Install gh and run gh auth login.&lt;/li&gt;
+        &lt;li&gt;Set GH_TOKEN in any workflow that calls gh.&lt;/li&gt;
+        &lt;li&gt;Add scripts for pull request review and workflow reruns.&lt;/li&gt;
+        &lt;li&gt;Create issues from templates to keep them consistent.&lt;/li&gt;
+        &lt;li&gt;Log script output for audit trails.&lt;/li&gt;
+        &lt;li&gt;Teach a short list of core commands first.&lt;/li&gt;
+        &lt;/ol&gt;
+        &lt;h2&gt;Common mistakes&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Missing GH_TOKEN in workflows, so gh calls fail.&lt;/li&gt;
+        &lt;li&gt;Merging without deleting the branch, so stale branches pile up.&lt;/li&gt;
+        &lt;li&gt;Rerunning an entire workflow when only the failed jobs need it.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Where this doesn't apply&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Locked-down environments where the CLI is not available.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;How to get involved&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Good first issue: add a script that opens the logs for a failing run.&lt;/li&gt;
+        &lt;li&gt;Discussion: which ten gh commands should new team members learn first?&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Sources (accessed 2026-10-18)&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Using GitHub CLI in workflows: https://docs.github.com/en/actions/using-workflows/using-github-cli-in-workflows. GH_TOKEN and examples.&lt;/li&gt;
+        &lt;li&gt;gh pr checks manual: https://cli.github.com/manual/gh_pr_checks. Behavior and exit codes.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;p&gt;---&lt;/p&gt;</atom:content></atom:entry><atom:entry><atom:title>Zero-Friction Docs: Deploy Static Sites to GitHub Pages with Actions</atom:title><atom:id>https://www.imshubh.com/articles/github/zero-friction-docs-deploy-static-sites-to-github-pages-with-actions.html</atom:id><atom:link href="https://www.imshubh.com/articles/github/zero-friction-docs-deploy-static-sites-to-github-pages-with-actions.html" rel="alternate" /><atom:published>2025-06-18T12:00:00-07:00</atom:published><atom:updated>2025-06-18T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How to build and deploy a static documentation site with GitHub's Pages actions, using a short workflow and no manual steps.</atom:summary><atom:category term="github" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;Static docs should update when the code does. GitHub Pages can deploy from a branch or from a workflow. The Actions-based path uses configure-pages, upload-pages-artifact, and deploy-pages, with explicit permissions and a concurrency group that cancels outdated deploys.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Deploy from a branch: the simplest setup, with limited build control. Jekyll runs by default unless you add a .nojekyll file.&lt;/li&gt;
+        &lt;li&gt;Deploy with Actions: supports any static site generator and explicit permissions and concurrency controls.&lt;/li&gt;
+        &lt;li&gt;Environment protection: require checks before the github-pages environment deploys.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;My take&lt;/h2&gt;
+        &lt;p&gt;Use the Actions path for any project that needs a build step. Protect the deployment environment so a failing build cannot publish.&lt;/p&gt;
+        &lt;p&gt;Decision lens: maintenance cost and review latency.&lt;/p&gt;
+        &lt;p&gt;Example setup: a documentation site built with a JavaScript toolchain, split into a build job that uploads an artifact and a deploy job that publishes it.&lt;/p&gt;
+        &lt;h2&gt;Template&lt;/h2&gt;
+        &lt;p&gt;&lt;strong&gt;.github/workflows/deploy-pages.yml:&lt;/strong&gt;&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;name: Deploy static site to Pages
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - name: Build site
+        run: |
+          npm ci
+          npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Adjust the build commands and the artifact path for your generator.&lt;/p&gt;
+        &lt;p&gt;&lt;strong&gt;README:&lt;/strong&gt; describe the directory layout and note that Pages should be set to deploy from GitHub Actions.&lt;/p&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ol&gt;
+        &lt;li&gt;Set Pages to deploy from GitHub Actions.&lt;/li&gt;
+        &lt;li&gt;Add the workflow above and adjust it for your build.&lt;/li&gt;
+        &lt;li&gt;Protect the github-pages environment.&lt;/li&gt;
+        &lt;li&gt;Add .nojekyll if you deploy from a branch with a non-Jekyll generator.&lt;/li&gt;
+        &lt;li&gt;Test the build on a pull request before merging.&lt;/li&gt;
+        &lt;/ol&gt;
+        &lt;h2&gt;Common mistakes&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Missing the pages and id-token permissions, so the deploy fails.&lt;/li&gt;
+        &lt;li&gt;No concurrency group, so an older deploy can overwrite a newer one.&lt;/li&gt;
+        &lt;li&gt;Expecting Pages to host dynamic backends. It serves static files only.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Where this doesn't apply&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Projects that need server-side rendering or a dynamic backend.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;How to get involved&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Good first issue: convert a manual deploy to a Pages workflow.&lt;/li&gt;
+        &lt;li&gt;Discussion: which build steps does your docs site need in CI?&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;h2&gt;Sources (accessed 2026-10-18)&lt;/h2&gt;
+        &lt;ul&gt;
+        &lt;li&gt;Creating a GitHub Pages site: https://docs.github.com/articles/creating-project-pages-manually. Branch versus Actions deployment and .nojekyll.&lt;/li&gt;
+        &lt;li&gt;Pages deploy actions: the actions/deploy-pages and actions/upload-pages-artifact repositories on GitHub. Current action versions and inputs.&lt;/li&gt;
+        &lt;/ul&gt;
+        &lt;p&gt;---&lt;/p&gt;</atom:content></atom:entry></atom:feed>

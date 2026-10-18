@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="How to enable Discussions, set up categories, pin canonical threads, and convert between issues and discussions as conversations change shape." />
+    <title>Discussions as Your Community Front Door — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/github/discussions-as-your-community-front-door.html" />
+    <meta property="article:published_time" content="2026-10-15T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Discussions as Your Community Front Door" />
+    <meta property="og:description" content="How to enable Discussions, set up categories, pin canonical threads, and convert between issues and discussions as conversations change shape." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/github/discussions-as-your-community-front-door.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="github" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Discussions as Your Community Front Door","datePublished":"2026-10-15T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"How to enable Discussions, set up categories, pin canonical threads, and convert between issues and discussions as conversations change shape.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/github/discussions-as-your-community-front-door.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#github">← GitHub articles</a>
+      <header class="article-document-header"><p class="kicker">When questions land in the issue tracker, real work gets buried. Moving open-ended conversation to Discussions keeps the work queue readable.</p><h1>Discussions as Your Community Front Door</h1><p class="article-deck">How to enable Discussions, set up categories, pin canonical threads, and convert between issues and discussions as conversations change shape.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-10-15T12:00:00-07:00">Published October 15, 2026</time><span>·</span><span>3 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+        <p>Issues should track work. Discussions suit open-ended questions, ideas, and announcements. Discussions supports categories with different formats, pinned threads, accepted answers, upvotes, and conversion between issues and discussions. Defining these early keeps the work queue clean and reduces duplicate issues.</p>
+        <h2>Options and trade-offs</h2>
+        <ul>
+        <li>Categories: group conversations by purpose. Each category can have a format such as announcement, Q&amp;A, or open-ended. Check the current category limit in the docs.</li>
+        <li>Pinning: highlight canonical threads such as the FAQ or onboarding guide.</li>
+        <li>Accepted answers and upvotes: surface solutions and priorities. They need moderator attention to stay useful.</li>
+        <li>Conversion: move a thread from issue to discussion, or back, when its nature changes.</li>
+        </ul>
+        <h2>My take</h2>
+        <p>Keep a small set of categories, pin the threads newcomers need first, and use a category form for Q&amp;A so questions arrive with the details needed to answer them.</p>
+        <p>Decision lens: new-contributor friction and review latency.</p>
+        <p>Example setup: categories for Announcements, Q&amp;A, and Ideas. The FAQ and a first-thirty-minutes guide are pinned. The Q&amp;A category uses a form that asks for version, steps to reproduce, and expected versus actual behavior.</p>
+        <h2>Template</h2>
+        <p><strong>.github/DISCUSSION_TEMPLATE/qna.yml:</strong> a category form with prompts for version, steps, expected behavior, and actual behavior.</p>
+        <p><strong>Welcome post:</strong> the purpose of the space, the code of conduct, and the rules for converting between issues and discussions.</p>
+        <p><strong>Category setup:</strong> Announcements restricted to maintainers, and Q&amp;A with accepted answers enabled.</p>
+        <h2>Checklist</h2>
+        <ol>
+        <li>Enable Discussions and create categories.</li>
+        <li>Pin the FAQ and onboarding threads.</li>
+        <li>Add a Q&amp;A category form.</li>
+        <li>Write down the conversion rules between issues and discussions.</li>
+        <li>Review the category setup each quarter.</li>
+        </ol>
+        <h2>Common mistakes</h2>
+        <ul>
+        <li>Running without categories, which makes threads hard to find.</li>
+        <li>Not pinning canonical answers, so the same questions keep coming back.</li>
+        <li>Never converting issues, so the work queue fills with general chat.</li>
+        </ul>
+        <h2>Where this doesn't apply</h2>
+        <ul>
+        <li>Organizations required to use an external forum or ticketing system.</li>
+        </ul>
+        <h2>How to get involved</h2>
+        <ul>
+        <li>Good first issue: propose a new pinned FAQ entry.</li>
+        <li>Discussion: what should the Q&amp;A form ask first?</li>
+        </ul>
+        <h2>Sources (accessed 2026-10-18)</h2>
+        <ul>
+        <li>Managing categories for discussions: https://docs.github.com/en/discussions/managing-discussions-for-your-community/managing-categories-for-discussions. Formats and limits.</li>
+        <li>Managing discussions: https://docs.github.com/en/discussions/managing-discussions-for-your-community/managing-discussions. Pinning, permissions, and transfers.</li>
+        <li>Collaborating with maintainers using discussions: https://docs.github.com/en/discussions/collaborating-with-your-community-using-discussions/collaborating-with-maintainers-using-discussions. Accepted answers, upvotes, and conversion.</li>
+        <li>Category forms: https://docs.github.com/en/discussions/managing-discussions-for-your-community/creating-discussion-category-forms.</li>
+        </ul>
+        <p>---</p></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

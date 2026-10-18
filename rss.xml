@@ -166,7 +166,54 @@ Allow group TeamC to use instance-family in compartment A:B:C</code></pre>
 <h2>One honest limitation</h2>
 <p>Changes in implicit access are easy to miss. Treat a move as a planned change with a validation step afterwards, and do not call it finished until you have checked.</p>
 <h2>Sources</h2>
-<ul><li>OCI Documentation: Managing Compartments (moving a compartment)</li><li>OCI Documentation: Policy Syntax (compartment paths)</li><li>OCI Documentation: Compartment Quotas and Budgets</li></ul>]]></content:encoded></item><item><title>AI Language and Vision: secure triage pipelines (illustrative)</title><link>https://www.imshubh.com/articles/oracle-ace/ai-language-and-vision-secure-triage-pipelines-illustrative.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/oracle-ace/ai-language-and-vision-secure-triage-pipelines-illustrative.html</guid><pubDate>Sat, 10 Oct 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Wiring OCI Language and Vision into a document triage flow while keeping personal data out of places it should not be.</description><category>oracleace</category><category>oci</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
+<ul><li>OCI Documentation: Managing Compartments (moving a compartment)</li><li>OCI Documentation: Policy Syntax (compartment paths)</li><li>OCI Documentation: Compartment Quotas and Budgets</li></ul>]]></content:encoded></item><item><title>Discussions as Your Community Front Door</title><link>https://www.imshubh.com/articles/github/discussions-as-your-community-front-door.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/github/discussions-as-your-community-front-door.html</guid><pubDate>Thu, 15 Oct 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>How to enable Discussions, set up categories, pin canonical threads, and convert between issues and discussions as conversations change shape.</description><category>github</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
+        <p>Issues should track work. Discussions suit open-ended questions, ideas, and announcements. Discussions supports categories with different formats, pinned threads, accepted answers, upvotes, and conversion between issues and discussions. Defining these early keeps the work queue clean and reduces duplicate issues.</p>
+        <h2>Options and trade-offs</h2>
+        <ul>
+        <li>Categories: group conversations by purpose. Each category can have a format such as announcement, Q&amp;A, or open-ended. Check the current category limit in the docs.</li>
+        <li>Pinning: highlight canonical threads such as the FAQ or onboarding guide.</li>
+        <li>Accepted answers and upvotes: surface solutions and priorities. They need moderator attention to stay useful.</li>
+        <li>Conversion: move a thread from issue to discussion, or back, when its nature changes.</li>
+        </ul>
+        <h2>My take</h2>
+        <p>Keep a small set of categories, pin the threads newcomers need first, and use a category form for Q&amp;A so questions arrive with the details needed to answer them.</p>
+        <p>Decision lens: new-contributor friction and review latency.</p>
+        <p>Example setup: categories for Announcements, Q&amp;A, and Ideas. The FAQ and a first-thirty-minutes guide are pinned. The Q&amp;A category uses a form that asks for version, steps to reproduce, and expected versus actual behavior.</p>
+        <h2>Template</h2>
+        <p><strong>.github/DISCUSSION_TEMPLATE/qna.yml:</strong> a category form with prompts for version, steps, expected behavior, and actual behavior.</p>
+        <p><strong>Welcome post:</strong> the purpose of the space, the code of conduct, and the rules for converting between issues and discussions.</p>
+        <p><strong>Category setup:</strong> Announcements restricted to maintainers, and Q&amp;A with accepted answers enabled.</p>
+        <h2>Checklist</h2>
+        <ol>
+        <li>Enable Discussions and create categories.</li>
+        <li>Pin the FAQ and onboarding threads.</li>
+        <li>Add a Q&amp;A category form.</li>
+        <li>Write down the conversion rules between issues and discussions.</li>
+        <li>Review the category setup each quarter.</li>
+        </ol>
+        <h2>Common mistakes</h2>
+        <ul>
+        <li>Running without categories, which makes threads hard to find.</li>
+        <li>Not pinning canonical answers, so the same questions keep coming back.</li>
+        <li>Never converting issues, so the work queue fills with general chat.</li>
+        </ul>
+        <h2>Where this doesn't apply</h2>
+        <ul>
+        <li>Organizations required to use an external forum or ticketing system.</li>
+        </ul>
+        <h2>How to get involved</h2>
+        <ul>
+        <li>Good first issue: propose a new pinned FAQ entry.</li>
+        <li>Discussion: what should the Q&amp;A form ask first?</li>
+        </ul>
+        <h2>Sources (accessed 2026-10-18)</h2>
+        <ul>
+        <li>Managing categories for discussions: https://docs.github.com/en/discussions/managing-discussions-for-your-community/managing-categories-for-discussions. Formats and limits.</li>
+        <li>Managing discussions: https://docs.github.com/en/discussions/managing-discussions-for-your-community/managing-discussions. Pinning, permissions, and transfers.</li>
+        <li>Collaborating with maintainers using discussions: https://docs.github.com/en/discussions/collaborating-with-your-community-using-discussions/collaborating-with-maintainers-using-discussions. Accepted answers, upvotes, and conversion.</li>
+        <li>Category forms: https://docs.github.com/en/discussions/managing-discussions-for-your-community/creating-discussion-category-forms.</li>
+        </ul>
+        <p>---</p>]]></content:encoded></item><item><title>AI Language and Vision: secure triage pipelines (illustrative)</title><link>https://www.imshubh.com/articles/oracle-ace/ai-language-and-vision-secure-triage-pipelines-illustrative.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/oracle-ace/ai-language-and-vision-secure-triage-pipelines-illustrative.html</guid><pubDate>Sat, 10 Oct 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Wiring OCI Language and Vision into a document triage flow while keeping personal data out of places it should not be.</description><category>oracleace</category><category>oci</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
 <p>Support tickets, scanned forms and screenshots all contain personal data, and the people asking for automated triage rarely want to train a model. OCI Language and Vision offer pretrained models behind regional endpoints, which is a good fit when the goal is to route and summarize rather than to research.</p>
 <p>The design question is where personal data goes. I wanted the masking to happen before anything gets stored or forwarded, and I wanted a trail showing which call touched which document.</p>
 <h2>Options and trade-offs</h2>
@@ -419,7 +466,56 @@ curl -s http://127.0.0.1:8080/health</code></pre>
         <h2>One honest limitation</h2>
         <p>A cold start on a JVM service can take seconds. You can soften it with a smaller image and class-data sharing, but you cannot remove it, so decide whether a slow first visit is acceptable for the demo.</p>
         <h2>Sources</h2>
-        <ul><li>Docker Docs: Compose file reference (ports)</li><li>Docker Docs: Dockerfile HEALTHCHECK</li><li>Oracle Java Documentation: com.sun.net.httpserver package</li></ul>]]></content:encoded></item><item><title>API gateway enforcement for LLM APIs</title><link>https://www.imshubh.com/articles/microsoft/api-gateway-enforcement-for-llm-apis.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/microsoft/api-gateway-enforcement-for-llm-apis.html</guid><pubDate>Wed, 09 Sep 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Putting Azure API Management in front of Azure OpenAI: managed identity to the backend, token validation at the edge, and rate limits per caller.</description><category>microsoft</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
+        <ul><li>Docker Docs: Compose file reference (ports)</li><li>Docker Docs: Dockerfile HEALTHCHECK</li><li>Oracle Java Documentation: com.sun.net.httpserver package</li></ul>]]></content:encoded></item><item><title>Roadmaps Next to Your Code: GitHub Projects for Platform Teams</title><link>https://www.imshubh.com/articles/github/roadmaps-next-to-your-code-github-projects-for-platform-teams.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/github/roadmaps-next-to-your-code-github-projects-for-platform-teams.html</guid><pubDate>Tue, 15 Sep 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>How to run a roadmap in GitHub Projects using table, board, and roadmap views, custom fields, and built-in automations.</description><category>github</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
+        <p>External roadmap tools fall out of date because they are not connected to issues and pull requests. GitHub Projects sits alongside issues and PRs and gives each team a view suited to its question: a prioritized backlog, the current iteration board, or a timeline roadmap.</p>
+        <h2>Options and trade-offs</h2>
+        <ul>
+        <li>Table view: dense and good for prioritization. It needs consistent field values.</li>
+        <li>Board view: a status-based layout for iteration planning. It works best with work-in-progress limits.</li>
+        <li>Roadmap view: a timeline across dates or iterations. It suits communicating schedules to others.</li>
+        <li>Built-in workflows: add items, set status, and archive without code. They are limited compared with custom automation.</li>
+        <li>Insights: charts for status and progress. Useful for a quick read, not a full reporting tool.</li>
+        </ul>
+        <h2>My take</h2>
+        <p>Use one organization-level project for the platform roadmap, keep tactical bug work out of it, and save a small set of views that answer the questions people actually ask.</p>
+        <p>Decision lens: review latency and team workload.</p>
+        <p>Example setup: a platform roadmap project with Priority, Estimate, Iteration, and Owner fields, auto-add filters for the relevant repositories, and three saved views: backlog by priority, the current iteration board, and the quarter roadmap.</p>
+        <h2>Template</h2>
+        <p><strong>Project fields:</strong> a single-select Priority field, a number field for Estimate, and an iteration field.</p>
+        <p><strong>Views:</strong> Table for the backlog, Board for the current iteration, and Roadmap for milestones.</p>
+        <p><strong>Workflows:</strong> auto-add issues with a chosen label, set new items to Todo, and archive items that have been Done for a set period.</p>
+        <p><strong>Project README:</strong> link the saved views and describe the naming and labeling rules.</p>
+        <h2>Checklist</h2>
+        <ol>
+        <li>Create an organization project and define the fields.</li>
+        <li>Save table, board, and roadmap views.</li>
+        <li>Configure auto-add and status workflows.</li>
+        <li>Add milestone markers to the roadmap view.</li>
+        <li>Document label and ownership conventions.</li>
+        <li>Set work-in-progress limits on the board.</li>
+        </ol>
+        <h2>Common mistakes</h2>
+        <ul>
+        <li>Mixing bug triage with strategic planning in one project. Split them.</li>
+        <li>Not saving views, so collaborators lose context.</li>
+        <li>Skipping automation, which lets status drift from reality.</li>
+        </ul>
+        <h2>Where this doesn't apply</h2>
+        <ul>
+        <li>Teams required to use an external project management system. Mirror the data through the API if needed.</li>
+        </ul>
+        <h2>How to get involved</h2>
+        <ul>
+        <li>Good first issue: propose a saved view that would improve backlog triage.</li>
+        <li>Discussion: what fields should the roadmap track?</li>
+        </ul>
+        <h2>Sources (accessed 2026-10-18)</h2>
+        <ul>
+        <li>About Projects: https://docs.github.com/en/issues/planning-and-tracking-with-projects/learning-about-projects/about-projects. Views, fields, automation, and insights.</li>
+        <li>Quickstart for Projects: https://docs.github.com/en/issues/planning-and-tracking-with-projects/learning-about-projects/quickstart-for-projects. Creating views, fields, and workflows.</li>
+        <li>Roadmaps generally available: https://github.blog/changelog/2025-03-22-roadmaps-in-projects-are-now-generally-available/. Roadmap view status and markers.</li>
+        </ul>
+        <p>---</p>]]></content:encoded></item><item><title>API gateway enforcement for LLM APIs</title><link>https://www.imshubh.com/articles/microsoft/api-gateway-enforcement-for-llm-apis.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/microsoft/api-gateway-enforcement-for-llm-apis.html</guid><pubDate>Wed, 09 Sep 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Putting Azure API Management in front of Azure OpenAI: managed identity to the backend, token validation at the edge, and rate limits per caller.</description><category>microsoft</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
         <p>When every team calls the model endpoint directly, governance is a spreadsheet: who has access, how much they use, and what they send. Putting a gateway in front of the model gives you one place to authenticate callers, enforce limits and log usage. Azure API Management (APIM) can authenticate to Azure OpenAI with its own managed identity, so no API keys are stored or shared, and it can validate caller tokens before anything reaches the model.</p>
         <h2>Options and trade-offs</h2>
         <ul>
@@ -575,7 +671,54 @@ case Unverifiable unv -&gt; Map.of("type", "Unverifiable", "note", unv.note());<
         <p>Refactor one DTO to embed a sealed state rather than a nullable numeric field. Add a type field in JSON. Update consumers to switch on type.</p>
         <p>Write aggregation policies that return NaN or omit fields when inputs are fully unknown. Test behavior explicitly.</p>
         <p>Add metrics that count unknowns and unverifiable states separately from numeric distributions.</p>
-        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://openjdk.org/jeps/395" target="_blank" rel="noreferrer">Records (JEP 395)</a></li><li><a href="https://openjdk.org/jeps/409" target="_blank" rel="noreferrer">Sealed Classes (JEP 409)</a></li><li><a href="https://openjdk.org/jeps/441" target="_blank" rel="noreferrer">Pattern Matching for switch (JEP 441)</a></li></ul></aside>]]></content:encoded></item><item><title>Debugging a container that gives you nothing: exit codes, thread dumps and ephemeral tools</title><link>https://www.imshubh.com/articles/docker/debugging-minimal-containers.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/docker/debugging-minimal-containers.html</guid><pubDate>Thu, 13 Aug 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>How I diagnose a failing Java container without baking a shell and a toolbox into the production image.</description><category>docker</category><category>containers</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://openjdk.org/jeps/395" target="_blank" rel="noreferrer">Records (JEP 395)</a></li><li><a href="https://openjdk.org/jeps/409" target="_blank" rel="noreferrer">Sealed Classes (JEP 409)</a></li><li><a href="https://openjdk.org/jeps/441" target="_blank" rel="noreferrer">Pattern Matching for switch (JEP 441)</a></li></ul></aside>]]></content:encoded></item><item><title>Codespaces Without Surprise Bills: Devcontainers, Prebuilds, and Policies</title><link>https://www.imshubh.com/articles/github/codespaces-without-surprise-bills-devcontainers-prebuilds-and-policies.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/github/codespaces-without-surprise-bills-devcontainers-prebuilds-and-policies.html</guid><pubDate>Sat, 15 Aug 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>How to use devcontainers and prebuilds for fast contributor setup, and how to set machine limits, retention, and spending caps so costs stay predictable.</description><category>github</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
+        <p>Codespaces is fast to start and well integrated with GitHub, but it is metered. Compute is billed by the hour, and storage is billed by the gigabyte-month. Stopped codespaces can keep accruing storage until they are deleted. Personal accounts and organizations have different included quotas, so check the billing page for your account type.</p>
+        <h2>Options and trade-offs</h2>
+        <ul>
+        <li>Devcontainers: make environments reproducible and speed up onboarding. They need ongoing maintenance of the image and its setup scripts.</li>
+        <li>Prebuilds: speed up opening large repositories. They consume Actions minutes, so they suit heavy projects.</li>
+        <li>Machine size policy: limit the cores and memory contributors can pick. Smaller machines cost less but run slower.</li>
+        <li>Retention and idle timeouts: reduce storage and runaway compute. They add some admin overhead.</li>
+        <li>Spending limits: cap organization spend. Set them before rollout, not after the first surprise bill.</li>
+        </ul>
+        <h2>My take</h2>
+        <p>Ship one default devcontainer sized for typical work, enable prebuilds only on the main branch, and set a short idle timeout. Teach contributors to delete codespaces they no longer need rather than only stopping them.</p>
+        <p>Decision lens: new-contributor friction and maintenance cost.</p>
+        <p>Example setup: a service repository with a 4-core default devcontainer, prebuilds on the main branch, a 30-minute idle timeout, automatic deletion after 7 days of inactivity, and a monthly spending cap for the organization.</p>
+        <h2>Template repository</h2>
+        <p><strong>.devcontainer/devcontainer.json:</strong> Base image, post-create commands, default machine size, and recommended extensions.</p>
+        <p><strong>.github/workflows/prebuild.yml:</strong> Prebuild configuration limited to main and release branches. Check the Codespaces prebuild docs for the current configuration syntax.</p>
+        <p><strong>README.md ("Use Codespaces" section):</strong> Machine choices, the difference between stopping and deleting, budget notes, and a link to contributor docs.</p>
+        <h2>Checklist</h2>
+        <ol>
+        <li>Define a devcontainer with a sensible default machine size.</li>
+        <li>Enable prebuilds for large repositories and watch Actions minutes.</li>
+        <li>Set idle timeout, retention, and spending limits at the organization level.</li>
+        <li>Document the differences between personal and organization billing.</li>
+        <li>Tell contributors to delete unused codespaces.</li>
+        </ol>
+        <h2>Common mistakes</h2>
+        <ul>
+        <li>Assuming a stopped codespace costs nothing. Storage keeps accruing until deletion.</li>
+        <li>Leaving machine sizes unlimited, so contributors default to the largest option.</li>
+        <li>Enabling prebuilds without tracking the Actions minutes they consume.</li>
+        </ul>
+        <h2>Where this doesn't apply</h2>
+        <ul>
+        <li>Teams that need local-only development or hardware that Codespaces does not support.</li>
+        <li>Toolchains that need macOS, iOS, or Windows-only environments.</li>
+        </ul>
+        <h2>How to get involved</h2>
+        <ul>
+        <li>Good first issue: add a prebuild for a documentation repository.</li>
+        <li>Discussion: share your default machine size and budget caps.</li>
+        </ul>
+        <h2>Sources (accessed 2026-10-18; verify current rates)</h2>
+        <ul>
+        <li>Codespaces billing: https://docs.github.com/billing/managing-billing-for-github-codespaces/about-billing-for-github-codespaces. Compute and storage billing, included quotas, and organization metering.</li>
+        <li>GitHub plans: https://docs.github.com/en/get-started/learning-about-github/githubs-plans. Personal and organization plan differences.</li>
+        </ul>
+        <p>---</p>]]></content:encoded></item><item><title>Debugging a container that gives you nothing: exit codes, thread dumps and ephemeral tools</title><link>https://www.imshubh.com/articles/docker/debugging-minimal-containers.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/docker/debugging-minimal-containers.html</guid><pubDate>Thu, 13 Aug 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>How I diagnose a failing Java container without baking a shell and a toolbox into the production image.</description><category>docker</category><category>containers</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
         <p>A container fails and all you get is an exit code and perhaps a log line. The tempting response is to add a shell, curl, a debugger and a package manager to the image so that next time you can look around. That is the wrong trade. Production images should be small and boring, and your tools should arrive only when needed and leave no trace.</p>
         <h2>Options and trade-offs</h2>
         <ul><li>Bake debugging tools into the image: convenient, but it enlarges the attack surface and the image.</li><li>Add an admin endpoint: useful for version and uptime, but it is one more thing to secure.</li><li>Use the platform: logs, exit codes, signals, and a separate short-lived container that shares the target's network.</li></ul>
@@ -1129,7 +1272,56 @@ public class SetBenchmark {
         <h2>Failure modes</h2>
         <ul><li><strong>Optimizing the wrong layer.</strong> A faster set does nothing if the allocation comes from JSON parsing upstream.</li><li><strong>Benchmarking unrealistic data.</strong> Use sizes and distributions that match production.</li><li><strong>Trading readability for nothing.</strong> Adopt a specialized library only where the profile justifies it.</li><li><strong>Forgetting dependencies.</strong> A new library adds maintenance and upgrade cost.</li></ul>
         <h2>Takeaways</h2>
-        <ul><li>Profile allocation with two tools before touching code.</li><li>Boxing and per-entry nodes in collections are common sources of garbage.</li><li>Prove a fix in JMH with <code>-prof gc</code>, then confirm with a production-like recording.</li></ul>]]></content:encoded></item><item><title>Keeping secrets out of container images, builds and logs</title><link>https://www.imshubh.com/articles/docker/keeping-secrets-out-of-images-builds-and-logs.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/docker/keeping-secrets-out-of-images-builds-and-logs.html</guid><pubDate>Sat, 06 Jun 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>A practical playbook for build-time tokens, runtime credentials and log redaction in a Java service, using BuildKit secrets and mounted files.</description><category>docker</category><category>containers</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
+        <ul><li>Profile allocation with two tools before touching code.</li><li>Boxing and per-entry nodes in collections are common sources of garbage.</li><li>Prove a fix in JMH with <code>-prof gc</code>, then confirm with a production-like recording.</li></ul>]]></content:encoded></item><item><title>Copilot That Respects Your Repo: Policies, Credits, and Seat Types</title><link>https://www.imshubh.com/articles/github/copilot-that-respects-your-repo-policies-credits-and-seat-types.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/github/copilot-that-respects-your-repo-policies-credits-and-seat-types.html</guid><pubDate>Mon, 15 Jun 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>How to match Copilot seat types to roles, limit agent actions on sensitive paths, and keep credit use visible across a platform team's repositories.</description><category>github</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
+        <p>Copilot works well for many tasks, but its behavior depends on how it is licensed and configured. Individual plans and organization plans have different governance features. Pooled credits behave differently from per-user allowances. If seat types, credit budgets, and repository rules are not aligned with each other, Copilot can drift from helpful suggestions into unreviewed changes in critical code. Check the current plan page for seat prices and included credit amounts, since these change.</p>
+        <h2>Options and trade-offs</h2>
+        <ul>
+        <li>Individual plans: suited to solo work. They have no organization-level policy controls.</li>
+        <li>Business plans: add organization policy management and pooled usage. Suitable for most teams that need governance.</li>
+        <li>Enterprise plans: add codebase-aware features and stronger administrative controls. They require Enterprise Cloud, so confirm your account type first.</li>
+        <li>Content exclusions: stop Copilot from reading or suggesting changes in designated paths. They reduce exposure but add admin upkeep.</li>
+        <li>Audit logs: show who used which features. Useful for high-risk repositories, at the cost of more review work.</li>
+        </ul>
+        <h2>My take</h2>
+        <p>Start with Business seats for most contributors and reserve higher tiers for maintainers who need deeper repository context. For directories like infrastructure or authentication code, use content exclusions and treat any agent-generated diff the same as a human-written one. Review it, test it, and request changes when needed.</p>
+        <p>Decision lens: security risk and maintenance cost.</p>
+        <p>Example setup: a monorepo with infrastructure and product code. Give most contributors Business seats, exclude infrastructure paths from Copilot, and limit agent edits to non-sensitive directories.</p>
+        <h2>Template repository</h2>
+        <p><strong>README.md (excerpt):</strong> Describe which activities are allowed in the repository, such as summaries and code explanation, and which are restricted, such as agent edits in sensitive directories. Link to the current plan and credit documentation.</p>
+        <p><strong>CONTRIBUTING.md (excerpt):</strong> Explain how to request the right seat type, how content exclusions are configured, and that agent-generated diffs go through normal review.</p>
+        <p><strong>.github/policies/copilot.md:</strong> Document allowed agent scopes, default model choices, and the list of paths where agent edits are restricted.</p>
+        <h2>Checklist</h2>
+        <ol>
+        <li>Map each role to a seat type.</li>
+        <li>Configure content exclusions for sensitive paths.</li>
+        <li>Enable audit logging for high-risk repositories.</li>
+        <li>Set a monthly credit budget and an owner for overages.</li>
+        <li>Write down which agent actions are allowed in each directory.</li>
+        <li>Require review for agent-generated changes.</li>
+        <li>Keep a discussion thread open for policy adjustments.</li>
+        </ol>
+        <h2>Common mistakes</h2>
+        <ul>
+        <li>Mixing individual and organization plans, which leads to uneven governance.</li>
+        <li>Skipping content exclusions, so agents can read secrets or policy documents.</li>
+        <li>Leaving credit use unbounded, which causes unexpected charges.</li>
+        </ul>
+        <h2>Where this doesn't apply</h2>
+        <ul>
+        <li>Organizations without access to the plan tiers you need.</li>
+        <li>Repositories with legal restrictions on AI-assisted development.</li>
+        </ul>
+        <h2>How to get involved</h2>
+        <ul>
+        <li>Good first issue: propose a minimal content-exclusion list for one repository.</li>
+        <li>Discussion: share where Copilot helps and where it gets in the way.</li>
+        </ul>
+        <h2>Sources (accessed 2026-10-18; verify current status)</h2>
+        <ul>
+        <li>Copilot plans: https://docs.github.com/en/copilot/get-started/plans. Current plans and credits.</li>
+        <li>Copilot billing for organizations and enterprises: https://docs.github.com/en/enterprise-cloud@latest/copilot/concepts/billing/organizations-and-enterprises. Seat and credit administration.</li>
+        </ul>
+        <p>---</p>]]></content:encoded></item><item><title>Keeping secrets out of container images, builds and logs</title><link>https://www.imshubh.com/articles/docker/keeping-secrets-out-of-images-builds-and-logs.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/docker/keeping-secrets-out-of-images-builds-and-logs.html</guid><pubDate>Sat, 06 Jun 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>A practical playbook for build-time tokens, runtime credentials and log redaction in a Java service, using BuildKit secrets and mounted files.</description><category>docker</category><category>containers</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
         <p>Secrets leak in boring ways. A token passed as a build argument ends up in image history. An exception handler prints the whole configuration. An environment variable set for a quick test is still there six months later. The fix is not one tool. It is a set of small defaults that make the safe path the easy path, covering the build, the runtime and the logs.</p>
         <h2>Options and trade-offs</h2>
         <ul><li>ARG and ENV for credentials: simple, but both are stored in image metadata and can be read back from the image.</li><li>BuildKit secret mounts: the secret is available to one build step and is never written to a layer.</li><li>Runtime secrets as environment variables: convenient, but they show up in diagnostics and process listings.</li><li>Runtime secrets as mounted files: easier to restrict, audit and rotate without rebuilding.</li></ul>
@@ -3755,4 +3947,197 @@ Allow dynamic-group app-runtimes to use log-content in compartment apps</code></
 <h2>One honest limitation</h2>
 <p>Anyone who can get a shell on the instance inherits its permissions. Instance principals take away the secret, not the access, so SSH access and the policy have to be designed together.</p>
 <h2>Sources</h2>
-<ul><li>OCI Documentation: Calling Services from an Instance</li><li>OCI Documentation: Managing Dynamic Groups</li><li>OCI Documentation: OCI SDK for Java, Instance Principals authentication</li></ul>]]></content:encoded></item></channel></rss>
+<ul><li>OCI Documentation: Calling Services from an Instance</li><li>OCI Documentation: Managing Dynamic Groups</li><li>OCI Documentation: OCI SDK for Java, Instance Principals authentication</li></ul>]]></content:encoded></item><item><title>Build a Scoped Bot: GitHub Apps and Octokit, the Right Way</title><link>https://www.imshubh.com/articles/github/build-a-scoped-bot-github-apps-and-octokit-the-right-way.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/github/build-a-scoped-bot-github-apps-and-octokit-the-right-way.html</guid><pubDate>Sat, 16 Aug 2025 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>How to authenticate a GitHub App as an installation, limit it to specific repositories and permissions, and use short-lived tokens.</description><category>github</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
+        <p>Personal access tokens are broad. They grant access across every repository the account can reach. GitHub Apps define explicit permissions, install on chosen repositories, and issue installation tokens that expire. Octokit libraries handle token generation and refresh, and actions/create-github-app-token creates scoped tokens inside CI.</p>
+        <h2>Options and trade-offs</h2>
+        <ul>
+        <li>GitHub App versus OAuth app: Apps offer per-permission and per-repository control. OAuth relies on user-granted scopes.</li>
+        <li>Octokit versus manual token handling: Octokit handles installation tokens and refresh. Manual handling gives more control and more code to maintain.</li>
+        <li>CI token action: mints a scoped token for each job, so you avoid a broad long-lived credential.</li>
+        </ul>
+        <h2>My take</h2>
+        <p>Give the app the smallest permission that does the job, install it only on the repositories it needs, and avoid write access to contents unless the bot must change code.</p>
+        <p>Decision lens: security risk and maintenance cost.</p>
+        <p>Example setup: a triage bot installed on two repositories with issue write access only. Each CI run mints a token limited to those repositories, adds a comment or label, and never gets contents write access.</p>
+        <h2>Template</h2>
+        <p><strong>src/appClient.js:</strong></p>
+        <pre><code>import { Octokit } from "@octokit/core";
+import { createAppAuth } from "@octokit/auth-app";
+
+export function installationOctokit(appId, privateKey, installationId) {
+  return new Octokit({
+    authStrategy: createAppAuth,
+    auth: { appId, privateKey, installationId }
+  });
+}</code></pre>
+        <p><strong>CI:</strong> use actions/create-github-app-token with the narrowest permissions and repository list the job needs. Check its README for the current input names.</p>
+        <h2>Checklist</h2>
+        <ol>
+        <li>Register a GitHub App and generate a private key.</li>
+        <li>Set the minimum permissions the bot needs.</li>
+        <li>Install the app on the target repositories only.</li>
+        <li>Use Octokit's app authentication for installation tokens.</li>
+        <li>Mint scoped tokens in CI for each job.</li>
+        <li>Avoid long-lived personal tokens.</li>
+        </ol>
+        <h2>Common mistakes</h2>
+        <ul>
+        <li>Granting contents write when only issue write is needed.</li>
+        <li>Using a personal access token, which gives the bot a wider blast radius.</li>
+        <li>Assuming tokens never expire. Installation tokens are short-lived, so refresh them.</li>
+        </ul>
+        <h2>Where this doesn't apply</h2>
+        <ul>
+        <li>Organizations that do not allow GitHub Apps or require a different authentication flow.</li>
+        </ul>
+        <h2>How to get involved</h2>
+        <ul>
+        <li>Good first issue: reduce the permissions of an existing bot and add repository scoping.</li>
+        <li>Discussion: what else should a triage bot be allowed to do?</li>
+        </ul>
+        <h2>Sources (accessed 2026-10-18)</h2>
+        <ul>
+        <li>Generating an installation access token for a GitHub App: https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app. Installation tokens, permissions, and expiry.</li>
+        <li>Authenticating as a GitHub App installation: https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation.</li>
+        <li>Octokit.js: https://github.com/octokit/octokit.js/. App authentication and installation behavior.</li>
+        <li>create-github-app-token action: https://github.com/actions/create-github-app-token.</li>
+        </ul>]]></content:encoded></item><item><title>Triage and Ship from the Terminal: gh CLI for Platform Teams</title><link>https://www.imshubh.com/articles/github/triage-and-ship-from-the-terminal-gh-cli-for-platform-teams.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/github/triage-and-ship-from-the-terminal-gh-cli-for-platform-teams.html</guid><pubDate>Fri, 18 Jul 2025 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>How to use gh CLI to create issues, review and merge pull requests, and rerun workflows, with small scripts that keep the commands consistent.</description><category>github</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
+        <p>Platform teams spend much of their day in a shell. The gh CLI covers many everyday GitHub operations: issues, pull requests, projects, releases, and workflow runs. In CI, the GH_TOKEN environment variable provides authentication. With a few scripts, triage and review stop depending on tab-switching.</p>
+        <h2>Options and trade-offs</h2>
+        <ul>
+        <li>Pull requests: list, check out, review, and merge from the terminal. Fast, but comments need discipline.</li>
+        <li>Issues: create, list, assign, and comment. Templates can be applied through body files.</li>
+        <li>Workflows: run, watch, and rerun. Rerunning only failed jobs saves time.</li>
+        <li>gh api: reach any REST or GraphQL endpoint and filter the output with jq. Powerful, and easy to misuse without authentication.</li>
+        </ul>
+        <h2>My take</h2>
+        <p>Write a short list of scripts for the actions you repeat most, keep them in the repository, and teach the team a small core set of commands before introducing anything more complex.</p>
+        <p>Decision lens: review latency and maintenance cost.</p>
+        <p>Example setup: three scripts for approving and squash-merging a pull request, rerunning failed jobs, and opening a bug issue from a template, each logging its output to a file for an audit trail.</p>
+        <h2>Template</h2>
+        <p><strong>scripts/approve_and_squash.sh:</strong></p>
+        <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+gh pr review "$1" --approve
+gh pr merge "$1" --squash --delete-branch</code></pre>
+        <p><strong>scripts/rerun_failed.sh:</strong></p>
+        <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+gh run rerun "$1" --failed
+gh run watch "$1"</code></pre>
+        <p><strong>scripts/new_bug.sh:</strong></p>
+        <pre><code>#!/usr/bin/env bash
+set -euo pipefail
+gh issue create --title "$1" --body-file .github/ISSUE_TEMPLATE/bug.md --label bug --assignee @me</code></pre>
+        <p>In CI, set GH_TOKEN so gh commands authenticate.</p>
+        <h2>Checklist</h2>
+        <ol>
+        <li>Install gh and run gh auth login.</li>
+        <li>Set GH_TOKEN in any workflow that calls gh.</li>
+        <li>Add scripts for pull request review and workflow reruns.</li>
+        <li>Create issues from templates to keep them consistent.</li>
+        <li>Log script output for audit trails.</li>
+        <li>Teach a short list of core commands first.</li>
+        </ol>
+        <h2>Common mistakes</h2>
+        <ul>
+        <li>Missing GH_TOKEN in workflows, so gh calls fail.</li>
+        <li>Merging without deleting the branch, so stale branches pile up.</li>
+        <li>Rerunning an entire workflow when only the failed jobs need it.</li>
+        </ul>
+        <h2>Where this doesn't apply</h2>
+        <ul>
+        <li>Locked-down environments where the CLI is not available.</li>
+        </ul>
+        <h2>How to get involved</h2>
+        <ul>
+        <li>Good first issue: add a script that opens the logs for a failing run.</li>
+        <li>Discussion: which ten gh commands should new team members learn first?</li>
+        </ul>
+        <h2>Sources (accessed 2026-10-18)</h2>
+        <ul>
+        <li>Using GitHub CLI in workflows: https://docs.github.com/en/actions/using-workflows/using-github-cli-in-workflows. GH_TOKEN and examples.</li>
+        <li>gh pr checks manual: https://cli.github.com/manual/gh_pr_checks. Behavior and exit codes.</li>
+        </ul>
+        <p>---</p>]]></content:encoded></item><item><title>Zero-Friction Docs: Deploy Static Sites to GitHub Pages with Actions</title><link>https://www.imshubh.com/articles/github/zero-friction-docs-deploy-static-sites-to-github-pages-with-actions.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/github/zero-friction-docs-deploy-static-sites-to-github-pages-with-actions.html</guid><pubDate>Wed, 18 Jun 2025 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>How to build and deploy a static documentation site with GitHub's Pages actions, using a short workflow and no manual steps.</description><category>github</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
+        <p>Static docs should update when the code does. GitHub Pages can deploy from a branch or from a workflow. The Actions-based path uses configure-pages, upload-pages-artifact, and deploy-pages, with explicit permissions and a concurrency group that cancels outdated deploys.</p>
+        <h2>Options and trade-offs</h2>
+        <ul>
+        <li>Deploy from a branch: the simplest setup, with limited build control. Jekyll runs by default unless you add a .nojekyll file.</li>
+        <li>Deploy with Actions: supports any static site generator and explicit permissions and concurrency controls.</li>
+        <li>Environment protection: require checks before the github-pages environment deploys.</li>
+        </ul>
+        <h2>My take</h2>
+        <p>Use the Actions path for any project that needs a build step. Protect the deployment environment so a failing build cannot publish.</p>
+        <p>Decision lens: maintenance cost and review latency.</p>
+        <p>Example setup: a documentation site built with a JavaScript toolchain, split into a build job that uploads an artifact and a deploy job that publishes it.</p>
+        <h2>Template</h2>
+        <p><strong>.github/workflows/deploy-pages.yml:</strong></p>
+        <pre><code>name: Deploy static site to Pages
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - name: Build site
+        run: |
+          npm ci
+          npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4</code></pre>
+        <p>Adjust the build commands and the artifact path for your generator.</p>
+        <p><strong>README:</strong> describe the directory layout and note that Pages should be set to deploy from GitHub Actions.</p>
+        <h2>Checklist</h2>
+        <ol>
+        <li>Set Pages to deploy from GitHub Actions.</li>
+        <li>Add the workflow above and adjust it for your build.</li>
+        <li>Protect the github-pages environment.</li>
+        <li>Add .nojekyll if you deploy from a branch with a non-Jekyll generator.</li>
+        <li>Test the build on a pull request before merging.</li>
+        </ol>
+        <h2>Common mistakes</h2>
+        <ul>
+        <li>Missing the pages and id-token permissions, so the deploy fails.</li>
+        <li>No concurrency group, so an older deploy can overwrite a newer one.</li>
+        <li>Expecting Pages to host dynamic backends. It serves static files only.</li>
+        </ul>
+        <h2>Where this doesn't apply</h2>
+        <ul>
+        <li>Projects that need server-side rendering or a dynamic backend.</li>
+        </ul>
+        <h2>How to get involved</h2>
+        <ul>
+        <li>Good first issue: convert a manual deploy to a Pages workflow.</li>
+        <li>Discussion: which build steps does your docs site need in CI?</li>
+        </ul>
+        <h2>Sources (accessed 2026-10-18)</h2>
+        <ul>
+        <li>Creating a GitHub Pages site: https://docs.github.com/articles/creating-project-pages-manually. Branch versus Actions deployment and .nojekyll.</li>
+        <li>Pages deploy actions: the actions/deploy-pages and actions/upload-pages-artifact repositories on GitHub. Current action versions and inputs.</li>
+        </ul>
+        <p>---</p>]]></content:encoded></item></channel></rss>

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="How to use devcontainers and prebuilds for fast contributor setup, and how to set machine limits, retention, and spending caps so costs stay predictable." />
+    <title>Codespaces Without Surprise Bills: Devcontainers, Prebuilds, and Policies — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/github/codespaces-without-surprise-bills-devcontainers-prebuilds-and-policies.html" />
+    <meta property="article:published_time" content="2026-08-15T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Codespaces Without Surprise Bills: Devcontainers, Prebuilds, and Policies" />
+    <meta property="og:description" content="How to use devcontainers and prebuilds for fast contributor setup, and how to set machine limits, retention, and spending caps so costs stay predictable." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/github/codespaces-without-surprise-bills-devcontainers-prebuilds-and-policies.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="github" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Codespaces Without Surprise Bills: Devcontainers, Prebuilds, and Policies","datePublished":"2026-08-15T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"How to use devcontainers and prebuilds for fast contributor setup, and how to set machine limits, retention, and spending caps so costs stay predictable.","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/github/codespaces-without-surprise-bills-devcontainers-prebuilds-and-policies.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#github">← GitHub articles</a>
+      <header class="article-document-header"><p class="kicker">Codespaces can turn a days-long setup into a short one. Its metered billing needs the same attention as any other cloud resource.</p><h1>Codespaces Without Surprise Bills: Devcontainers, Prebuilds, and Policies</h1><p class="article-deck">How to use devcontainers and prebuilds for fast contributor setup, and how to set machine limits, retention, and spending caps so costs stay predictable.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-08-15T12:00:00-07:00">Published August 15, 2026</time><span>·</span><span>3 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+        <p>Codespaces is fast to start and well integrated with GitHub, but it is metered. Compute is billed by the hour, and storage is billed by the gigabyte-month. Stopped codespaces can keep accruing storage until they are deleted. Personal accounts and organizations have different included quotas, so check the billing page for your account type.</p>
+        <h2>Options and trade-offs</h2>
+        <ul>
+        <li>Devcontainers: make environments reproducible and speed up onboarding. They need ongoing maintenance of the image and its setup scripts.</li>
+        <li>Prebuilds: speed up opening large repositories. They consume Actions minutes, so they suit heavy projects.</li>
+        <li>Machine size policy: limit the cores and memory contributors can pick. Smaller machines cost less but run slower.</li>
+        <li>Retention and idle timeouts: reduce storage and runaway compute. They add some admin overhead.</li>
+        <li>Spending limits: cap organization spend. Set them before rollout, not after the first surprise bill.</li>
+        </ul>
+        <h2>My take</h2>
+        <p>Ship one default devcontainer sized for typical work, enable prebuilds only on the main branch, and set a short idle timeout. Teach contributors to delete codespaces they no longer need rather than only stopping them.</p>
+        <p>Decision lens: new-contributor friction and maintenance cost.</p>
+        <p>Example setup: a service repository with a 4-core default devcontainer, prebuilds on the main branch, a 30-minute idle timeout, automatic deletion after 7 days of inactivity, and a monthly spending cap for the organization.</p>
+        <h2>Template repository</h2>
+        <p><strong>.devcontainer/devcontainer.json:</strong> Base image, post-create commands, default machine size, and recommended extensions.</p>
+        <p><strong>.github/workflows/prebuild.yml:</strong> Prebuild configuration limited to main and release branches. Check the Codespaces prebuild docs for the current configuration syntax.</p>
+        <p><strong>README.md ("Use Codespaces" section):</strong> Machine choices, the difference between stopping and deleting, budget notes, and a link to contributor docs.</p>
+        <h2>Checklist</h2>
+        <ol>
+        <li>Define a devcontainer with a sensible default machine size.</li>
+        <li>Enable prebuilds for large repositories and watch Actions minutes.</li>
+        <li>Set idle timeout, retention, and spending limits at the organization level.</li>
+        <li>Document the differences between personal and organization billing.</li>
+        <li>Tell contributors to delete unused codespaces.</li>
+        </ol>
+        <h2>Common mistakes</h2>
+        <ul>
+        <li>Assuming a stopped codespace costs nothing. Storage keeps accruing until deletion.</li>
+        <li>Leaving machine sizes unlimited, so contributors default to the largest option.</li>
+        <li>Enabling prebuilds without tracking the Actions minutes they consume.</li>
+        </ul>
+        <h2>Where this doesn't apply</h2>
+        <ul>
+        <li>Teams that need local-only development or hardware that Codespaces does not support.</li>
+        <li>Toolchains that need macOS, iOS, or Windows-only environments.</li>
+        </ul>
+        <h2>How to get involved</h2>
+        <ul>
+        <li>Good first issue: add a prebuild for a documentation repository.</li>
+        <li>Discussion: share your default machine size and budget caps.</li>
+        </ul>
+        <h2>Sources (accessed 2026-10-18; verify current rates)</h2>
+        <ul>
+        <li>Codespaces billing: https://docs.github.com/billing/managing-billing-for-github-codespaces/about-billing-for-github-codespaces. Compute and storage billing, included quotas, and organization metering.</li>
+        <li>GitHub plans: https://docs.github.com/en/get-started/learning-about-github/githubs-plans. Personal and organization plan differences.</li>
+        </ul>
+        <p>---</p></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>
