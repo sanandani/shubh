@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Tolerant readers, batch error handling, and golden-file tests" />
+    <title>API Evolution: Keep Wire Contracts Stable for Java Clients — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/java/api-evolution-keep-wire-contracts-stable-for-java-clients.html" />
+    <meta property="article:published_time" content="2026-10-17T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="API Evolution: Keep Wire Contracts Stable for Java Clients" />
+    <meta property="og:description" content="Tolerant readers, batch error handling, and golden-file tests" />
+    <meta property="og:url" content="https://www.imshubh.com/articles/java/api-evolution-keep-wire-contracts-stable-for-java-clients.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="java" />
+    <meta property="article:tag" content="apidesign" />
+    <meta property="article:tag" content="rest" />
+    <meta property="article:tag" content="compatibility" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"API Evolution: Keep Wire Contracts Stable for Java Clients","datePublished":"2026-10-17T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"Tolerant readers, batch error handling, and golden-file tests","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/java/api-evolution-keep-wire-contracts-stable-for-java-clients.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#java">← Java articles</a>
+      <header class="article-document-header"><p class="kicker">Java notes</p><h1>API Evolution: Keep Wire Contracts Stable for Java Clients</h1><p class="article-deck">Tolerant readers, batch error handling, and golden-file tests</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-10-17T12:00:00-07:00">Published October 17, 2026</time><span>·</span><span>~9 min read</span></div></header>
+      <div class="article-prose"><h2>What counts as the contract</h2>
+        <ul><li>Field names, types, and optionality.</li><li>HTTP status codes and which situations produce them.</li><li>The <strong>error envelope</strong>: its fields and their meaning.</li><li>Batch semantics: partial failures, ordering, and duplicates.</li><li>Behavior when a request omits optional parameters, such as projections.</li></ul>
+        <h2>Be a tolerant reader</h2>
+        <pre><code>import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.databind.JsonNode;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record ErrorEnvelope(int status, String message, String code, JsonNode errorDetails) {
+
+    public ErrorEnvelope {
+        message = message == null ? "" : message;
+    }
+}</code></pre>
+        <ul><li><code>ignoreUnknown = true</code> protects you from new server fields.</li><li><code>errorDetails</code> stays a raw <code>JsonNode</code>. If the server's details are free-form, do not force them into a fixed class. Keep them untyped, and let the caller interpret them.</li><li>Missing <code>message</code> becomes an empty string, so downstream code does not need null checks.</li></ul>
+        <h2>Classify errors in one place</h2>
+        <pre><code>public enum ErrorKind { CLIENT_ERROR, NOT_FOUND, UNPROCESSABLE, SERVER_ERROR, UNKNOWN }
+
+public static ErrorKind classify(int status) {
+    if (status == 404) return ErrorKind.NOT_FOUND;
+    if (status == 422) return ErrorKind.UNPROCESSABLE;
+    if (status &gt;= 400 &amp;&amp; status &lt; 500) return ErrorKind.CLIENT_ERROR;
+    if (status &gt;= 500 &amp;&amp; status &lt; 600) return ErrorKind.SERVER_ERROR;
+    return ErrorKind.UNKNOWN;
+}</code></pre>
+        <h2>Handle batch responses carefully</h2>
+        <pre><code>public static &lt;V&gt; BatchOutcome&lt;V&gt; split(Map&lt;String, V&gt; results, Map&lt;String, ErrorEnvelope&gt; errors) {
+    Map&lt;String, V&gt; ok = new LinkedHashMap&lt;&gt;(results);
+    Map&lt;String, ErrorKind&gt; failed = new LinkedHashMap&lt;&gt;();
+    errors.forEach((id, env) -&gt; {
+        ok.remove(id);
+        failed.put(id, classify(env.status()));
+    });
+    return new BatchOutcome&lt;&gt;(ok, failed);
+}
+
+public record BatchOutcome&lt;V&gt;(Map&lt;String, V&gt; succeeded, Map&lt;String, ErrorKind&gt; failed) { }</code></pre>
+        <h2>Server-side rules for safe evolution</h2>
+        <ul><li>Add fields as optional. Never remove or repurpose a field without a deprecation period.</li><li>Do not change status codes for existing situations.</li><li>Do not change the shape of the error envelope. Add to it instead.</li><li>Be careful with requests that send no projection or field selection. Defaults are part of the contract.</li><li>Version deliberately when you must break something, and announce it.</li></ul>
+        <h2>Golden-file tests</h2>
+        <pre><code>import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+
+class ErrorEnvelopeTest {
+
+    private final ObjectMapper mapper = new ObjectMapper();
+
+    @Test
+    void parsesCurrentShape() throws Exception {
+        String json = """
+            {"status":422,"message":"invalid","code":"VALIDATION","errorDetails":{"field":"email"}}
+            """;
+        ErrorEnvelope env = mapper.readValue(json, ErrorEnvelope.class);
+        assertEquals(422, env.status());
+        assertEquals("email", env.errorDetails().get("field").asText());
+    }
+
+    @Test
+    void ignoresFieldsAddedLater() throws Exception {
+        String json = """
+            {"status":404,"message":"gone","futureField":{"x":1}}
+            """;
+        assertEquals(404, mapper.readValue(json, ErrorEnvelope.class).status());
+    }
+
+    @Test
+    void missingOptionalFieldsDoNotFail() throws Exception {
+        ErrorEnvelope env = mapper.readValue("{\"status\":500}", ErrorEnvelope.class);
+        assertEquals("", env.message());
+        assertNull(env.code());
+    }
+}</code></pre>
+        <h2>Failure modes</h2>
+        <ul><li>A status change (for example 400 to 422) with no announcement.</li><li>A strict client parser that rejects new fields.</li><li>Error details forced into a typed structure that drops data.</li><li>Batch handlers that fail the whole batch or hide partial failures.</li><li>Requests without projections returning a different shape than before.</li></ul>
+        <h2>Demo to build</h2>
+        <h2>Takeaways</h2>
+        <ul><li>The contract includes errors, status codes, and batch behavior.</li><li>Clients should be tolerant readers and keep free-form details untyped.</li><li>Golden-file tests turn accidental contract changes into visible diffs.</li></ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Why collection-heavy code hurts your tail latency, and how to measure before optimizing" />
+    <title>Allocation Hotspot Hunting with JFR and async-profiler — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/java/allocation-hotspot-hunting-with-jfr-and-async-profiler.html" />
+    <meta property="article:published_time" content="2026-06-20T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Allocation Hotspot Hunting with JFR and async-profiler" />
+    <meta property="og:description" content="Why collection-heavy code hurts your tail latency, and how to measure before optimizing" />
+    <meta property="og:url" content="https://www.imshubh.com/articles/java/allocation-hotspot-hunting-with-jfr-and-async-profiler.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="java" />
+    <meta property="article:tag" content="profiling" />
+    <meta property="article:tag" content="jfr" />
+    <meta property="article:tag" content="asyncprofiler" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Allocation Hotspot Hunting with JFR and async-profiler","datePublished":"2026-06-20T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"Why collection-heavy code hurts your tail latency, and how to measure before optimizing","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/java/allocation-hotspot-hunting-with-jfr-and-async-profiler.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#java">← Java articles</a>
+      <header class="article-document-header"><p class="kicker">Java notes</p><h1>Allocation Hotspot Hunting with JFR and async-profiler</h1><p class="article-deck">Why collection-heavy code hurts your tail latency, and how to measure before optimizing</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-06-20T12:00:00-07:00">Published June 20, 2026</time><span>·</span><span>~9 min read</span></div></header>
+      <div class="article-prose"><h2>Step 1: find allocation spikes with JFR</h2>
+        <ul><li>Which classes are allocated the most by bytes (not by count)?</li><li>Which call paths create them?</li><li>Does the allocation rate rise during the slow periods?</li></ul>
+        <h2>Step 2: corroborate with async-profiler</h2>
+        <pre><code># Allocation profile for 30 seconds, written as an HTML flame graph
+asprof -e alloc -d 30 -f alloc.html &lt;pid&gt;</code></pre>
+        <h2>Step 3: understand why boxing and collections allocate</h2>
+        <ul><li><code>HashSet&lt;Integer&gt;</code> and <code>HashMap&lt;Integer, ...&gt;</code> box every primitive into an <code>Integer</code> object (small values are cached; larger ones are not) and allocate a node per entry.</li><li>Temporary lists and streams created per request.</li><li>String concatenation and formatting in hot paths.</li></ul>
+        <h2>Step 4: prove an alternative with JMH</h2>
+        <pre><code>import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
+import org.openjdk.jmh.annotations.*;
+import org.openjdk.jmh.infra.Blackhole;
+
+import java.util.HashSet;
+import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+
+@State(Scope.Thread)
+@BenchmarkMode(Mode.AverageTime)
+@OutputTimeUnit(TimeUnit.MICROSECONDS)
+@Warmup(iterations = 5, time = 1)
+@Measurement(iterations = 5, time = 1)
+@Fork(2)
+public class SetBenchmark {
+
+    @Param({"1000", "100000"})
+    int size;
+
+    int[] values;
+
+    @Setup
+    public void setup() {
+        Random r = new Random(42);
+        values = new int[size];
+        for (int i = 0; i &lt; size; i++) values[i] = r.nextInt();
+    }
+
+    @Benchmark
+    public void boxedHashSet(Blackhole bh) {
+        Set&lt;Integer&gt; set = new HashSet&lt;&gt;();
+        for (int v : values) set.add(v);
+        int hits = 0;
+        for (int v : values) if (set.contains(v)) hits++;
+        bh.consume(hits);
+    }
+
+    @Benchmark
+    public void primitiveSet(Blackhole bh) {
+        IntOpenHashSet set = new IntOpenHashSet();
+        for (int v : values) set.add(v);
+        int hits = 0;
+        for (int v : values) if (set.contains(v)) hits++;
+        bh.consume(hits);
+    }
+}</code></pre>
+        <pre><code>java -jar target/benchmarks.jar -prof gc</code></pre>
+        <h2>Step 5: validate in the real service</h2>
+        <h2>Failure modes</h2>
+        <ul><li><strong>Optimizing the wrong layer.</strong> A faster set does nothing if the allocation comes from JSON parsing upstream.</li><li><strong>Benchmarking unrealistic data.</strong> Use sizes and distributions that match production.</li><li><strong>Trading readability for nothing.</strong> Adopt a specialized library only where the profile justifies it.</li><li><strong>Forgetting dependencies.</strong> A new library adds maintenance and upgrade cost.</li></ul>
+        <h2>Takeaways</h2>
+        <ul><li>Profile allocation with two tools before touching code.</li><li>Boxing and per-entry nodes in collections are common sources of garbage.</li><li>Prove a fix in JMH with <code>-prof gc</code>, then confirm with a production-like recording.</li></ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Using `--release`, Gradle toolchains, and a bytecode gate to upgrade one module at a time" />
+    <title>Java 8 to 17 in a Multi-Module Build: Migrate Producers Without Breaking Consumers — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/java/java-8-to-17-in-a-multi-module-build-migrate-producers-without-breaking-consumers.html" />
+    <meta property="article:published_time" content="2025-08-20T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Java 8 to 17 in a Multi-Module Build: Migrate Producers Without Breaking Consumers" />
+    <meta property="og:description" content="Using `--release`, Gradle toolchains, and a bytecode gate to upgrade one module at a time" />
+    <meta property="og:url" content="https://www.imshubh.com/articles/java/java-8-to-17-in-a-multi-module-build-migrate-producers-without-breaking-consumers.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="java" />
+    <meta property="article:tag" content="java17" />
+    <meta property="article:tag" content="gradle" />
+    <meta property="article:tag" content="migration" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Java 8 to 17 in a Multi-Module Build: Migrate Producers Without Breaking Consumers","datePublished":"2025-08-20T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"Using `--release`, Gradle toolchains, and a bytecode gate to upgrade one module at a time","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/java/java-8-to-17-in-a-multi-module-build-migrate-producers-without-breaking-consumers.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#java">← Java articles</a>
+      <header class="article-document-header"><p class="kicker">Java notes</p><h1>Java 8 to 17 in a Multi-Module Build: Migrate Producers Without Breaking Consumers</h1><p class="article-deck">Using `--release`, Gradle toolchains, and a bytecode gate to upgrade one module at a time</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2025-08-20T12:00:00-07:00">Published August 20, 2025</time><span>·</span><span>~10 min read</span></div></header>
+      <div class="article-prose"><h2>The problem: producers and consumers upgrade at different speeds</h2>
+        <ul><li>A producer compiles with JDK 17 and publishes Java 17 class files (major version 61). A consumer on JDK 11 (which reads up to major version 55) gets <code>UnsupportedClassVersionError</code>.</li><li>Gradle notices first. Each published variant declares the Java version it supports, and a consumer asking for Java 11 refuses a Java 17 variant with an "incompatible" resolution error.</li><li>Hidden transitive dependencies or build plugins still assume Java 8 and fail on a newer toolchain.</li></ul>
+        <h2>The pattern: build with the new JDK, target the old bytecode</h2>
+        <pre><code>// build.gradle.kts (producer library)
+plugins { `java-library` }
+
+java {
+    toolchain { languageVersion.set(JavaLanguageVersion.of(17)) }   // compile with JDK 17
+}
+
+tasks.withType&lt;JavaCompile&gt;().configureEach {
+    options.release.set(11)    // emit Java 11 bytecode and restrict APIs to Java 11
+}</code></pre>
+        <ul><li>It sets the class-file version, so consumers on Java 11 can load the jar.</li><li>It limits you to the Java 11 API surface, so you cannot accidentally call a Java 17-only method. With plain <code>-source/-target</code> you could compile against JDK 17's class library and fail at runtime on an older JVM.</li></ul>
+        <h2>The consumer side</h2>
+        <pre><code>// build.gradle.kts (consumer app)
+java { toolchain { languageVersion.set(JavaLanguageVersion.of(11)) } }
+dependencies { implementation(project(":producer")) }   // or a published artifact</code></pre>
+        <h2>A rollout sequence that works</h2>
+        <ol><li><strong>Inventory consumers</strong>, including transitive ones. This step catches most surprises. Search your dependency graph, not just your team's repos.</li><li><strong>Unlock producers</strong> with the toolchain and <code>release</code> pattern above. Nothing changes for consumers.</li><li><strong>Gate CI</strong> so no module accidentally publishes newer bytecode than planned (see below).</li><li><strong>Upgrade consumers</strong> one at a time, starting with leaf services.</li><li><strong>Raise <code>release</code></strong> in producers once nobody depends on the older level.</li><li><strong>Upgrade build plugins early.</strong> Old Gradle plugins and annotation processors are the most common blockers.</li></ol>
+        <h2>Enforce it with a bytecode gate</h2>
+        <pre><code>import java.io.DataInputStream;
+import java.io.IOException;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+
+public final class BytecodeLevelCheck {
+
+    public static void main(String[] args) throws IOException {
+        String jarPath = args[0];
+        int maxMajor = Integer.parseInt(args[1]);
+        int worst = 0;
+
+        try (ZipFile zip = new ZipFile(jarPath)) {
+            var entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                if (!entry.getName().endsWith(".class") || entry.getName().startsWith("META-INF/versions/")) {
+                    continue;
+                }
+                try (var in = new DataInputStream(zip.getInputStream(entry))) {
+                    in.readInt();                       // magic 0xCAFEBABE
+                    in.readUnsignedShort();             // minor
+                    worst = Math.max(worst, in.readUnsignedShort());   // major
+                }
+            }
+        }
+        if (worst &gt; maxMajor) {
+            System.err.println("Bytecode major " + worst + " exceeds allowed " + maxMajor);
+            System.exit(1);
+        }
+        System.out.println("OK: highest major version " + worst);
+    }
+}</code></pre>
+        <h2>Reproducing the problem in a toy project</h2>
+        <h2>Failure modes to expect</h2>
+        <ul><li>A dependency compiled for Java 8 that uses internal APIs removed in later JDKs.</li><li>Build plugins that read JDK internals reflectively and break on newer versions (look for <code>InaccessibleObjectException</code>).</li><li>Containers and JVM flags: some legacy GC flags are removed or ignored after Java 8, so audit your startup options.</li></ul>
+        <h2>What you gain</h2>
+        <h2>Takeaways</h2>
+        <ul><li>Separate the compile JDK from the bytecode target with a toolchain plus <code>options.release</code>.</li><li>Inventory transitive consumers first, because the graph decides your pace.</li><li>Add a bytecode gate to CI so a policy becomes a failing build.</li></ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

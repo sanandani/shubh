@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Typed vs untyped error details, and why &quot;helpful&quot; mapping can quietly break your clients" />
+    <title>Error Modeling in a Java REST Service: Translate Exceptions Without Changing the Wire Contract — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/java/error-modeling-in-a-java-rest-service-translate-exceptions-without-changing-the-wire-contract.html" />
+    <meta property="article:published_time" content="2025-12-28T12:00:00-08:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Error Modeling in a Java REST Service: Translate Exceptions Without Changing the Wire Contract" />
+    <meta property="og:description" content="Typed vs untyped error details, and why &quot;helpful&quot; mapping can quietly break your clients" />
+    <meta property="og:url" content="https://www.imshubh.com/articles/java/error-modeling-in-a-java-rest-service-translate-exceptions-without-changing-the-wire-contract.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="java" />
+    <meta property="article:tag" content="jakartarest" />
+    <meta property="article:tag" content="jackson" />
+    <meta property="article:tag" content="apidesign" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Error Modeling in a Java REST Service: Translate Exceptions Without Changing the Wire Contract","datePublished":"2025-12-28T12:00:00-08:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"Typed vs untyped error details, and why \"helpful\" mapping can quietly break your clients","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/java/error-modeling-in-a-java-rest-service-translate-exceptions-without-changing-the-wire-contract.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#java">← Java articles</a>
+      <header class="article-document-header"><p class="kicker">Java notes</p><h1>Error Modeling in a Java REST Service: Translate Exceptions Without Changing the Wire Contract</h1><p class="article-deck">Typed vs untyped error details, and why &quot;helpful&quot; mapping can quietly break your clients</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2025-12-28T12:00:00-08:00">Published December 28, 2025</time><span>·</span><span>~9 min read</span></div></header>
+      <div class="article-prose"><h2>The problem</h2>
+        <ul><li><strong>Untyped</strong>: a raw JSON tree (<code>JsonNode</code>), whatever shape the producer chose.</li><li><strong>Typed</strong>: a Java class or record bound to a fixed schema.</li></ul>
+        <h2>Principle: translate the status, preserve the details</h2>
+        <ol><li><strong>Map a <code>Throwable</code> to an HTTP status and message.</strong> This is policy, and it belongs in one place.</li><li><strong>Carry the error details through untouched.</strong> If the producer's contract is untyped, leave it untyped.</li></ol>
+        <h2>A small translator</h2>
+        <pre><code>import com.fasterxml.jackson.databind.JsonNode;
+
+import java.util.NoSuchElementException;
+import java.util.concurrent.TimeoutException;
+
+public final class ApiException extends RuntimeException {
+    private final int status;
+    private final String code;
+    private final JsonNode details;          // untyped on purpose
+
+    public ApiException(int status, String message, String code, JsonNode details, Throwable cause) {
+        super(message, cause);
+        this.status = status;
+        this.code = code;
+        this.details = details;
+    }
+
+    public int status() { return status; }
+    public String code() { return code; }
+    public JsonNode details() { return details; }
+
+    public static ApiException translate(Throwable t) {
+        if (t instanceof ApiException existing) {
+            return existing;                                   // never re-wrap
+        }
+        if (t instanceof IllegalArgumentException) {
+            return new ApiException(400, t.getMessage(), "BAD_REQUEST", null, t);
+        }
+        if (t instanceof NoSuchElementException) {
+            return new ApiException(404, t.getMessage(), "NOT_FOUND", null, t);
+        }
+        if (t instanceof TimeoutException) {
+            return new ApiException(504, "Upstream timeout", "TIMEOUT", null, t);
+        }
+        return new ApiException(500, "Internal error", "INTERNAL", null, t);
+    }
+}</code></pre>
+        <ul><li><strong>Return an existing <code>ApiException</code> unchanged.</strong> Wrapping it again discards its status and details.</li><li><strong>Hide internals for 500s.</strong> The message is generic; the cause is kept for server logs.</li><li><strong>Keep the mapping table small and tested.</strong> Every exception type you map is a promise to clients.</li></ul>
+        <h2>One place to build the response</h2>
+        <pre><code>import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.ext.ExceptionMapper;
+import jakarta.ws.rs.ext.Provider;
+
+@Provider
+public class ApiExceptionMapper implements ExceptionMapper&lt;Throwable&gt; {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    @Override
+    public Response toResponse(Throwable t) {
+        ApiException e = ApiException.translate(t);
+        return Response.status(e.status())
+                .type(MediaType.APPLICATION_JSON)
+                .entity(body(e).toString())
+                .build();
+    }
+
+    static ObjectNode body(ApiException e) {
+        ObjectNode node = MAPPER.createObjectNode();
+        node.put("status", e.status());
+        node.put("message", e.getMessage() == null ? "" : e.getMessage());
+        node.put("code", e.code());
+        if (e.details() != null) {
+            node.set("errorDetails", e.details());             // passed through as-is
+        }
+        return node;
+    }
+}</code></pre>
+        <h2>Batch operations need extra care</h2>
+        <pre><code>public static &lt;K&gt; Map&lt;K, ApiException&gt; errorsByKey(Map&lt;K, Throwable&gt; failures) {
+    Map&lt;K, ApiException&gt; result = new LinkedHashMap&lt;&gt;();
+    failures.forEach((key, t) -&gt; result.put(key, ApiException.translate(t)));
+    return result;
+}</code></pre>
+        <h2>Prove the wire does not change</h2>
+        <pre><code>import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class ErrorDetailsWireTest {
+
+    private final ObjectMapper mapper = new ObjectMapper();
+
+    record ErrorInfo(String field, String reason) { }
+
+    @Test
+    void untypedDetailsSurviveUnchanged() throws Exception {
+        JsonNode details = mapper.readTree(
+                "{\"field\":\"email\",\"reason\":\"format\",\"custom\":\"kept\"}");
+
+        ApiException e = new ApiException(422, "invalid", "VALIDATION", details, null);
+        JsonNode body = mapper.readTree(ApiExceptionMapper.body(e).toString());
+
+        assertEquals(details, body.get("errorDetails"));
+    }
+
+    @Test
+    void typedConversionLosesUnknownFields() throws Exception {
+        JsonNode details = mapper.readTree(
+                "{\"field\":\"email\",\"reason\":\"format\",\"custom\":\"kept\"}");
+
+        ObjectMapper lenient = new ObjectMapper()
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        JsonNode roundTripped = lenient.valueToTree(lenient.convertValue(details, ErrorInfo.class));
+
+        assertNotEquals(details, roundTripped);               // "custom" is gone
+    }
+}</code></pre>
+        <h2>Status codes are contract too</h2>
+        <h2>Failure modes</h2>
+        <ul><li>Typed envelopes rejecting or dropping unknown fields.</li><li>Double-wrapping an exception that already has a status.</li><li>Whole-batch failure when only one key failed.</li><li>Leaking stack traces or internal messages in 500 responses.</li></ul>
+        <h2>Demo to build</h2>
+        <h2>Takeaways</h2>
+        <ul><li>Separate "which status" from "which details".</li><li>Do not convert untyped details to typed ones unless you are deliberately versioning the contract.</li><li>Add a wire-level test for error responses.</li></ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

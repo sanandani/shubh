@@ -67,7 +67,83 @@ public class IdempotentJob {
         <h2>One honest limitation</h2>
         <p>Idempotency limits what a write can be. Operations like incrementing a counter are not safe to repeat, so they need a composite key, a version, or a transactional sink to be handled correctly.</p>
         <h2>Sources</h2>
-        <ul><li>Apache Kafka Documentation: Message delivery semantics</li><li>Oracle Java Documentation: java.nio.file.Files.move (atomic move)</li><li>Docker Docs: Volumes</li></ul>]]></content:encoded></item><item><title>Compartment design and movement: policy implications</title><link>https://www.imshubh.com/articles/oracle-ace/compartment-design-and-movement-policy-implications.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/oracle-ace/compartment-design-and-movement-policy-implications.html</guid><pubDate>Fri, 16 Oct 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>How I structure compartments so access stays predictable when one has to move.</description><category>oracleace</category><category>oci</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
+        <ul><li>Apache Kafka Documentation: Message delivery semantics</li><li>Oracle Java Documentation: java.nio.file.Files.move (atomic move)</li><li>Docker Docs: Volumes</li></ul>]]></content:encoded></item><item><title>API Evolution: Keep Wire Contracts Stable for Java Clients</title><link>https://www.imshubh.com/articles/java/api-evolution-keep-wire-contracts-stable-for-java-clients.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/java/api-evolution-keep-wire-contracts-stable-for-java-clients.html</guid><pubDate>Sat, 17 Oct 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Tolerant readers, batch error handling, and golden-file tests</description><category>java</category><category>apidesign</category><category>rest</category><category>compatibility</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>What counts as the contract</h2>
+        <ul><li>Field names, types, and optionality.</li><li>HTTP status codes and which situations produce them.</li><li>The <strong>error envelope</strong>: its fields and their meaning.</li><li>Batch semantics: partial failures, ordering, and duplicates.</li><li>Behavior when a request omits optional parameters, such as projections.</li></ul>
+        <h2>Be a tolerant reader</h2>
+        <pre><code>import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.databind.JsonNode;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record ErrorEnvelope(int status, String message, String code, JsonNode errorDetails) {
+
+    public ErrorEnvelope {
+        message = message == null ? "" : message;
+    }
+}</code></pre>
+        <ul><li><code>ignoreUnknown = true</code> protects you from new server fields.</li><li><code>errorDetails</code> stays a raw <code>JsonNode</code>. If the server's details are free-form, do not force them into a fixed class. Keep them untyped, and let the caller interpret them.</li><li>Missing <code>message</code> becomes an empty string, so downstream code does not need null checks.</li></ul>
+        <h2>Classify errors in one place</h2>
+        <pre><code>public enum ErrorKind { CLIENT_ERROR, NOT_FOUND, UNPROCESSABLE, SERVER_ERROR, UNKNOWN }
+
+public static ErrorKind classify(int status) {
+    if (status == 404) return ErrorKind.NOT_FOUND;
+    if (status == 422) return ErrorKind.UNPROCESSABLE;
+    if (status &gt;= 400 &amp;&amp; status &lt; 500) return ErrorKind.CLIENT_ERROR;
+    if (status &gt;= 500 &amp;&amp; status &lt; 600) return ErrorKind.SERVER_ERROR;
+    return ErrorKind.UNKNOWN;
+}</code></pre>
+        <h2>Handle batch responses carefully</h2>
+        <pre><code>public static &lt;V&gt; BatchOutcome&lt;V&gt; split(Map&lt;String, V&gt; results, Map&lt;String, ErrorEnvelope&gt; errors) {
+    Map&lt;String, V&gt; ok = new LinkedHashMap&lt;&gt;(results);
+    Map&lt;String, ErrorKind&gt; failed = new LinkedHashMap&lt;&gt;();
+    errors.forEach((id, env) -&gt; {
+        ok.remove(id);
+        failed.put(id, classify(env.status()));
+    });
+    return new BatchOutcome&lt;&gt;(ok, failed);
+}
+
+public record BatchOutcome&lt;V&gt;(Map&lt;String, V&gt; succeeded, Map&lt;String, ErrorKind&gt; failed) { }</code></pre>
+        <h2>Server-side rules for safe evolution</h2>
+        <ul><li>Add fields as optional. Never remove or repurpose a field without a deprecation period.</li><li>Do not change status codes for existing situations.</li><li>Do not change the shape of the error envelope. Add to it instead.</li><li>Be careful with requests that send no projection or field selection. Defaults are part of the contract.</li><li>Version deliberately when you must break something, and announce it.</li></ul>
+        <h2>Golden-file tests</h2>
+        <pre><code>import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+
+class ErrorEnvelopeTest {
+
+    private final ObjectMapper mapper = new ObjectMapper();
+
+    @Test
+    void parsesCurrentShape() throws Exception {
+        String json = """
+            {"status":422,"message":"invalid","code":"VALIDATION","errorDetails":{"field":"email"}}
+            """;
+        ErrorEnvelope env = mapper.readValue(json, ErrorEnvelope.class);
+        assertEquals(422, env.status());
+        assertEquals("email", env.errorDetails().get("field").asText());
+    }
+
+    @Test
+    void ignoresFieldsAddedLater() throws Exception {
+        String json = """
+            {"status":404,"message":"gone","futureField":{"x":1}}
+            """;
+        assertEquals(404, mapper.readValue(json, ErrorEnvelope.class).status());
+    }
+
+    @Test
+    void missingOptionalFieldsDoNotFail() throws Exception {
+        ErrorEnvelope env = mapper.readValue("{\"status\":500}", ErrorEnvelope.class);
+        assertEquals("", env.message());
+        assertNull(env.code());
+    }
+}</code></pre>
+        <h2>Failure modes</h2>
+        <ul><li>A status change (for example 400 to 422) with no announcement.</li><li>A strict client parser that rejects new fields.</li><li>Error details forced into a typed structure that drops data.</li><li>Batch handlers that fail the whole batch or hide partial failures.</li><li>Requests without projections returning a different shape than before.</li></ul>
+        <h2>Demo to build</h2>
+        <h2>Takeaways</h2>
+        <ul><li>The contract includes errors, status codes, and batch behavior.</li><li>Clients should be tolerant readers and keep free-form details untyped.</li><li>Golden-file tests turn accidental contract changes into visible diffs.</li></ul>]]></content:encoded></item><item><title>Compartment design and movement: policy implications</title><link>https://www.imshubh.com/articles/oracle-ace/compartment-design-and-movement-policy-implications.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/oracle-ace/compartment-design-and-movement-policy-implications.html</guid><pubDate>Fri, 16 Oct 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>How I structure compartments so access stays predictable when one has to move.</description><category>oracleace</category><category>oci</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
 <p>Compartments split resources and policy scope, and the layout you choose on day one is hard to change quietly. When a compartment moves, the set of policies that apply to it can change with it, and people can gain or lose access without anyone editing a statement.</p>
 <p>I wanted a hierarchy that makes moves boring and lets me check the result afterwards.</p>
 <h2>Options and trade-offs</h2>
@@ -105,7 +181,7 @@ config = oci.config.from_file()
 language = oci.ai_language.AIServiceLanguageClient(config)
  
 doc = oci.ai_language.models.TextDocument(
-    key="ticket-1042", text=ticket_text, language_code="en")
+    key="example-document", text=ticket_text, language_code="en")
  
 resp = language.batch_detect_language_pii_entities(
     oci.ai_language.models.BatchDetectLanguagePiiEntitiesDetails(
@@ -411,7 +487,60 @@ pds.setValidateConnectionOnBorrow(true);</code></pre>
 <h2>One honest limitation</h2>
 <p>Wallets add operational work, such as delivery, rotation and cleanup. Treat the wallet like any other secret and automate its life cycle before the first rotation, not after.</p>
 <h2>Sources</h2>
-<ul><li>Oracle JDBC Developer&#x27;s Guide: Client-Side Security Features</li><li>Oracle Universal Connection Pool Developer&#x27;s Guide: Setting Connection Pool Properties</li><li>Oracle Autonomous Database Documentation: Connect with JDBC Thin and a Wallet</li></ul>]]></content:encoded></item><item><title>Packaging Inference for Production: A Checklist for Shipping an Optimized-Model Service</title><link>https://www.imshubh.com/articles/intel/production-inference-packaging.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/intel/production-inference-packaging.html</guid><pubDate>Thu, 23 Jul 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>A production checklist for OpenVINO inference services: reproducible conversion, versioned artifacts, visible precision, and tested fallbacks.</description><category>intel</category><category>edgeai</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">A model can be accurate and still be hard to operate if conversion is manual, artifacts are opaque, precision changes silently, or fallbacks have never been exercised. Production readiness is the process around the model as much as the model itself.</p>
+<ul><li>Oracle JDBC Developer&#x27;s Guide: Client-Side Security Features</li><li>Oracle Universal Connection Pool Developer&#x27;s Guide: Setting Connection Pool Properties</li><li>Oracle Autonomous Database Documentation: Connect with JDBC Thin and a Wallet</li></ul>]]></content:encoded></item><item><title>The Hidden Price of "One More Log": Observability Costs on the JVM</title><link>https://www.imshubh.com/articles/java/the-hidden-price-of-one-more-log-observability-costs-on-the-jvm.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/java/the-hidden-price-of-one-more-log-observability-costs-on-the-jvm.html</guid><pubDate>Mon, 03 Aug 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Logging, tracing, and sampling choices that protect your p99</description><category>java</category><category>observability</category><category>opentelemetry</category><category>logging</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Where the cost comes from</h2>
+        <ul><li><strong>Formatting.</strong> Building a message string you never emit is wasted work.</li><li><strong>Allocation.</strong> Varargs arrays, boxed values, and message objects add garbage.</li><li><strong>I/O and locking.</strong> A synchronous appender can block request threads on disk or on a shared lock.</li><li><strong>Volume.</strong> Ten log lines per request at high traffic is a data pipeline you have to pay for.</li><li><strong>Cardinality.</strong> Metric and span attributes with unbounded values (user IDs, request IDs as labels) explode storage and backend cost.</li></ul>
+        <h2>Logging guardrails</h2>
+        <pre><code>// Bad: concatenation always runs
+log.debug("Fetched profile " + id + " in " + elapsedMs + "ms");
+
+// Good: SLF4J formats only if DEBUG is enabled
+log.debug("Fetched profile {} in {}ms", id, elapsedMs);</code></pre>
+        <pre><code>if (log.isDebugEnabled()) {
+    log.debug("State: {}", expensiveDump(state));
+}</code></pre>
+        <pre><code>String snapshot;
+synchronized (lock) {
+    snapshot = state.summary();      // cheap copy
+}
+log.info("Rebalanced: {}", snapshot);  // logging outside the lock</code></pre>
+        <h2>Tracing guardrails</h2>
+        <pre><code>import io.opentelemetry.sdk.trace.SdkTracerProvider;
+import io.opentelemetry.sdk.trace.samplers.Sampler;
+
+SdkTracerProvider provider = SdkTracerProvider.builder()
+        .setSampler(Sampler.parentBased(Sampler.traceIdRatioBased(0.05)))   // ~5% of new traces
+        .build();</code></pre>
+        <ul><li>Keep span attributes low-cardinality. Put high-cardinality identifiers in logs, not metric labels.</li><li>Avoid creating spans in tight loops. Instrument the request and the major dependencies.</li><li>Cap attribute value sizes.</li></ul>
+        <h2>Measure the overhead</h2>
+        <pre><code>import org.openjdk.jmh.annotations.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+@State(Scope.Thread)
+@BenchmarkMode(Mode.AverageTime)
+@OutputTimeUnit(java.util.concurrent.TimeUnit.NANOSECONDS)
+public class LoggingBenchmark {
+
+    private static final Logger log = LoggerFactory.getLogger(LoggingBenchmark.class);   // level = INFO
+    private final String id = "user-12345";
+    private final long elapsed = 42;
+
+    @Benchmark
+    public void concatenation() {
+        log.debug("Fetched profile " + id + " in " + elapsed + "ms");
+    }
+
+    @Benchmark
+    public void parameterized() {
+        log.debug("Fetched profile {} in {}ms", id, elapsed);
+    }
+}</code></pre>
+        <h2>Failure modes</h2>
+        <ul><li>High-cardinality labels that overload the metrics backend.</li><li>Log amplification, where one failure triggers retries that each log at ERROR.</li><li>Synchronous appenders blocking request threads.</li><li>Tracing everything in staging, then discovering production cannot afford it.</li></ul>
+        <h2>A starter checklist</h2>
+        <ol><li>Parameterized logging everywhere, with guards for expensive arguments.</li><li>No logging inside locks or tight loops.</li><li>Async appender with a bounded queue.</li><li>Parent-based ratio sampling, with the ratio justified by numbers.</li><li>Attribute and label cardinality reviewed.</li><li>A benchmark or load test whenever you add instrumentation to a hot path.</li></ol>
+        <h2>Takeaways</h2>
+        <ul><li>Observability has a runtime cost that shows up in the tail.</li><li>Sample traces, bound log queues, and keep cardinality low.</li><li>Benchmark instrumentation like any other hot-path code.</li></ul>]]></content:encoded></item><item><title>Packaging Inference for Production: A Checklist for Shipping an Optimized-Model Service</title><link>https://www.imshubh.com/articles/intel/production-inference-packaging.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/intel/production-inference-packaging.html</guid><pubDate>Thu, 23 Jul 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>A production checklist for OpenVINO inference services: reproducible conversion, versioned artifacts, visible precision, and tested fallbacks.</description><category>intel</category><category>edgeai</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">A model can be accurate and still be hard to operate if conversion is manual, artifacts are opaque, precision changes silently, or fallbacks have never been exercised. Production readiness is the process around the model as much as the model itself.</p>
         <p><code>aceu-edge-infer</code> is a modest inference demo, but I treat its packaging path as if another engineer will need to rebuild, inspect, and recover it. Its outputs remain illustrative, not evaluative of real people. This checklist is about making that kind of service repeatable.</p>
         <h2>Make model conversion reproducible</h2><p>Keep conversion in a script or build step rather than a shell history. Record the source model hash, tool and runtime versions, input shapes, conversion options, and warnings. Use separate, reviewable configuration for FP32 and INT8 artifacts, and retain the conversion logs with the release build.</p>
         <pre><code>from pathlib import Path
@@ -770,7 +899,67 @@ template:
         <p>Measure the cold start path and identify high-cost steps. Record cold-start and warm-request latency as separate measurements.</p>
         <p>Add a minimum warm replica and track tails. Compare p95 across scale-to-zero vs hybrid.</p>
         <p>Implement readiness that runs a tiny proof self-check and confirms secret load before returning ready.</p>
-        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://learn.microsoft.com/en-us/azure/container-apps/scale-app" target="_blank" rel="noreferrer">Scale applications in Azure Container Apps</a></li><li><a href="https://learn.microsoft.com/en-us/azure/container-apps/health-probes" target="_blank" rel="noreferrer">Health probes in Azure Container Apps</a></li></ul></aside>]]></content:encoded></item><item><title>Keeping secrets out of container images, builds and logs</title><link>https://www.imshubh.com/articles/docker/keeping-secrets-out-of-images-builds-and-logs.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/docker/keeping-secrets-out-of-images-builds-and-logs.html</guid><pubDate>Sat, 06 Jun 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>A practical playbook for build-time tokens, runtime credentials and log redaction in a Java service, using BuildKit secrets and mounted files.</description><category>docker</category><category>containers</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://learn.microsoft.com/en-us/azure/container-apps/scale-app" target="_blank" rel="noreferrer">Scale applications in Azure Container Apps</a></li><li><a href="https://learn.microsoft.com/en-us/azure/container-apps/health-probes" target="_blank" rel="noreferrer">Health probes in Azure Container Apps</a></li></ul></aside>]]></content:encoded></item><item><title>Allocation Hotspot Hunting with JFR and async-profiler</title><link>https://www.imshubh.com/articles/java/allocation-hotspot-hunting-with-jfr-and-async-profiler.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/java/allocation-hotspot-hunting-with-jfr-and-async-profiler.html</guid><pubDate>Sat, 20 Jun 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Why collection-heavy code hurts your tail latency, and how to measure before optimizing</description><category>java</category><category>profiling</category><category>jfr</category><category>asyncprofiler</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Step 1: find allocation spikes with JFR</h2>
+        <ul><li>Which classes are allocated the most by bytes (not by count)?</li><li>Which call paths create them?</li><li>Does the allocation rate rise during the slow periods?</li></ul>
+        <h2>Step 2: corroborate with async-profiler</h2>
+        <pre><code># Allocation profile for 30 seconds, written as an HTML flame graph
+asprof -e alloc -d 30 -f alloc.html &lt;pid&gt;</code></pre>
+        <h2>Step 3: understand why boxing and collections allocate</h2>
+        <ul><li><code>HashSet&lt;Integer&gt;</code> and <code>HashMap&lt;Integer, ...&gt;</code> box every primitive into an <code>Integer</code> object (small values are cached; larger ones are not) and allocate a node per entry.</li><li>Temporary lists and streams created per request.</li><li>String concatenation and formatting in hot paths.</li></ul>
+        <h2>Step 4: prove an alternative with JMH</h2>
+        <pre><code>import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
+import org.openjdk.jmh.annotations.*;
+import org.openjdk.jmh.infra.Blackhole;
+
+import java.util.HashSet;
+import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+
+@State(Scope.Thread)
+@BenchmarkMode(Mode.AverageTime)
+@OutputTimeUnit(TimeUnit.MICROSECONDS)
+@Warmup(iterations = 5, time = 1)
+@Measurement(iterations = 5, time = 1)
+@Fork(2)
+public class SetBenchmark {
+
+    @Param({"1000", "100000"})
+    int size;
+
+    int[] values;
+
+    @Setup
+    public void setup() {
+        Random r = new Random(42);
+        values = new int[size];
+        for (int i = 0; i &lt; size; i++) values[i] = r.nextInt();
+    }
+
+    @Benchmark
+    public void boxedHashSet(Blackhole bh) {
+        Set&lt;Integer&gt; set = new HashSet&lt;&gt;();
+        for (int v : values) set.add(v);
+        int hits = 0;
+        for (int v : values) if (set.contains(v)) hits++;
+        bh.consume(hits);
+    }
+
+    @Benchmark
+    public void primitiveSet(Blackhole bh) {
+        IntOpenHashSet set = new IntOpenHashSet();
+        for (int v : values) set.add(v);
+        int hits = 0;
+        for (int v : values) if (set.contains(v)) hits++;
+        bh.consume(hits);
+    }
+}</code></pre>
+        <pre><code>java -jar target/benchmarks.jar -prof gc</code></pre>
+        <h2>Step 5: validate in the real service</h2>
+        <h2>Failure modes</h2>
+        <ul><li><strong>Optimizing the wrong layer.</strong> A faster set does nothing if the allocation comes from JSON parsing upstream.</li><li><strong>Benchmarking unrealistic data.</strong> Use sizes and distributions that match production.</li><li><strong>Trading readability for nothing.</strong> Adopt a specialized library only where the profile justifies it.</li><li><strong>Forgetting dependencies.</strong> A new library adds maintenance and upgrade cost.</li></ul>
+        <h2>Takeaways</h2>
+        <ul><li>Profile allocation with two tools before touching code.</li><li>Boxing and per-entry nodes in collections are common sources of garbage.</li><li>Prove a fix in JMH with <code>-prof gc</code>, then confirm with a production-like recording.</li></ul>]]></content:encoded></item><item><title>Keeping secrets out of container images, builds and logs</title><link>https://www.imshubh.com/articles/docker/keeping-secrets-out-of-images-builds-and-logs.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/docker/keeping-secrets-out-of-images-builds-and-logs.html</guid><pubDate>Sat, 06 Jun 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>A practical playbook for build-time tokens, runtime credentials and log redaction in a Java service, using BuildKit secrets and mounted files.</description><category>docker</category><category>containers</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
         <p>Secrets leak in boring ways. A token passed as a build argument ends up in image history. An exception handler prints the whole configuration. An environment variable set for a quick test is still there six months later. The fix is not one tool. It is a set of small defaults that make the safe path the easy path, covering the build, the runtime and the logs.</p>
         <h2>Options and trade-offs</h2>
         <ul><li>ARG and ENV for credentials: simple, but both are stored in image metadata and can be read back from the image.</li><li>BuildKit secret mounts: the secret is available to one build step and is never written to a layer.</li><li>Runtime secrets as environment variables: convenient, but they show up in diagnostics and process listings.</li><li>Runtime secrets as mounted files: easier to restrict, audit and rotate without rebuilding.</li></ul>
@@ -1035,7 +1224,54 @@ junit.jupiter.execution.parallel.mode.classes.default = concurrent</code></pre>
         <p>Switch to PER_METHOD lifecycle and remove static mutable fields in tests. Add unique keys per test to seed data. Enable parallel execution and watch for failures that indicate hidden shared state.</p>
         <p>Replace sleep-based readiness with explicit condition checks. Add timeouts and backoff policies.</p>
         <p>Document which tests are parallel-safe and why; make non-parallel tests the exception and note the reason.</p>
-        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://junit.org/junit5/docs/current/user-guide/#writing-tests-parallel-execution" target="_blank" rel="noreferrer">JUnit 5 parallel execution</a></li><li><a href="https://java.testcontainers.org/" target="_blank" rel="noreferrer">Testcontainers for Java</a></li></ul></aside>]]></content:encoded></item><item><title>Minimal Java container on OCI with TLS to DB</title><link>https://www.imshubh.com/articles/oracle-ace/minimal-java-container-on-oci-with-tls-to-db.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/oracle-ace/minimal-java-container-on-oci-with-tls-to-db.html</guid><pubDate>Tue, 14 Apr 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>A small, locked-down Java service on an Ampere A1 instance, talking to Oracle Database over TLS.</description><category>oracleace</category><category>oci</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://junit.org/junit5/docs/current/user-guide/#writing-tests-parallel-execution" target="_blank" rel="noreferrer">JUnit 5 parallel execution</a></li><li><a href="https://java.testcontainers.org/" target="_blank" rel="noreferrer">Testcontainers for Java</a></li></ul></aside>]]></content:encoded></item><item><title>Reproducible Gradle Builds: Why It Passes Locally and Fails in CI</title><link>https://www.imshubh.com/articles/java/reproducible-gradle-builds-why-it-passes-locally-and-fails-in-ci.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/java/reproducible-gradle-builds-why-it-passes-locally-and-fails-in-ci.html</guid><pubDate>Thu, 07 May 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Resource paths, dependency locking, and byte-for-byte reproducible jars</description><category>java</category><category>gradle</category><category>build</category><category>reproduciblebuilds</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>The classic trap: files outside the classpath</h2>
+        <pre><code>// Works from an IDE or the repo root; breaks in CI or when packaged
+String json = Files.readString(Path.of("config/app-manifest.json"));</code></pre>
+        <pre><code>try (InputStream in = AppManifest.class.getResourceAsStream("/manifests/app-manifest.json")) {
+    if (in == null) {
+        throw new IllegalStateException("Missing classpath resource: /manifests/app-manifest.json");
+    }
+    return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+}</code></pre>
+        <h2>Fail the build when packaging is wrong</h2>
+        <pre><code>// build.gradle.kts
+val verifyManifest by tasks.registering {
+    dependsOn(tasks.jar)
+    doLast {
+        val jarFile = tasks.jar.get().archiveFile.get().asFile
+        java.util.zip.ZipFile(jarFile).use { zip -&gt;
+            check(zip.getEntry("manifests/app-manifest.json") != null) {
+                "manifests/app-manifest.json missing from ${jarFile.name}"
+            }
+        }
+    }
+}
+tasks.check { dependsOn(verifyManifest) }</code></pre>
+        <h2>Avoid classpath hacks in tests</h2>
+        <h2>Pin dependencies</h2>
+        <pre><code># gradle/libs.versions.toml
+[versions]
+junit = "5.10.2"
+
+[libraries]
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }</code></pre>
+        <pre><code>dependencyLocking { lockAllConfigurations() }</code></pre>
+        <pre><code>./gradlew dependencies --write-locks      # create or update lock files</code></pre>
+        <h2>Make the output reproducible</h2>
+        <pre><code>tasks.withType&lt;AbstractArchiveTask&gt;().configureEach {
+    isPreserveFileTimestamps = false
+    isReproducibleFileOrder = true
+}</code></pre>
+        <pre><code>./gradlew clean jar &amp;&amp; sha256sum build/libs/*.jar &gt; first.sum
+./gradlew clean jar &amp;&amp; sha256sum build/libs/*.jar &gt; second.sum
+diff first.sum second.sum &amp;&amp; echo "reproducible"</code></pre>
+        <h2>A repeatable CI parity checklist</h2>
+        <ol><li>Use the Gradle wrapper, and commit the wrapper files.</li><li>Pin the JDK with a toolchain.</li><li>Commit dependency lock files.</li><li>Run <code>./gradlew clean build</code> locally from a clean checkout before pushing.</li><li>Fail the build on missing resources, as shown above.</li><li>Compare artifact checksums between two builds periodically.</li></ol>
+        <h2>Demo to build</h2>
+        <h2>Failure modes</h2>
+        <ul><li>Resources loaded by file path instead of classpath.</li><li>Floating dependency versions such as <code>1.+</code> or <code>latest</code>.</li><li>Tests that pass only because of leftover files in a local <code>build</code> directory (always test after <code>clean</code>).</li><li>Build plugins and tools that differ between developer machines and CI.</li></ul>
+        <h2>Takeaways</h2>
+        <ul><li>Load files from the classpath, and fail loudly when they are missing.</li><li>Pin dependencies and the JDK so two builds mean the same thing.</li><li>Make archives reproducible and prove it with a checksum comparison.</li></ul>]]></content:encoded></item><item><title>Minimal Java container on OCI with TLS to DB</title><link>https://www.imshubh.com/articles/oracle-ace/minimal-java-container-on-oci-with-tls-to-db.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/oracle-ace/minimal-java-container-on-oci-with-tls-to-db.html</guid><pubDate>Tue, 14 Apr 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>A small, locked-down Java service on an Ampere A1 instance, talking to Oracle Database over TLS.</description><category>oracleace</category><category>oci</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
 <p>I wanted the smallest useful baseline: a Java service in a container, on a cheap OCI instance, connecting to an Oracle database over TLS, with no credentials baked into the image. It should be small enough to read in one sitting and safe enough to build on.</p>
 <h2>Options and trade-offs</h2>
 <ul><li>Ampere A1 with Podman: efficient and economical, and you need arm64 images.</li><li>Docker on an x86 shape: the widest image support, at a higher cost as you scale.</li><li>TLS only versus mTLS with a wallet: TLS means less to handle, and mTLS gives stronger assurance.</li></ul>
@@ -1248,7 +1484,87 @@ class ValidationResult:
         <p>Implement a verifier that separately evaluates cryptographic proof, issuer trust, subject binding, and policy gates.</p>
         <p>Return “unverifiable” for missing binding and “invalid” for failed policy (e.g., expiry).</p>
         <p>Measure performance across well-formed accepts vs policy failures to understand user impact.</p>
-        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://www.w3.org/TR/vc-data-model-2.0/" target="_blank" rel="noreferrer">W3C Verifiable Credentials Data Model v2.0</a></li><li><a href="https://learn.microsoft.com/en-us/entra/verified-id/plan-verification-solution" target="_blank" rel="noreferrer">Microsoft Entra Verified ID verification planning</a></li><li><a href="https://learn.microsoft.com/en-us/entra/verified-id/verifiable-credentials-configure-verifier" target="_blank" rel="noreferrer">Configure a Verified ID verifier</a></li></ul></aside>]]></content:encoded></item><item><title>Don’t Ship What You Haven’t Scanned: Gating Images Before Production</title><link>https://www.imshubh.com/articles/docker/scanning-before-production.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/docker/scanning-before-production.html</guid><pubDate>Sun, 15 Mar 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Build an SBOM, scan each container image, and gate releases on actionable vulnerability severity.</description><category>docker</category><category>containers</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">Images move quickly; vulnerability information changes just as quickly. My baseline is straightforward: make image contents visible, scan before release, gate on actionable findings, and define a narrow exception path with an owner and an expiry.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://www.w3.org/TR/vc-data-model-2.0/" target="_blank" rel="noreferrer">W3C Verifiable Credentials Data Model v2.0</a></li><li><a href="https://learn.microsoft.com/en-us/entra/verified-id/plan-verification-solution" target="_blank" rel="noreferrer">Microsoft Entra Verified ID verification planning</a></li><li><a href="https://learn.microsoft.com/en-us/entra/verified-id/verifiable-credentials-configure-verifier" target="_blank" rel="noreferrer">Configure a Verified ID verifier</a></li></ul></aside>]]></content:encoded></item><item><title>Contract Testing a Legacy-to-gRPC Bridge in JUnit 5</title><link>https://www.imshubh.com/articles/java/contract-testing-a-legacy-to-grpc-bridge-in-junit-5.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/java/contract-testing-a-legacy-to-grpc-bridge-in-junit-5.html</guid><pubDate>Tue, 24 Mar 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>One contract, two implementations, recorded fixtures, and fewer flaky tests</description><category>java</category><category>junit5</category><category>grpc</category><category>testing</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>The idea: one contract, many implementations</h2>
+        <pre><code>public interface ProfileApi {
+    Optional&lt;Profile&gt; get(String id);
+    Map&lt;String, Profile&gt; batchGet(Collection&lt;String&gt; ids);   // missing ids are omitted
+}
+
+public record Profile(String id, String headline) { }</code></pre>
+        <pre><code>import org.junit.jupiter.api.Test;
+import java.util.*;
+import static org.junit.jupiter.api.Assertions.*;
+
+public abstract class ProfileApiContract {
+
+    protected abstract ProfileApi api();
+
+    @Test
+    void getReturnsEmptyForUnknownId() {
+        assertTrue(api().get("does-not-exist").isEmpty());
+    }
+
+    @Test
+    void batchGetOmitsMissingIdsAndKeepsTheRest() {
+        Map&lt;String, Profile&gt; result = api().batchGet(List.of("p1", "missing", "p2"));
+        assertEquals(Set.of("p1", "p2"), result.keySet());
+    }
+
+    @Test
+    void batchGetWithNoIdsReturnsEmptyMap() {
+        assertTrue(api().batchGet(List.of()).isEmpty());
+    }
+
+    @Test
+    void batchGetWithDuplicateIdsReturnsEachOnce() {
+        assertEquals(1, api().batchGet(List.of("p1", "p1")).size());
+    }
+}</code></pre>
+        <pre><code>class LegacyProfileApiTest extends ProfileApiContract {
+    @Override protected ProfileApi api() { return TestFixtures.legacyApi(); }
+}
+
+class BridgedProfileApiTest extends ProfileApiContract {
+    @Override protected ProfileApi api() { return TestFixtures.grpcBackedApi(); }
+}</code></pre>
+        <h2>Make gRPC tests hermetic</h2>
+        <pre><code>import io.grpc.ManagedChannel;
+import io.grpc.Server;
+import io.grpc.inprocess.InProcessChannelBuilder;
+import io.grpc.inprocess.InProcessServerBuilder;
+
+String name = InProcessServerBuilder.generateName();
+Server server = InProcessServerBuilder.forName(name)
+        .directExecutor()
+        .addService(new ProfileGrpcService(fakeBackend))
+        .build().start();
+ManagedChannel channel = InProcessChannelBuilder.forName(name).directExecutor().build();</code></pre>
+        <h2>Record real interactions, replay them in tests</h2>
+        <pre><code>import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+
+class ReplayTest {
+
+    record Fixture(String name, List&lt;String&gt; ids, Set&lt;String&gt; expectedKeys) { }
+
+    static List&lt;Fixture&gt; fixtures() {
+        return FixtureLoader.loadAll("fixtures/");     // JSON files kept in src/test/resources
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("fixtures")
+    void bridgeMatchesRecordedBehavior(Fixture f) {
+        Map&lt;String, Profile&gt; result = TestFixtures.grpcBackedApi().batchGet(f.ids());
+        assertEquals(f.expectedKeys(), result.keySet());
+    }
+}</code></pre>
+        <h2>Reducing flakiness</h2>
+        <ul><li><strong>No real clocks or randomness.</strong> Inject a <code>Clock</code> and seed random generators.</li><li><strong>No shared state across tests.</strong> Build fresh fixtures per test.</li><li><strong>Wait on conditions, not sleeps.</strong> Use Awaitility or latches.</li><li><strong>Quarantine, then fix.</strong> Tag known-flaky tests so they do not block merges, and track them.</li></ul>
+        <h2>Coverage that matters</h2>
+        <h2>Failure modes</h2>
+        <ul><li>Test wiring that works locally but misses configuration files in CI. Keep test resources under standard source-set paths.</li><li>Contract tests that only cover happy paths.</li><li>Fixtures that go stale. Re-record on a schedule.</li></ul>
+        <h2>Takeaways</h2>
+        <ul><li>Test the bridge with one shared contract run against both implementations.</li><li>Use in-process gRPC for hermetic tests, and recorded, scrubbed fixtures for realism.</li><li>Treat batch behavior and error mapping as first-class contract items.</li></ul>]]></content:encoded></item><item><title>Don’t Ship What You Haven’t Scanned: Gating Images Before Production</title><link>https://www.imshubh.com/articles/docker/scanning-before-production.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/docker/scanning-before-production.html</guid><pubDate>Sun, 15 Mar 2026 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Build an SBOM, scan each container image, and gate releases on actionable vulnerability severity.</description><category>docker</category><category>containers</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">Images move quickly; vulnerability information changes just as quickly. My baseline is straightforward: make image contents visible, scan before release, gate on actionable findings, and define a narrow exception path with an owner and an expiry.</p>
         <p>This is not a claim that scanners make an image safe. A scan is one control in a larger process. The goal is to replace last-minute surprises with a repeatable decision before an image reaches production.</p>
         <h2>Start with an inventory</h2><p>A Software Bill of Materials (SBOM) lists software components included in an image. Generating one during the build gives scanners and reviewers a concrete inventory to inspect. Docker Buildx can attach an SBOM attestation to an image:</p>
         <pre><code># Build and push to a registry so the SBOM attestation travels with the image.
@@ -1543,7 +1859,74 @@ docker stats --no-stream api</code></pre>
         <h2>One honest limitation</h2>
         <p>Limits shrink the blast radius but do not prevent incidents. A service that is out of memory still fails; the point is that it fails predictably and recovers quickly.</p>
         <h2>Sources</h2>
-        <ul><li>Docker Docs: Resource constraints</li><li>Oracle Java Documentation: Java in containers (JVM ergonomics)</li><li>Docker Docs: docker container inspect</li></ul>]]></content:encoded></item><item><title>Benchmarking Honestly: Building a Repeatable, Trustworthy Inference Benchmark</title><link>https://www.imshubh.com/articles/intel/benchmarking-inference.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/intel/benchmarking-inference.html</guid><pubDate>Wed, 28 Jan 2026 12:00:00 -0800</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Build inference benchmarks that report warm-up, latency percentiles, output parity, and hardware conditions.</description><category>intel</category><category>edgeai</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">Benchmarks are easy to fool. Run a handful of requests on a quiet laptop, choose the number that looks good, and almost any model can appear fast. Production has warm-up, load, input variation, and hardware contention. A useful benchmark makes those conditions visible.</p>
+        <ul><li>Docker Docs: Resource constraints</li><li>Oracle Java Documentation: Java in containers (JVM ergonomics)</li><li>Docker Docs: docker container inspect</li></ul>]]></content:encoded></item><item><title>Java Records and Jackson: Null Safety, Schema Evolution, and Round-Trip Tests</title><link>https://www.imshubh.com/articles/java/java-records-and-jackson-null-safety-schema-evolution-and-round-trip-tests.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/java/java-records-and-jackson-null-safety-schema-evolution-and-round-trip-tests.html</guid><pubDate>Tue, 10 Feb 2026 12:00:00 -0800</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Designing JSON contracts that survive years of change, with property-based tests</description><category>java</category><category>records</category><category>jackson</category><category>serialization</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>A record as a contract</h2>
+        <pre><code>import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+
+@JsonInclude(JsonInclude.Include.NON_ABSENT)
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record Profile(String id, Optional&lt;String&gt; headline, List&lt;String&gt; skills) {
+
+    public Profile {
+        Objects.requireNonNull(id, "id");
+        headline = headline == null ? Optional.empty() : headline;
+        skills = skills == null ? List.of() : List.copyOf(skills);
+    }
+}</code></pre>
+        <ul><li>The compact constructor makes <code>id</code> required and normalizes missing optional data, so no code downstream handles <code>null</code> for <code>headline</code> or <code>skills</code>.</li><li><code>Optional&lt;String&gt;</code> marks <code>headline</code> as optional in the type itself. (Records with <code>Optional</code> need Jackson's <code>jackson-datatype-jdk8</code> module registered.)</li><li><code>NON_ABSENT</code> leaves an absent optional out of the JSON instead of writing an explicit <code>null</code>.</li><li><code>ignoreUnknown = true</code> lets this reader tolerate fields that newer producers add.</li></ul>
+        <pre><code>ObjectMapper mapper = new ObjectMapper()
+        .registerModule(new Jdk8Module());</code></pre>
+        <h2>Why not plain POJOs?</h2>
+        <h2>The silent coercion trap</h2>
+        <pre><code>Profile p = mapper.readValue("{\"id\": 42}", Profile.class);
+// p.id() is "42", with no error</code></pre>
+        <pre><code>import com.fasterxml.jackson.databind.cfg.CoercionAction;
+import com.fasterxml.jackson.databind.cfg.CoercionInputShape;
+import com.fasterxml.jackson.databind.type.LogicalType;
+
+ObjectMapper strict = new ObjectMapper().registerModule(new Jdk8Module());
+strict.coercionConfigFor(LogicalType.Textual)
+      .setCoercion(CoercionInputShape.Integer, CoercionAction.Fail)
+      .setCoercion(CoercionInputShape.Float, CoercionAction.Fail);</code></pre>
+        <h2>Null, absent, and present</h2>
+        <h2>Evolving schemas safely</h2>
+        <ul><li>Add new fields as optional, with a defined default.</li><li>Never change a field's type in place. Add a new field and deprecate the old one.</li><li>Never reuse a removed field's name for different data.</li><li>Treat enum changes with care. Configure an unknown-value fallback (for example <code>READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE</code> with a default) so old clients survive new symbols.</li></ul>
+        <h2>Property-based round-trip tests</h2>
+        <pre><code>import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
+import net.jqwik.api.ForAll;
+import net.jqwik.api.Property;
+
+import java.util.List;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+class ProfileRoundTripTest {
+
+    private final ObjectMapper mapper = new ObjectMapper().registerModule(new Jdk8Module());
+
+    @Property
+    void roundTripPreservesData(@ForAll String id,
+                                @ForAll Optional&lt;String&gt; headline,
+                                @ForAll List&lt;String&gt; skills) throws Exception {
+        Profile original = new Profile(id, headline, skills);
+
+        String json = mapper.writeValueAsString(original);
+        Profile parsed = mapper.readValue(json, Profile.class);
+
+        assertEquals(original, parsed);
+    }
+}</code></pre>
+        <h2>Failure modes</h2>
+        <ul><li>Silent type coercion hiding a producer's breaking change.</li><li>Explicit <code>null</code> written by one serializer and omitted by another.</li><li>Enums that fail on unknown values in old clients.</li><li>A required field added without a default, breaking old documents.</li></ul>
+        <h2>Demo to build</h2>
+        <h2>Takeaways</h2>
+        <ul><li>Put invariants and null normalization in the record's compact constructor.</li><li>Turn off silent coercion where the contract is strict.</li><li>Evolve schemas additively, and keep golden files from every release.</li><li>Property-based round-trip tests guard the serialization invariants.</li></ul>]]></content:encoded></item><item><title>Benchmarking Honestly: Building a Repeatable, Trustworthy Inference Benchmark</title><link>https://www.imshubh.com/articles/intel/benchmarking-inference.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/intel/benchmarking-inference.html</guid><pubDate>Wed, 28 Jan 2026 12:00:00 -0800</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Build inference benchmarks that report warm-up, latency percentiles, output parity, and hardware conditions.</description><category>intel</category><category>edgeai</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">Benchmarks are easy to fool. Run a handful of requests on a quiet laptop, choose the number that looks good, and almost any model can appear fast. Production has warm-up, load, input variation, and hardware contention. A useful benchmark makes those conditions visible.</p>
         <p>In <code>aceu-edge-infer</code>, I keep a small harness that compares FP32 and INT8 inference and records latency and output deltas. The sample inputs are synthetic, so its results are method scaffolding—not evidence of production performance. The measurement discipline is what I want the demo to teach.</p>
         <h2>Decide what question the benchmark answers</h2><p>Are you measuring cold start, steady-state single-request latency, or throughput under concurrent work? Those are different measurements. State the workload, model artifact, runtime and device, input shape, batch size, thread/concurrency settings, and whether preprocessing and post-processing are included.</p>
         <h2>Warm up—and report cold start separately</h2><p>The first call may include model compilation, memory allocation, cache fill, or runtime initialization. If the question is steady-state latency, run a planned warm-up and keep those samples out of the measured set. If cold start matters to users, report it as its own metric instead of mixing it into steady-state numbers.</p>
@@ -1712,7 +2095,131 @@ build/</code></pre>
         <p>Common surprises include a credential accidentally left in an image layer, a slim runtime missing a required shared library, or a non-root process unable to read a root-owned file. A deliberate image review catches these before deployment.</p>
         <h2>Try it on your next image</h2><ol><li>Separate build and runtime stages, then compare the resulting image size.</li><li>Run the application under a non-root UID and verify file access.</li><li>Add a <code>.dockerignore</code> file and inspect the build context.</li><li>Add a CI lint step for known unsafe Dockerfile or manifest settings.</li></ol>
         <h2>Closing thought</h2><p>A smaller, quieter, safer image is easier to move and less likely to surprise the team in production. The demo remains illustrative; the container practices are the reusable part.</p>
-        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.docker.com/build/building/best-practices/" target="_blank" rel="noreferrer">Docker build best practices</a></li><li><a href="https://docs.docker.com/build/building/multi-stage/" target="_blank" rel="noreferrer">Docker multi-stage builds</a></li><li><a href="https://docs.docker.com/build/building/secrets/" target="_blank" rel="noreferrer">Build secrets with Docker</a></li></ul></aside>]]></content:encoded></item><item><title>The Conversion Gap: From ONNX Export to an Optimized Runtime Format</title><link>https://www.imshubh.com/articles/intel/conversion-gap.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/intel/conversion-gap.html</guid><pubDate>Sat, 27 Dec 2025 12:00:00 -0800</pubDate><dc:creator>Shubham Anandani</dc:creator><description>A practical path from ONNX to OpenVINO IR: inspect operators, handle conversion gaps, and validate output parity.</description><category>intel</category><category>edgeai</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">Training and production are different environments. Exporting a model to ONNX is a useful boundary, but a production runtime still needs to understand the graph, shapes, operators, and precision choices. Conversion friction is easier to handle when it is planned for instead of discovered at release time.</p>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.docker.com/build/building/best-practices/" target="_blank" rel="noreferrer">Docker build best practices</a></li><li><a href="https://docs.docker.com/build/building/multi-stage/" target="_blank" rel="noreferrer">Docker multi-stage builds</a></li><li><a href="https://docs.docker.com/build/building/secrets/" target="_blank" rel="noreferrer">Build secrets with Docker</a></li></ul></aside>]]></content:encoded></item><item><title>Error Modeling in a Java REST Service: Translate Exceptions Without Changing the Wire Contract</title><link>https://www.imshubh.com/articles/java/error-modeling-in-a-java-rest-service-translate-exceptions-without-changing-the-wire-contract.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/java/error-modeling-in-a-java-rest-service-translate-exceptions-without-changing-the-wire-contract.html</guid><pubDate>Sun, 28 Dec 2025 12:00:00 -0800</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Typed vs untyped error details, and why "helpful" mapping can quietly break your clients</description><category>java</category><category>jakartarest</category><category>jackson</category><category>apidesign</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>The problem</h2>
+        <ul><li><strong>Untyped</strong>: a raw JSON tree (<code>JsonNode</code>), whatever shape the producer chose.</li><li><strong>Typed</strong>: a Java class or record bound to a fixed schema.</li></ul>
+        <h2>Principle: translate the status, preserve the details</h2>
+        <ol><li><strong>Map a <code>Throwable</code> to an HTTP status and message.</strong> This is policy, and it belongs in one place.</li><li><strong>Carry the error details through untouched.</strong> If the producer's contract is untyped, leave it untyped.</li></ol>
+        <h2>A small translator</h2>
+        <pre><code>import com.fasterxml.jackson.databind.JsonNode;
+
+import java.util.NoSuchElementException;
+import java.util.concurrent.TimeoutException;
+
+public final class ApiException extends RuntimeException {
+    private final int status;
+    private final String code;
+    private final JsonNode details;          // untyped on purpose
+
+    public ApiException(int status, String message, String code, JsonNode details, Throwable cause) {
+        super(message, cause);
+        this.status = status;
+        this.code = code;
+        this.details = details;
+    }
+
+    public int status() { return status; }
+    public String code() { return code; }
+    public JsonNode details() { return details; }
+
+    public static ApiException translate(Throwable t) {
+        if (t instanceof ApiException existing) {
+            return existing;                                   // never re-wrap
+        }
+        if (t instanceof IllegalArgumentException) {
+            return new ApiException(400, t.getMessage(), "BAD_REQUEST", null, t);
+        }
+        if (t instanceof NoSuchElementException) {
+            return new ApiException(404, t.getMessage(), "NOT_FOUND", null, t);
+        }
+        if (t instanceof TimeoutException) {
+            return new ApiException(504, "Upstream timeout", "TIMEOUT", null, t);
+        }
+        return new ApiException(500, "Internal error", "INTERNAL", null, t);
+    }
+}</code></pre>
+        <ul><li><strong>Return an existing <code>ApiException</code> unchanged.</strong> Wrapping it again discards its status and details.</li><li><strong>Hide internals for 500s.</strong> The message is generic; the cause is kept for server logs.</li><li><strong>Keep the mapping table small and tested.</strong> Every exception type you map is a promise to clients.</li></ul>
+        <h2>One place to build the response</h2>
+        <pre><code>import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.ext.ExceptionMapper;
+import jakarta.ws.rs.ext.Provider;
+
+@Provider
+public class ApiExceptionMapper implements ExceptionMapper&lt;Throwable&gt; {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    @Override
+    public Response toResponse(Throwable t) {
+        ApiException e = ApiException.translate(t);
+        return Response.status(e.status())
+                .type(MediaType.APPLICATION_JSON)
+                .entity(body(e).toString())
+                .build();
+    }
+
+    static ObjectNode body(ApiException e) {
+        ObjectNode node = MAPPER.createObjectNode();
+        node.put("status", e.status());
+        node.put("message", e.getMessage() == null ? "" : e.getMessage());
+        node.put("code", e.code());
+        if (e.details() != null) {
+            node.set("errorDetails", e.details());             // passed through as-is
+        }
+        return node;
+    }
+}</code></pre>
+        <h2>Batch operations need extra care</h2>
+        <pre><code>public static &lt;K&gt; Map&lt;K, ApiException&gt; errorsByKey(Map&lt;K, Throwable&gt; failures) {
+    Map&lt;K, ApiException&gt; result = new LinkedHashMap&lt;&gt;();
+    failures.forEach((key, t) -&gt; result.put(key, ApiException.translate(t)));
+    return result;
+}</code></pre>
+        <h2>Prove the wire does not change</h2>
+        <pre><code>import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class ErrorDetailsWireTest {
+
+    private final ObjectMapper mapper = new ObjectMapper();
+
+    record ErrorInfo(String field, String reason) { }
+
+    @Test
+    void untypedDetailsSurviveUnchanged() throws Exception {
+        JsonNode details = mapper.readTree(
+                "{\"field\":\"email\",\"reason\":\"format\",\"custom\":\"kept\"}");
+
+        ApiException e = new ApiException(422, "invalid", "VALIDATION", details, null);
+        JsonNode body = mapper.readTree(ApiExceptionMapper.body(e).toString());
+
+        assertEquals(details, body.get("errorDetails"));
+    }
+
+    @Test
+    void typedConversionLosesUnknownFields() throws Exception {
+        JsonNode details = mapper.readTree(
+                "{\"field\":\"email\",\"reason\":\"format\",\"custom\":\"kept\"}");
+
+        ObjectMapper lenient = new ObjectMapper()
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        JsonNode roundTripped = lenient.valueToTree(lenient.convertValue(details, ErrorInfo.class));
+
+        assertNotEquals(details, roundTripped);               // "custom" is gone
+    }
+}</code></pre>
+        <h2>Status codes are contract too</h2>
+        <h2>Failure modes</h2>
+        <ul><li>Typed envelopes rejecting or dropping unknown fields.</li><li>Double-wrapping an exception that already has a status.</li><li>Whole-batch failure when only one key failed.</li><li>Leaking stack traces or internal messages in 500 responses.</li></ul>
+        <h2>Demo to build</h2>
+        <h2>Takeaways</h2>
+        <ul><li>Separate "which status" from "which details".</li><li>Do not convert untyped details to typed ones unless you are deliberately versioning the contract.</li><li>Add a wire-level test for error responses.</li></ul>]]></content:encoded></item><item><title>The Conversion Gap: From ONNX Export to an Optimized Runtime Format</title><link>https://www.imshubh.com/articles/intel/conversion-gap.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/intel/conversion-gap.html</guid><pubDate>Sat, 27 Dec 2025 12:00:00 -0800</pubDate><dc:creator>Shubham Anandani</dc:creator><description>A practical path from ONNX to OpenVINO IR: inspect operators, handle conversion gaps, and validate output parity.</description><category>intel</category><category>edgeai</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<p class="article-lede">Training and production are different environments. Exporting a model to ONNX is a useful boundary, but a production runtime still needs to understand the graph, shapes, operators, and precision choices. Conversion friction is easier to handle when it is planned for instead of discovered at release time.</p>
         <p>In <code>aceu-edge-infer</code>, I convert a lightweight classifier from ONNX for use with OpenVINO. One custom activation exposed an operator gap and required a conservative CPU fallback. The demo’s ACE-U output is illustrative, not an evaluation of real people; the model-delivery practices here are the focus.</p>
         <h2>Check the graph before you convert</h2><p>Inspect the ONNX graph, its opset, input names, and shapes. Look for custom operators and operations that may not be supported by the runtime version or target device. If the model has dynamic dimensions, decide which shapes production must support and test those explicitly.</p>
         <p>OpenVINO can convert supported ONNX models to IR, and it can also read ONNX directly at runtime. Conversion is useful when you want a prepared artifact and predictable model-load behavior; first confirm the format is supported and that conversion solves a real deployment need.</p>
@@ -1858,7 +2365,62 @@ docker push "$IMAGE"</code></pre>
         <h2>Trade-offs and failure modes</h2><ul><li><strong>Exact pins vs. security updates:</strong> pins improve repeatability, while scheduled updates and scans keep them current.</li><li><strong>Tags vs. digests:</strong> tags are easier to refresh; digests make the selected base explicit and immutable.</li><li><strong>Locks vs. setup time:</strong> generating a lock adds a step, but saves time when builds need to be compared.</li><li><strong>Registry authentication:</strong> expired tokens or changed scopes should produce an explicit CI failure, not a misleading successful pipeline.</li></ul>
         <h2>Try it in your pipeline</h2><ol><li>Replace floating version ranges with exact direct pins and commit a full lock file.</li><li>Pick a base-image policy: tag plus scheduled refresh, or digest plus an explicit update cadence.</li><li>Build with <code>--pull</code> when you want CI to check for updated base images.</li><li>Record the image tag or digest produced by CI and inspect its packages when behavior changes.</li></ol>
         <h2>Closing thought</h2><p>“Same Dockerfile” rarely guarantees “same runtime.” Lock files, explicit base-image policy, and artifact inspection turn hidden drift into a change the team can review.</p>
-        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.docker.com/reference/cli/docker/buildx/build/" target="_blank" rel="noreferrer">Docker Buildx build options, including <code>--pull</code> and SBOM attestations</a></li><li><a href="https://docs.docker.com/reference/cli/docker/image/pull/#pull-an-image-by-digest-immutable-identifier" target="_blank" rel="noreferrer">Pulling an image by immutable digest</a></li><li><a href="https://pip-tools.readthedocs.io/en/latest/" target="_blank" rel="noreferrer">pip-tools documentation for Python dependency locking</a></li></ul></aside>]]></content:encoded></item><item><title>Identity Domains: SAML/OIDC federation setup notes</title><link>https://www.imshubh.com/articles/oracle-ace/identity-domains-saml-oidc-federation-setup-notes.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/oracle-ace/identity-domains-saml-oidc-federation-setup-notes.html</guid><pubDate>Sun, 09 Nov 2025 12:00:00 -0800</pubDate><dc:creator>Shubham Anandani</dc:creator><description>What I configure first so an external identity provider works cleanly with OCI.</description><category>oracleace</category><category>oci</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
+        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://docs.docker.com/reference/cli/docker/buildx/build/" target="_blank" rel="noreferrer">Docker Buildx build options, including <code>--pull</code> and SBOM attestations</a></li><li><a href="https://docs.docker.com/reference/cli/docker/image/pull/#pull-an-image-by-digest-immutable-identifier" target="_blank" rel="noreferrer">Pulling an image by immutable digest</a></li><li><a href="https://pip-tools.readthedocs.io/en/latest/" target="_blank" rel="noreferrer">pip-tools documentation for Python dependency locking</a></li></ul></aside>]]></content:encoded></item><item><title>JFR as the Default: Enabling Continuous Flight Recording Safely</title><link>https://www.imshubh.com/articles/java/jfr-as-the-default-enabling-continuous-flight-recording-safely.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/java/jfr-as-the-default-enabling-continuous-flight-recording-safely.html</guid><pubDate>Fri, 14 Nov 2025 12:00:00 -0800</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Bounded, always-on recordings you can dump during an incident, and a parser that turns them into flame graph input</description><category>java</category><category>jfr</category><category>observability</category><category>profiling</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Why continuous recording</h2>
+        <h2>A safe baseline configuration</h2>
+        <pre><code>-XX:FlightRecorderOptions=repository=/var/tmp/jfr
+-XX:StartFlightRecording=name=continuous,delay=2m,disk=true,maxage=30m,maxsize=250m,settings=default,dumponexit=true,filename=/var/tmp/jfr/exit.jfr</code></pre>
+        <ul><li><code>delay=2m</code> waits until the application has started and warmed up before recording, so startup noise does not fill your window.</li><li><code>disk=true</code> writes data to disk, which allows long windows without holding everything in memory.</li><li><code>maxage=30m</code> and <code>maxsize=250m</code> bound the recording. The data is discarded when either limit is hit, which is what keeps disk use predictable.</li><li><code>settings=default</code> selects the standard event template, which is designed to be low overhead. Use the heavier <code>profile</code> template only for short, targeted sessions.</li><li><code>dumponexit=true</code> saves the recording when the JVM exits, which helps with crashes and deliberate restarts.</li></ul>
+        <h2>Capturing data during an incident</h2>
+        <pre><code>jcmd &lt;pid&gt; JFR.dump name=continuous filename=/var/tmp/jfr/incident-$(date +%s).jfr</code></pre>
+        <h2>Defaults per service class</h2>
+        <h2>Analyze a recording in Java</h2>
+        <pre><code>import jdk.jfr.consumer.RecordedEvent;
+import jdk.jfr.consumer.RecordedFrame;
+import jdk.jfr.consumer.RecordedStackTrace;
+import jdk.jfr.consumer.RecordingFile;
+
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.nio.file.Path;
+import java.util.*;
+
+public final class JfrAllocationFolder {
+
+    public static void main(String[] args) throws IOException {
+        Path jfr = Path.of(args[0]);
+        Path out = Path.of(args[1]);
+
+        Map&lt;String, Long&gt; bytesByStack = new HashMap&lt;&gt;();
+
+        for (RecordedEvent event : RecordingFile.readAllEvents(jfr)) {
+            if (!"jdk.ObjectAllocationSample".equals(event.getEventType().getName())) {
+                continue;
+            }
+            RecordedStackTrace trace = event.getStackTrace();
+            if (trace == null) {
+                continue;
+            }
+            List&lt;RecordedFrame&gt; frames = trace.getFrames();
+            List&lt;String&gt; names = new ArrayList&lt;&gt;();
+            for (int i = frames.size() - 1; i &gt;= 0; i--) {         // root first
+                var method = frames.get(i).getMethod();
+                names.add(method.getType().getName() + "." + method.getName());
+            }
+            String key = String.join(";", names);
+            bytesByStack.merge(key, event.getLong("weight"), Long::sum);
+        }
+
+        try (PrintWriter w = new PrintWriter(out.toFile())) {
+            bytesByStack.forEach((stack, bytes) -&gt; w.println(stack + " " + bytes));
+        }
+    }
+}</code></pre>
+        <h2>Gate your visualizations</h2>
+        <h2>Failure modes</h2>
+        <ul><li><strong>Oversized recordings.</strong> Always set <code>maxage</code> and <code>maxsize</code>.</li><li><strong>Mismatched JDK versions.</strong> A recording from one JDK may not parse with a very different tool version. Keep your analysis tools at or above the JDK you run.</li><li><strong>Using the heavy template by default.</strong> Reserve <code>profile</code> for short investigations.</li><li><strong>No access plan.</strong> Decide in advance who can dump recordings and where they are stored, because recordings can contain sensitive data such as stack traces and thread names.</li></ul>
+        <h2>Demo to build</h2>
+        <h2>Takeaways</h2>
+        <ul><li>Continuous JFR is safe when it is bounded by age and size.</li><li>Dump on demand with <code>jcmd</code> and analyze with the consumer API or a flame graph.</li><li>Verify that data exists before visualizing it.</li></ul>]]></content:encoded></item><item><title>Identity Domains: SAML/OIDC federation setup notes</title><link>https://www.imshubh.com/articles/oracle-ace/identity-domains-saml-oidc-federation-setup-notes.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/oracle-ace/identity-domains-saml-oidc-federation-setup-notes.html</guid><pubDate>Sun, 09 Nov 2025 12:00:00 -0800</pubDate><dc:creator>Shubham Anandani</dc:creator><description>What I configure first so an external identity provider works cleanly with OCI.</description><category>oracleace</category><category>oci</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
 <p>Most teams already have an identity provider such as Entra ID (formerly Azure AD) or Okta, and nobody wants a second set of passwords for the cloud console. Federation solves that, but a careless setup can lock out administrators or leave group membership drifting away from what the IdP says.</p>
 <p>I wanted a repeatable order of operations that keeps a way back in at every step.</p>
 <h2>Options and trade-offs</h2>
@@ -1959,7 +2521,73 @@ time docker build -t demo/app:dev .</code></pre>
 <h2>One honest limitation</h2>
 <p>The delay before membership changes take effect can surprise a rollout. I stage the change, test that the policy works for the new instances, and only then retire the old rule.</p>
 <h2>Sources</h2>
-<ul><li>OCI Documentation: Managing Dynamic Groups (matching rules)</li><li>OCI Documentation: Tagging Overview</li><li>OCI Documentation: Calling Services from an Instance</li></ul>]]></content:encoded></item><item><title>Least-privilege IAM policies for workloads (compartment-first)</title><link>https://www.imshubh.com/articles/oracle-ace/least-privilege-iam-policies-for-workloads-compartment-first.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/oracle-ace/least-privilege-iam-policies-for-workloads-compartment-first.html</guid><pubDate>Fri, 26 Sep 2025 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>The policy patterns I reach for to keep OCI access narrow, readable and easy to audit.</description><category>oracleace</category><category>oci</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
+<ul><li>OCI Documentation: Managing Dynamic Groups (matching rules)</li><li>OCI Documentation: Tagging Overview</li><li>OCI Documentation: Calling Services from an Instance</li></ul>]]></content:encoded></item><item><title>G1 vs ZGC at JDK 17+: Choosing a Collector and Sizing the Heap</title><link>https://www.imshubh.com/articles/java/g1-vs-zgc-at-jdk-17-choosing-a-collector-and-sizing-the-heap.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/java/g1-vs-zgc-at-jdk-17-choosing-a-collector-and-sizing-the-heap.html</guid><pubDate>Wed, 01 Oct 2025 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>When G1 still wins, what ZGC costs in memory and CPU, and how to measure it yourself</description><category>java</category><category>garbagecollection</category><category>zgc</category><category>g1</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>What each collector optimizes</h2>
+        <ul><li><strong>G1</strong> is the default collector since JDK 9. It balances throughput and pause time, and works well across a wide range of heap sizes.</li><li><strong>ZGC</strong> is built for low pause times that stay short regardless of heap size, using concurrent work. On JDK 17 it is non-generational, so it examines the whole heap each cycle. JDK 21 added a generational mode (JEP 439), which lowers memory and CPU overhead compared with the single-generation version <a href="https://openjdk.org/jeps/439" target="_blank" rel="noreferrer">JEP 439</a>.</li></ul>
+        <pre><code># JDK 17
+-XX:+UseG1GC
+-XX:+UseZGC
+
+# JDK 21+ (generational ZGC)
+-XX:+UseZGC -XX:+ZGenerational</code></pre>
+        <h2>Where the cost shows up</h2>
+        <ul><li><strong>Plan for more memory when upgrading.</strong> Moving a service from G1 on an older JDK to ZGC can require a noticeably bigger heap and more native memory. Budget for it in your container limits, or the kernel's OOM killer will make the decision for you.</li><li><strong>Watch RSS, not just heap.</strong> Total process memory includes metaspace, thread stacks, code cache, GC data structures, and direct buffers. A container limit equal to <code>-Xmx</code> is almost always too small.</li></ul>
+        <h2>When G1 still wins</h2>
+        <ul><li>Small to medium heaps where G1 pauses are already well inside your latency budget.</li><li>Throughput-oriented batch jobs, where a few longer pauses cost less than constant concurrent overhead.</li><li>CPU-constrained containers with very few cores, since concurrent GC threads need cores to run on.</li></ul>
+        <h2>When ZGC is worth it</h2>
+        <ul><li>Large heaps or strict tail-latency targets where G1's pauses show up in your p99.</li><li>Services with enough spare CPU and memory to give the collector room.</li><li>Workloads where a measured test shows fewer long pauses and no allocation stalls.</li></ul>
+        <h2>Heap sizing rules of thumb</h2>
+        <ol><li>Measure the <strong>live set</strong> (memory still reachable after a full collection) from GC logs.</li><li>Start with a heap at roughly 2x to 3x the live set for concurrent collectors, then adjust from measurement.</li><li>Set <code>-Xms</code> equal to <code>-Xmx</code> for steady services, to avoid resize pauses.</li><li>Keep the container limit well above <code>-Xmx</code> to leave room for native memory.</li><li>Always turn on GC logging in production:</li></ol>
+        <pre><code>-Xlog:gc*:file=/var/log/app/gc.log:time,uptime,level,tags:filecount=5,filesize=20m</code></pre>
+        <h2>A load generator you can run</h2>
+        <pre><code>import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
+
+public final class AllocationLoad {
+
+    public static void main(String[] args) {
+        int cacheEntries = Integer.parseInt(args.length &gt; 0 ? args[0] : "2000000");
+        int operations   = Integer.parseInt(args.length &gt; 1 ? args[1] : "5000000");
+
+        Map&lt;Integer, byte[]&gt; cache = new HashMap&lt;&gt;();
+        for (int i = 0; i &lt; cacheEntries; i++) {
+            cache.put(i, new byte[64]);                       // long-lived data
+        }
+
+        long[] latencyNanos = new long[operations];
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+
+        for (int i = 0; i &lt; operations; i++) {
+            long start = System.nanoTime();
+
+            byte[] shortLived = new byte[512 + rnd.nextInt(2048)];     // garbage
+            shortLived[0] = 1;
+            if ((i &amp; 0x3FF) == 0) {                                    // occasional churn in the cache
+                cache.put(rnd.nextInt(cacheEntries), new byte[64]);
+            }
+            blackhole += shortLived.length;
+
+            latencyNanos[i] = System.nanoTime() - start;
+        }
+
+        Arrays.sort(latencyNanos);
+        System.out.printf("p50=%dus p99=%dus p99.9=%dus max=%dus%n",
+                latencyNanos[operations / 2] / 1_000,
+                latencyNanos[(int) (operations * 0.99)] / 1_000,
+                latencyNanos[(int) (operations * 0.999)] / 1_000,
+                latencyNanos[operations - 1] / 1_000);
+    }
+
+    static volatile long blackhole;
+}</code></pre>
+        <pre><code>for heap in 2g 4g 8g; do
+  java -Xms$heap -Xmx$heap -XX:+UseG1GC  -Xlog:gc*:file=g1-$heap.log  AllocationLoad
+  java -Xms$heap -Xmx$heap -XX:+UseZGC   -Xlog:gc*:file=zgc-$heap.log AllocationLoad
+done</code></pre>
+        <h2>What to chart</h2>
+        <h2>Failure modes</h2>
+        <ul><li>A heap sized to the old collector's needs, causing allocation stalls under ZGC.</li><li>A container limit too close to the heap size, causing out-of-memory kills from native memory.</li><li>Judging by averages. GC problems live in the tail.</li></ul>
+        <h2>Takeaways</h2>
+        <ul><li>ZGC reduces pauses by spending CPU and memory. G1 remains a strong default.</li><li>Size the heap from the measured live set, and size the container from RSS.</li><li>Decide with your own tail-latency numbers, not slogans.</li></ul>]]></content:encoded></item><item><title>Least-privilege IAM policies for workloads (compartment-first)</title><link>https://www.imshubh.com/articles/oracle-ace/least-privilege-iam-policies-for-workloads-compartment-first.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/oracle-ace/least-privilege-iam-policies-for-workloads-compartment-first.html</guid><pubDate>Fri, 26 Sep 2025 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>The policy patterns I reach for to keep OCI access narrow, readable and easy to audit.</description><category>oracleace</category><category>oci</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
 <p>IAM policies tend to grow the same way: someone is blocked, someone writes a broad statement to unblock them, and that statement lives forever. Tenancy-wide grants and &quot;manage all-resources&quot; lines are the usual result, and they are hard to walk back once other things depend on them.</p>
 <p>I wanted a default that is easy to follow under time pressure. Scope every statement to a compartment, name the resource family, and pick the verb that matches the job.</p>
 <h2>Options and trade-offs</h2>
@@ -2074,7 +2702,66 @@ docker stats --no-stream</code></pre>
         <h2>One honest limitation</h2>
         <p>Healthchecks add startup time, and a heavy check makes it worse. Keep them to a cheap probe, and remember that a limit set too low turns a slow job into an out-of-memory kill.</p>
         <h2>Sources</h2>
-        <ul><li>Docker Docs: Control startup and shutdown order in Compose</li><li>Docker Docs: Using profiles with Compose</li><li>Docker Docs: Compose deploy specification (resources)</li></ul>]]></content:encoded></item><item><title>Using OCI Instance Principals without leaking credentials</title><link>https://www.imshubh.com/articles/oracle-ace/using-oci-instance-principals-without-leaking-credentials.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/oracle-ace/using-oci-instance-principals-without-leaking-credentials.html</guid><pubDate>Tue, 19 Aug 2025 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>How I let workloads call OCI APIs with no API keys on disk, and keep the blast radius small.</description><category>oracleace</category><category>oci</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
+        <ul><li>Docker Docs: Control startup and shutdown order in Compose</li><li>Docker Docs: Using profiles with Compose</li><li>Docker Docs: Compose deploy specification (resources)</li></ul>]]></content:encoded></item><item><title>Java 8 to 17 in a Multi-Module Build: Migrate Producers Without Breaking Consumers</title><link>https://www.imshubh.com/articles/java/java-8-to-17-in-a-multi-module-build-migrate-producers-without-breaking-consumers.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/java/java-8-to-17-in-a-multi-module-build-migrate-producers-without-breaking-consumers.html</guid><pubDate>Wed, 20 Aug 2025 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>Using `--release`, Gradle toolchains, and a bytecode gate to upgrade one module at a time</description><category>java</category><category>java17</category><category>gradle</category><category>migration</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>The problem: producers and consumers upgrade at different speeds</h2>
+        <ul><li>A producer compiles with JDK 17 and publishes Java 17 class files (major version 61). A consumer on JDK 11 (which reads up to major version 55) gets <code>UnsupportedClassVersionError</code>.</li><li>Gradle notices first. Each published variant declares the Java version it supports, and a consumer asking for Java 11 refuses a Java 17 variant with an "incompatible" resolution error.</li><li>Hidden transitive dependencies or build plugins still assume Java 8 and fail on a newer toolchain.</li></ul>
+        <h2>The pattern: build with the new JDK, target the old bytecode</h2>
+        <pre><code>// build.gradle.kts (producer library)
+plugins { `java-library` }
+
+java {
+    toolchain { languageVersion.set(JavaLanguageVersion.of(17)) }   // compile with JDK 17
+}
+
+tasks.withType&lt;JavaCompile&gt;().configureEach {
+    options.release.set(11)    // emit Java 11 bytecode and restrict APIs to Java 11
+}</code></pre>
+        <ul><li>It sets the class-file version, so consumers on Java 11 can load the jar.</li><li>It limits you to the Java 11 API surface, so you cannot accidentally call a Java 17-only method. With plain <code>-source/-target</code> you could compile against JDK 17's class library and fail at runtime on an older JVM.</li></ul>
+        <h2>The consumer side</h2>
+        <pre><code>// build.gradle.kts (consumer app)
+java { toolchain { languageVersion.set(JavaLanguageVersion.of(11)) } }
+dependencies { implementation(project(":producer")) }   // or a published artifact</code></pre>
+        <h2>A rollout sequence that works</h2>
+        <ol><li><strong>Inventory consumers</strong>, including transitive ones. This step catches most surprises. Search your dependency graph, not just your team's repos.</li><li><strong>Unlock producers</strong> with the toolchain and <code>release</code> pattern above. Nothing changes for consumers.</li><li><strong>Gate CI</strong> so no module accidentally publishes newer bytecode than planned (see below).</li><li><strong>Upgrade consumers</strong> one at a time, starting with leaf services.</li><li><strong>Raise <code>release</code></strong> in producers once nobody depends on the older level.</li><li><strong>Upgrade build plugins early.</strong> Old Gradle plugins and annotation processors are the most common blockers.</li></ol>
+        <h2>Enforce it with a bytecode gate</h2>
+        <pre><code>import java.io.DataInputStream;
+import java.io.IOException;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+
+public final class BytecodeLevelCheck {
+
+    public static void main(String[] args) throws IOException {
+        String jarPath = args[0];
+        int maxMajor = Integer.parseInt(args[1]);
+        int worst = 0;
+
+        try (ZipFile zip = new ZipFile(jarPath)) {
+            var entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                if (!entry.getName().endsWith(".class") || entry.getName().startsWith("META-INF/versions/")) {
+                    continue;
+                }
+                try (var in = new DataInputStream(zip.getInputStream(entry))) {
+                    in.readInt();                       // magic 0xCAFEBABE
+                    in.readUnsignedShort();             // minor
+                    worst = Math.max(worst, in.readUnsignedShort());   // major
+                }
+            }
+        }
+        if (worst &gt; maxMajor) {
+            System.err.println("Bytecode major " + worst + " exceeds allowed " + maxMajor);
+            System.exit(1);
+        }
+        System.out.println("OK: highest major version " + worst);
+    }
+}</code></pre>
+        <h2>Reproducing the problem in a toy project</h2>
+        <h2>Failure modes to expect</h2>
+        <ul><li>A dependency compiled for Java 8 that uses internal APIs removed in later JDKs.</li><li>Build plugins that read JDK internals reflectively and break on newer versions (look for <code>InaccessibleObjectException</code>).</li><li>Containers and JVM flags: some legacy GC flags are removed or ignored after Java 8, so audit your startup options.</li></ul>
+        <h2>What you gain</h2>
+        <h2>Takeaways</h2>
+        <ul><li>Separate the compile JDK from the bytecode target with a toolchain plus <code>options.release</code>.</li><li>Inventory transitive consumers first, because the graph decides your pace.</li><li>Add a bytecode gate to CI so a policy becomes a failing build.</li></ul>]]></content:encoded></item><item><title>Using OCI Instance Principals without leaking credentials</title><link>https://www.imshubh.com/articles/oracle-ace/using-oci-instance-principals-without-leaking-credentials.html</link><guid isPermaLink="true">https://www.imshubh.com/articles/oracle-ace/using-oci-instance-principals-without-leaking-credentials.html</guid><pubDate>Tue, 19 Aug 2025 12:00:00 -0700</pubDate><dc:creator>Shubham Anandani</dc:creator><description>How I let workloads call OCI APIs with no API keys on disk, and keep the blast radius small.</description><category>oracleace</category><category>oci</category><enclosure url="https://www.imshubh.com/assets/shubham-anandani.jpg" type="image/jpeg" length="852257" /><content:encoded><![CDATA[<h2>Problem</h2>
 <p>Every OCI SDK sample starts the same way: drop an API key and a config file on the host. That is fine on a laptop. On a fleet of compute instances it becomes a quiet liability, because those keys never expire on their own, they get copied into images, and nobody remembers which ones are still in use.</p>
 <p>Instance principals remove that whole class of problem. The instance proves who it is with a certificate that OCI issues and rotates for it, and IAM decides what it may do through a dynamic group and a policy. There is nothing to ship, nothing to rotate by hand, and nothing to leak from a config file.</p>
 <h2>Options and trade-offs</h2>

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="One contract, two implementations, recorded fixtures, and fewer flaky tests" />
+    <title>Contract Testing a Legacy-to-gRPC Bridge in JUnit 5 — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/java/contract-testing-a-legacy-to-grpc-bridge-in-junit-5.html" />
+    <meta property="article:published_time" content="2026-03-24T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Contract Testing a Legacy-to-gRPC Bridge in JUnit 5" />
+    <meta property="og:description" content="One contract, two implementations, recorded fixtures, and fewer flaky tests" />
+    <meta property="og:url" content="https://www.imshubh.com/articles/java/contract-testing-a-legacy-to-grpc-bridge-in-junit-5.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="java" />
+    <meta property="article:tag" content="junit5" />
+    <meta property="article:tag" content="grpc" />
+    <meta property="article:tag" content="testing" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Contract Testing a Legacy-to-gRPC Bridge in JUnit 5","datePublished":"2026-03-24T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"One contract, two implementations, recorded fixtures, and fewer flaky tests","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/java/contract-testing-a-legacy-to-grpc-bridge-in-junit-5.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#java">← Java articles</a>
+      <header class="article-document-header"><p class="kicker">Java notes</p><h1>Contract Testing a Legacy-to-gRPC Bridge in JUnit 5</h1><p class="article-deck">One contract, two implementations, recorded fixtures, and fewer flaky tests</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-03-24T12:00:00-07:00">Published March 24, 2026</time><span>·</span><span>~9 min read</span></div></header>
+      <div class="article-prose"><h2>The idea: one contract, many implementations</h2>
+        <pre><code>public interface ProfileApi {
+    Optional&lt;Profile&gt; get(String id);
+    Map&lt;String, Profile&gt; batchGet(Collection&lt;String&gt; ids);   // missing ids are omitted
+}
+
+public record Profile(String id, String headline) { }</code></pre>
+        <pre><code>import org.junit.jupiter.api.Test;
+import java.util.*;
+import static org.junit.jupiter.api.Assertions.*;
+
+public abstract class ProfileApiContract {
+
+    protected abstract ProfileApi api();
+
+    @Test
+    void getReturnsEmptyForUnknownId() {
+        assertTrue(api().get("does-not-exist").isEmpty());
+    }
+
+    @Test
+    void batchGetOmitsMissingIdsAndKeepsTheRest() {
+        Map&lt;String, Profile&gt; result = api().batchGet(List.of("p1", "missing", "p2"));
+        assertEquals(Set.of("p1", "p2"), result.keySet());
+    }
+
+    @Test
+    void batchGetWithNoIdsReturnsEmptyMap() {
+        assertTrue(api().batchGet(List.of()).isEmpty());
+    }
+
+    @Test
+    void batchGetWithDuplicateIdsReturnsEachOnce() {
+        assertEquals(1, api().batchGet(List.of("p1", "p1")).size());
+    }
+}</code></pre>
+        <pre><code>class LegacyProfileApiTest extends ProfileApiContract {
+    @Override protected ProfileApi api() { return TestFixtures.legacyApi(); }
+}
+
+class BridgedProfileApiTest extends ProfileApiContract {
+    @Override protected ProfileApi api() { return TestFixtures.grpcBackedApi(); }
+}</code></pre>
+        <h2>Make gRPC tests hermetic</h2>
+        <pre><code>import io.grpc.ManagedChannel;
+import io.grpc.Server;
+import io.grpc.inprocess.InProcessChannelBuilder;
+import io.grpc.inprocess.InProcessServerBuilder;
+
+String name = InProcessServerBuilder.generateName();
+Server server = InProcessServerBuilder.forName(name)
+        .directExecutor()
+        .addService(new ProfileGrpcService(fakeBackend))
+        .build().start();
+ManagedChannel channel = InProcessChannelBuilder.forName(name).directExecutor().build();</code></pre>
+        <h2>Record real interactions, replay them in tests</h2>
+        <pre><code>import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+
+class ReplayTest {
+
+    record Fixture(String name, List&lt;String&gt; ids, Set&lt;String&gt; expectedKeys) { }
+
+    static List&lt;Fixture&gt; fixtures() {
+        return FixtureLoader.loadAll("fixtures/");     // JSON files kept in src/test/resources
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("fixtures")
+    void bridgeMatchesRecordedBehavior(Fixture f) {
+        Map&lt;String, Profile&gt; result = TestFixtures.grpcBackedApi().batchGet(f.ids());
+        assertEquals(f.expectedKeys(), result.keySet());
+    }
+}</code></pre>
+        <h2>Reducing flakiness</h2>
+        <ul><li><strong>No real clocks or randomness.</strong> Inject a <code>Clock</code> and seed random generators.</li><li><strong>No shared state across tests.</strong> Build fresh fixtures per test.</li><li><strong>Wait on conditions, not sleeps.</strong> Use Awaitility or latches.</li><li><strong>Quarantine, then fix.</strong> Tag known-flaky tests so they do not block merges, and track them.</li></ul>
+        <h2>Coverage that matters</h2>
+        <h2>Failure modes</h2>
+        <ul><li>Test wiring that works locally but misses configuration files in CI. Keep test resources under standard source-set paths.</li><li>Contract tests that only cover happy paths.</li><li>Fixtures that go stale. Re-record on a schedule.</li></ul>
+        <h2>Takeaways</h2>
+        <ul><li>Test the bridge with one shared contract run against both implementations.</li><li>Use in-process gRPC for hermetic tests, and recorded, scrubbed fixtures for realism.</li><li>Treat batch behavior and error mapping as first-class contract items.</li></ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

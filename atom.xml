@@ -67,7 +67,83 @@ public class IdempotentJob {
         &lt;h2&gt;One honest limitation&lt;/h2&gt;
         &lt;p&gt;Idempotency limits what a write can be. Operations like incrementing a counter are not safe to repeat, so they need a composite key, a version, or a transactional sink to be handled correctly.&lt;/p&gt;
         &lt;h2&gt;Sources&lt;/h2&gt;
-        &lt;ul&gt;&lt;li&gt;Apache Kafka Documentation: Message delivery semantics&lt;/li&gt;&lt;li&gt;Oracle Java Documentation: java.nio.file.Files.move (atomic move)&lt;/li&gt;&lt;li&gt;Docker Docs: Volumes&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Compartment design and movement: policy implications</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/compartment-design-and-movement-policy-implications.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/compartment-design-and-movement-policy-implications.html" rel="alternate" /><atom:published>2026-10-16T12:00:00-07:00</atom:published><atom:updated>2026-10-16T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How I structure compartments so access stays predictable when one has to move.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Apache Kafka Documentation: Message delivery semantics&lt;/li&gt;&lt;li&gt;Oracle Java Documentation: java.nio.file.Files.move (atomic move)&lt;/li&gt;&lt;li&gt;Docker Docs: Volumes&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>API Evolution: Keep Wire Contracts Stable for Java Clients</atom:title><atom:id>https://www.imshubh.com/articles/java/api-evolution-keep-wire-contracts-stable-for-java-clients.html</atom:id><atom:link href="https://www.imshubh.com/articles/java/api-evolution-keep-wire-contracts-stable-for-java-clients.html" rel="alternate" /><atom:published>2026-10-17T12:00:00-07:00</atom:published><atom:updated>2026-10-17T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Tolerant readers, batch error handling, and golden-file tests</atom:summary><atom:category term="java" /><atom:category term="apidesign" /><atom:category term="rest" /><atom:category term="compatibility" /><atom:content type="html">&lt;h2&gt;What counts as the contract&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Field names, types, and optionality.&lt;/li&gt;&lt;li&gt;HTTP status codes and which situations produce them.&lt;/li&gt;&lt;li&gt;The &lt;strong&gt;error envelope&lt;/strong&gt;: its fields and their meaning.&lt;/li&gt;&lt;li&gt;Batch semantics: partial failures, ordering, and duplicates.&lt;/li&gt;&lt;li&gt;Behavior when a request omits optional parameters, such as projections.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;Be a tolerant reader&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.databind.JsonNode;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record ErrorEnvelope(int status, String message, String code, JsonNode errorDetails) {
+
+    public ErrorEnvelope {
+        message = message == null ? "" : message;
+    }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;ul&gt;&lt;li&gt;&lt;code&gt;ignoreUnknown = true&lt;/code&gt; protects you from new server fields.&lt;/li&gt;&lt;li&gt;&lt;code&gt;errorDetails&lt;/code&gt; stays a raw &lt;code&gt;JsonNode&lt;/code&gt;. If the server's details are free-form, do not force them into a fixed class. Keep them untyped, and let the caller interpret them.&lt;/li&gt;&lt;li&gt;Missing &lt;code&gt;message&lt;/code&gt; becomes an empty string, so downstream code does not need null checks.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;Classify errors in one place&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;public enum ErrorKind { CLIENT_ERROR, NOT_FOUND, UNPROCESSABLE, SERVER_ERROR, UNKNOWN }
+
+public static ErrorKind classify(int status) {
+    if (status == 404) return ErrorKind.NOT_FOUND;
+    if (status == 422) return ErrorKind.UNPROCESSABLE;
+    if (status &amp;gt;= 400 &amp;amp;&amp;amp; status &amp;lt; 500) return ErrorKind.CLIENT_ERROR;
+    if (status &amp;gt;= 500 &amp;amp;&amp;amp; status &amp;lt; 600) return ErrorKind.SERVER_ERROR;
+    return ErrorKind.UNKNOWN;
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Handle batch responses carefully&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;public static &amp;lt;V&amp;gt; BatchOutcome&amp;lt;V&amp;gt; split(Map&amp;lt;String, V&amp;gt; results, Map&amp;lt;String, ErrorEnvelope&amp;gt; errors) {
+    Map&amp;lt;String, V&amp;gt; ok = new LinkedHashMap&amp;lt;&amp;gt;(results);
+    Map&amp;lt;String, ErrorKind&amp;gt; failed = new LinkedHashMap&amp;lt;&amp;gt;();
+    errors.forEach((id, env) -&amp;gt; {
+        ok.remove(id);
+        failed.put(id, classify(env.status()));
+    });
+    return new BatchOutcome&amp;lt;&amp;gt;(ok, failed);
+}
+
+public record BatchOutcome&amp;lt;V&amp;gt;(Map&amp;lt;String, V&amp;gt; succeeded, Map&amp;lt;String, ErrorKind&amp;gt; failed) { }&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Server-side rules for safe evolution&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Add fields as optional. Never remove or repurpose a field without a deprecation period.&lt;/li&gt;&lt;li&gt;Do not change status codes for existing situations.&lt;/li&gt;&lt;li&gt;Do not change the shape of the error envelope. Add to it instead.&lt;/li&gt;&lt;li&gt;Be careful with requests that send no projection or field selection. Defaults are part of the contract.&lt;/li&gt;&lt;li&gt;Version deliberately when you must break something, and announce it.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;Golden-file tests&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+
+class ErrorEnvelopeTest {
+
+    private final ObjectMapper mapper = new ObjectMapper();
+
+    @Test
+    void parsesCurrentShape() throws Exception {
+        String json = """
+            {"status":422,"message":"invalid","code":"VALIDATION","errorDetails":{"field":"email"}}
+            """;
+        ErrorEnvelope env = mapper.readValue(json, ErrorEnvelope.class);
+        assertEquals(422, env.status());
+        assertEquals("email", env.errorDetails().get("field").asText());
+    }
+
+    @Test
+    void ignoresFieldsAddedLater() throws Exception {
+        String json = """
+            {"status":404,"message":"gone","futureField":{"x":1}}
+            """;
+        assertEquals(404, mapper.readValue(json, ErrorEnvelope.class).status());
+    }
+
+    @Test
+    void missingOptionalFieldsDoNotFail() throws Exception {
+        ErrorEnvelope env = mapper.readValue("{\"status\":500}", ErrorEnvelope.class);
+        assertEquals("", env.message());
+        assertNull(env.code());
+    }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Failure modes&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;A status change (for example 400 to 422) with no announcement.&lt;/li&gt;&lt;li&gt;A strict client parser that rejects new fields.&lt;/li&gt;&lt;li&gt;Error details forced into a typed structure that drops data.&lt;/li&gt;&lt;li&gt;Batch handlers that fail the whole batch or hide partial failures.&lt;/li&gt;&lt;li&gt;Requests without projections returning a different shape than before.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;Demo to build&lt;/h2&gt;
+        &lt;h2&gt;Takeaways&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;The contract includes errors, status codes, and batch behavior.&lt;/li&gt;&lt;li&gt;Clients should be tolerant readers and keep free-form details untyped.&lt;/li&gt;&lt;li&gt;Golden-file tests turn accidental contract changes into visible diffs.&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Compartment design and movement: policy implications</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/compartment-design-and-movement-policy-implications.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/compartment-design-and-movement-policy-implications.html" rel="alternate" /><atom:published>2026-10-16T12:00:00-07:00</atom:published><atom:updated>2026-10-16T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How I structure compartments so access stays predictable when one has to move.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
 &lt;p&gt;Compartments split resources and policy scope, and the layout you choose on day one is hard to change quietly. When a compartment moves, the set of policies that apply to it can change with it, and people can gain or lose access without anyone editing a statement.&lt;/p&gt;
 &lt;p&gt;I wanted a hierarchy that makes moves boring and lets me check the result afterwards.&lt;/p&gt;
 &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
@@ -105,7 +181,7 @@ config = oci.config.from_file()
 language = oci.ai_language.AIServiceLanguageClient(config)
  
 doc = oci.ai_language.models.TextDocument(
-    key="ticket-1042", text=ticket_text, language_code="en")
+    key="example-document", text=ticket_text, language_code="en")
  
 resp = language.batch_detect_language_pii_entities(
     oci.ai_language.models.BatchDetectLanguagePiiEntitiesDetails(
@@ -411,7 +487,60 @@ pds.setValidateConnectionOnBorrow(true);&lt;/code&gt;&lt;/pre&gt;
 &lt;h2&gt;One honest limitation&lt;/h2&gt;
 &lt;p&gt;Wallets add operational work, such as delivery, rotation and cleanup. Treat the wallet like any other secret and automate its life cycle before the first rotation, not after.&lt;/p&gt;
 &lt;h2&gt;Sources&lt;/h2&gt;
-&lt;ul&gt;&lt;li&gt;Oracle JDBC Developer&amp;#x27;s Guide: Client-Side Security Features&lt;/li&gt;&lt;li&gt;Oracle Universal Connection Pool Developer&amp;#x27;s Guide: Setting Connection Pool Properties&lt;/li&gt;&lt;li&gt;Oracle Autonomous Database Documentation: Connect with JDBC Thin and a Wallet&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Packaging Inference for Production: A Checklist for Shipping an Optimized-Model Service</atom:title><atom:id>https://www.imshubh.com/articles/intel/production-inference-packaging.html</atom:id><atom:link href="https://www.imshubh.com/articles/intel/production-inference-packaging.html" rel="alternate" /><atom:published>2026-07-23T12:00:00-07:00</atom:published><atom:updated>2026-07-23T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>A production checklist for OpenVINO inference services: reproducible conversion, versioned artifacts, visible precision, and tested fallbacks.</atom:summary><atom:category term="intel" /><atom:category term="edgeai" /><atom:content type="html">&lt;p class="article-lede"&gt;A model can be accurate and still be hard to operate if conversion is manual, artifacts are opaque, precision changes silently, or fallbacks have never been exercised. Production readiness is the process around the model as much as the model itself.&lt;/p&gt;
+&lt;ul&gt;&lt;li&gt;Oracle JDBC Developer&amp;#x27;s Guide: Client-Side Security Features&lt;/li&gt;&lt;li&gt;Oracle Universal Connection Pool Developer&amp;#x27;s Guide: Setting Connection Pool Properties&lt;/li&gt;&lt;li&gt;Oracle Autonomous Database Documentation: Connect with JDBC Thin and a Wallet&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>The Hidden Price of "One More Log": Observability Costs on the JVM</atom:title><atom:id>https://www.imshubh.com/articles/java/the-hidden-price-of-one-more-log-observability-costs-on-the-jvm.html</atom:id><atom:link href="https://www.imshubh.com/articles/java/the-hidden-price-of-one-more-log-observability-costs-on-the-jvm.html" rel="alternate" /><atom:published>2026-08-03T12:00:00-07:00</atom:published><atom:updated>2026-08-03T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Logging, tracing, and sampling choices that protect your p99</atom:summary><atom:category term="java" /><atom:category term="observability" /><atom:category term="opentelemetry" /><atom:category term="logging" /><atom:content type="html">&lt;h2&gt;Where the cost comes from&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;&lt;strong&gt;Formatting.&lt;/strong&gt; Building a message string you never emit is wasted work.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Allocation.&lt;/strong&gt; Varargs arrays, boxed values, and message objects add garbage.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;I/O and locking.&lt;/strong&gt; A synchronous appender can block request threads on disk or on a shared lock.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Volume.&lt;/strong&gt; Ten log lines per request at high traffic is a data pipeline you have to pay for.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Cardinality.&lt;/strong&gt; Metric and span attributes with unbounded values (user IDs, request IDs as labels) explode storage and backend cost.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;Logging guardrails&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;// Bad: concatenation always runs
+log.debug("Fetched profile " + id + " in " + elapsedMs + "ms");
+
+// Good: SLF4J formats only if DEBUG is enabled
+log.debug("Fetched profile {} in {}ms", id, elapsedMs);&lt;/code&gt;&lt;/pre&gt;
+        &lt;pre&gt;&lt;code&gt;if (log.isDebugEnabled()) {
+    log.debug("State: {}", expensiveDump(state));
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;pre&gt;&lt;code&gt;String snapshot;
+synchronized (lock) {
+    snapshot = state.summary();      // cheap copy
+}
+log.info("Rebalanced: {}", snapshot);  // logging outside the lock&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Tracing guardrails&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;import io.opentelemetry.sdk.trace.SdkTracerProvider;
+import io.opentelemetry.sdk.trace.samplers.Sampler;
+
+SdkTracerProvider provider = SdkTracerProvider.builder()
+        .setSampler(Sampler.parentBased(Sampler.traceIdRatioBased(0.05)))   // ~5% of new traces
+        .build();&lt;/code&gt;&lt;/pre&gt;
+        &lt;ul&gt;&lt;li&gt;Keep span attributes low-cardinality. Put high-cardinality identifiers in logs, not metric labels.&lt;/li&gt;&lt;li&gt;Avoid creating spans in tight loops. Instrument the request and the major dependencies.&lt;/li&gt;&lt;li&gt;Cap attribute value sizes.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;Measure the overhead&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;import org.openjdk.jmh.annotations.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+@State(Scope.Thread)
+@BenchmarkMode(Mode.AverageTime)
+@OutputTimeUnit(java.util.concurrent.TimeUnit.NANOSECONDS)
+public class LoggingBenchmark {
+
+    private static final Logger log = LoggerFactory.getLogger(LoggingBenchmark.class);   // level = INFO
+    private final String id = "user-12345";
+    private final long elapsed = 42;
+
+    @Benchmark
+    public void concatenation() {
+        log.debug("Fetched profile " + id + " in " + elapsed + "ms");
+    }
+
+    @Benchmark
+    public void parameterized() {
+        log.debug("Fetched profile {} in {}ms", id, elapsed);
+    }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Failure modes&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;High-cardinality labels that overload the metrics backend.&lt;/li&gt;&lt;li&gt;Log amplification, where one failure triggers retries that each log at ERROR.&lt;/li&gt;&lt;li&gt;Synchronous appenders blocking request threads.&lt;/li&gt;&lt;li&gt;Tracing everything in staging, then discovering production cannot afford it.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;A starter checklist&lt;/h2&gt;
+        &lt;ol&gt;&lt;li&gt;Parameterized logging everywhere, with guards for expensive arguments.&lt;/li&gt;&lt;li&gt;No logging inside locks or tight loops.&lt;/li&gt;&lt;li&gt;Async appender with a bounded queue.&lt;/li&gt;&lt;li&gt;Parent-based ratio sampling, with the ratio justified by numbers.&lt;/li&gt;&lt;li&gt;Attribute and label cardinality reviewed.&lt;/li&gt;&lt;li&gt;A benchmark or load test whenever you add instrumentation to a hot path.&lt;/li&gt;&lt;/ol&gt;
+        &lt;h2&gt;Takeaways&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Observability has a runtime cost that shows up in the tail.&lt;/li&gt;&lt;li&gt;Sample traces, bound log queues, and keep cardinality low.&lt;/li&gt;&lt;li&gt;Benchmark instrumentation like any other hot-path code.&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Packaging Inference for Production: A Checklist for Shipping an Optimized-Model Service</atom:title><atom:id>https://www.imshubh.com/articles/intel/production-inference-packaging.html</atom:id><atom:link href="https://www.imshubh.com/articles/intel/production-inference-packaging.html" rel="alternate" /><atom:published>2026-07-23T12:00:00-07:00</atom:published><atom:updated>2026-07-23T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>A production checklist for OpenVINO inference services: reproducible conversion, versioned artifacts, visible precision, and tested fallbacks.</atom:summary><atom:category term="intel" /><atom:category term="edgeai" /><atom:content type="html">&lt;p class="article-lede"&gt;A model can be accurate and still be hard to operate if conversion is manual, artifacts are opaque, precision changes silently, or fallbacks have never been exercised. Production readiness is the process around the model as much as the model itself.&lt;/p&gt;
         &lt;p&gt;&lt;code&gt;aceu-edge-infer&lt;/code&gt; is a modest inference demo, but I treat its packaging path as if another engineer will need to rebuild, inspect, and recover it. Its outputs remain illustrative, not evaluative of real people. This checklist is about making that kind of service repeatable.&lt;/p&gt;
         &lt;h2&gt;Make model conversion reproducible&lt;/h2&gt;&lt;p&gt;Keep conversion in a script or build step rather than a shell history. Record the source model hash, tool and runtime versions, input shapes, conversion options, and warnings. Use separate, reviewable configuration for FP32 and INT8 artifacts, and retain the conversion logs with the release build.&lt;/p&gt;
         &lt;pre&gt;&lt;code&gt;from pathlib import Path
@@ -770,7 +899,67 @@ template:
         &lt;p&gt;Measure the cold start path and identify high-cost steps. Record cold-start and warm-request latency as separate measurements.&lt;/p&gt;
         &lt;p&gt;Add a minimum warm replica and track tails. Compare p95 across scale-to-zero vs hybrid.&lt;/p&gt;
         &lt;p&gt;Implement readiness that runs a tiny proof self-check and confirms secret load before returning ready.&lt;/p&gt;
-        &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://learn.microsoft.com/en-us/azure/container-apps/scale-app" target="_blank" rel="noreferrer"&gt;Scale applications in Azure Container Apps&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://learn.microsoft.com/en-us/azure/container-apps/health-probes" target="_blank" rel="noreferrer"&gt;Health probes in Azure Container Apps&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>Keeping secrets out of container images, builds and logs</atom:title><atom:id>https://www.imshubh.com/articles/docker/keeping-secrets-out-of-images-builds-and-logs.html</atom:id><atom:link href="https://www.imshubh.com/articles/docker/keeping-secrets-out-of-images-builds-and-logs.html" rel="alternate" /><atom:published>2026-06-06T12:00:00-07:00</atom:published><atom:updated>2026-06-06T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>A practical playbook for build-time tokens, runtime credentials and log redaction in a Java service, using BuildKit secrets and mounted files.</atom:summary><atom:category term="docker" /><atom:category term="containers" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://learn.microsoft.com/en-us/azure/container-apps/scale-app" target="_blank" rel="noreferrer"&gt;Scale applications in Azure Container Apps&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://learn.microsoft.com/en-us/azure/container-apps/health-probes" target="_blank" rel="noreferrer"&gt;Health probes in Azure Container Apps&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>Allocation Hotspot Hunting with JFR and async-profiler</atom:title><atom:id>https://www.imshubh.com/articles/java/allocation-hotspot-hunting-with-jfr-and-async-profiler.html</atom:id><atom:link href="https://www.imshubh.com/articles/java/allocation-hotspot-hunting-with-jfr-and-async-profiler.html" rel="alternate" /><atom:published>2026-06-20T12:00:00-07:00</atom:published><atom:updated>2026-06-20T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Why collection-heavy code hurts your tail latency, and how to measure before optimizing</atom:summary><atom:category term="java" /><atom:category term="profiling" /><atom:category term="jfr" /><atom:category term="asyncprofiler" /><atom:content type="html">&lt;h2&gt;Step 1: find allocation spikes with JFR&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Which classes are allocated the most by bytes (not by count)?&lt;/li&gt;&lt;li&gt;Which call paths create them?&lt;/li&gt;&lt;li&gt;Does the allocation rate rise during the slow periods?&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;Step 2: corroborate with async-profiler&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;# Allocation profile for 30 seconds, written as an HTML flame graph
+asprof -e alloc -d 30 -f alloc.html &amp;lt;pid&amp;gt;&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Step 3: understand why boxing and collections allocate&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;&lt;code&gt;HashSet&amp;lt;Integer&amp;gt;&lt;/code&gt; and &lt;code&gt;HashMap&amp;lt;Integer, ...&amp;gt;&lt;/code&gt; box every primitive into an &lt;code&gt;Integer&lt;/code&gt; object (small values are cached; larger ones are not) and allocate a node per entry.&lt;/li&gt;&lt;li&gt;Temporary lists and streams created per request.&lt;/li&gt;&lt;li&gt;String concatenation and formatting in hot paths.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;Step 4: prove an alternative with JMH&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
+import org.openjdk.jmh.annotations.*;
+import org.openjdk.jmh.infra.Blackhole;
+
+import java.util.HashSet;
+import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+
+@State(Scope.Thread)
+@BenchmarkMode(Mode.AverageTime)
+@OutputTimeUnit(TimeUnit.MICROSECONDS)
+@Warmup(iterations = 5, time = 1)
+@Measurement(iterations = 5, time = 1)
+@Fork(2)
+public class SetBenchmark {
+
+    @Param({"1000", "100000"})
+    int size;
+
+    int[] values;
+
+    @Setup
+    public void setup() {
+        Random r = new Random(42);
+        values = new int[size];
+        for (int i = 0; i &amp;lt; size; i++) values[i] = r.nextInt();
+    }
+
+    @Benchmark
+    public void boxedHashSet(Blackhole bh) {
+        Set&amp;lt;Integer&amp;gt; set = new HashSet&amp;lt;&amp;gt;();
+        for (int v : values) set.add(v);
+        int hits = 0;
+        for (int v : values) if (set.contains(v)) hits++;
+        bh.consume(hits);
+    }
+
+    @Benchmark
+    public void primitiveSet(Blackhole bh) {
+        IntOpenHashSet set = new IntOpenHashSet();
+        for (int v : values) set.add(v);
+        int hits = 0;
+        for (int v : values) if (set.contains(v)) hits++;
+        bh.consume(hits);
+    }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;pre&gt;&lt;code&gt;java -jar target/benchmarks.jar -prof gc&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Step 5: validate in the real service&lt;/h2&gt;
+        &lt;h2&gt;Failure modes&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;&lt;strong&gt;Optimizing the wrong layer.&lt;/strong&gt; A faster set does nothing if the allocation comes from JSON parsing upstream.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Benchmarking unrealistic data.&lt;/strong&gt; Use sizes and distributions that match production.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Trading readability for nothing.&lt;/strong&gt; Adopt a specialized library only where the profile justifies it.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Forgetting dependencies.&lt;/strong&gt; A new library adds maintenance and upgrade cost.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;Takeaways&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Profile allocation with two tools before touching code.&lt;/li&gt;&lt;li&gt;Boxing and per-entry nodes in collections are common sources of garbage.&lt;/li&gt;&lt;li&gt;Prove a fix in JMH with &lt;code&gt;-prof gc&lt;/code&gt;, then confirm with a production-like recording.&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Keeping secrets out of container images, builds and logs</atom:title><atom:id>https://www.imshubh.com/articles/docker/keeping-secrets-out-of-images-builds-and-logs.html</atom:id><atom:link href="https://www.imshubh.com/articles/docker/keeping-secrets-out-of-images-builds-and-logs.html" rel="alternate" /><atom:published>2026-06-06T12:00:00-07:00</atom:published><atom:updated>2026-06-06T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>A practical playbook for build-time tokens, runtime credentials and log redaction in a Java service, using BuildKit secrets and mounted files.</atom:summary><atom:category term="docker" /><atom:category term="containers" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
         &lt;p&gt;Secrets leak in boring ways. A token passed as a build argument ends up in image history. An exception handler prints the whole configuration. An environment variable set for a quick test is still there six months later. The fix is not one tool. It is a set of small defaults that make the safe path the easy path, covering the build, the runtime and the logs.&lt;/p&gt;
         &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
         &lt;ul&gt;&lt;li&gt;ARG and ENV for credentials: simple, but both are stored in image metadata and can be read back from the image.&lt;/li&gt;&lt;li&gt;BuildKit secret mounts: the secret is available to one build step and is never written to a layer.&lt;/li&gt;&lt;li&gt;Runtime secrets as environment variables: convenient, but they show up in diagnostics and process listings.&lt;/li&gt;&lt;li&gt;Runtime secrets as mounted files: easier to restrict, audit and rotate without rebuilding.&lt;/li&gt;&lt;/ul&gt;
@@ -1035,7 +1224,54 @@ junit.jupiter.execution.parallel.mode.classes.default = concurrent&lt;/code&gt;&
         &lt;p&gt;Switch to PER_METHOD lifecycle and remove static mutable fields in tests. Add unique keys per test to seed data. Enable parallel execution and watch for failures that indicate hidden shared state.&lt;/p&gt;
         &lt;p&gt;Replace sleep-based readiness with explicit condition checks. Add timeouts and backoff policies.&lt;/p&gt;
         &lt;p&gt;Document which tests are parallel-safe and why; make non-parallel tests the exception and note the reason.&lt;/p&gt;
-        &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://junit.org/junit5/docs/current/user-guide/#writing-tests-parallel-execution" target="_blank" rel="noreferrer"&gt;JUnit 5 parallel execution&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://java.testcontainers.org/" target="_blank" rel="noreferrer"&gt;Testcontainers for Java&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>Minimal Java container on OCI with TLS to DB</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/minimal-java-container-on-oci-with-tls-to-db.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/minimal-java-container-on-oci-with-tls-to-db.html" rel="alternate" /><atom:published>2026-04-14T12:00:00-07:00</atom:published><atom:updated>2026-04-14T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>A small, locked-down Java service on an Ampere A1 instance, talking to Oracle Database over TLS.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://junit.org/junit5/docs/current/user-guide/#writing-tests-parallel-execution" target="_blank" rel="noreferrer"&gt;JUnit 5 parallel execution&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://java.testcontainers.org/" target="_blank" rel="noreferrer"&gt;Testcontainers for Java&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>Reproducible Gradle Builds: Why It Passes Locally and Fails in CI</atom:title><atom:id>https://www.imshubh.com/articles/java/reproducible-gradle-builds-why-it-passes-locally-and-fails-in-ci.html</atom:id><atom:link href="https://www.imshubh.com/articles/java/reproducible-gradle-builds-why-it-passes-locally-and-fails-in-ci.html" rel="alternate" /><atom:published>2026-05-07T12:00:00-07:00</atom:published><atom:updated>2026-05-07T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Resource paths, dependency locking, and byte-for-byte reproducible jars</atom:summary><atom:category term="java" /><atom:category term="gradle" /><atom:category term="build" /><atom:category term="reproduciblebuilds" /><atom:content type="html">&lt;h2&gt;The classic trap: files outside the classpath&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;// Works from an IDE or the repo root; breaks in CI or when packaged
+String json = Files.readString(Path.of("config/app-manifest.json"));&lt;/code&gt;&lt;/pre&gt;
+        &lt;pre&gt;&lt;code&gt;try (InputStream in = AppManifest.class.getResourceAsStream("/manifests/app-manifest.json")) {
+    if (in == null) {
+        throw new IllegalStateException("Missing classpath resource: /manifests/app-manifest.json");
+    }
+    return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Fail the build when packaging is wrong&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;// build.gradle.kts
+val verifyManifest by tasks.registering {
+    dependsOn(tasks.jar)
+    doLast {
+        val jarFile = tasks.jar.get().archiveFile.get().asFile
+        java.util.zip.ZipFile(jarFile).use { zip -&amp;gt;
+            check(zip.getEntry("manifests/app-manifest.json") != null) {
+                "manifests/app-manifest.json missing from ${jarFile.name}"
+            }
+        }
+    }
+}
+tasks.check { dependsOn(verifyManifest) }&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Avoid classpath hacks in tests&lt;/h2&gt;
+        &lt;h2&gt;Pin dependencies&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;# gradle/libs.versions.toml
+[versions]
+junit = "5.10.2"
+
+[libraries]
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }&lt;/code&gt;&lt;/pre&gt;
+        &lt;pre&gt;&lt;code&gt;dependencyLocking { lockAllConfigurations() }&lt;/code&gt;&lt;/pre&gt;
+        &lt;pre&gt;&lt;code&gt;./gradlew dependencies --write-locks      # create or update lock files&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Make the output reproducible&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;tasks.withType&amp;lt;AbstractArchiveTask&amp;gt;().configureEach {
+    isPreserveFileTimestamps = false
+    isReproducibleFileOrder = true
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;pre&gt;&lt;code&gt;./gradlew clean jar &amp;amp;&amp;amp; sha256sum build/libs/*.jar &amp;gt; first.sum
+./gradlew clean jar &amp;amp;&amp;amp; sha256sum build/libs/*.jar &amp;gt; second.sum
+diff first.sum second.sum &amp;amp;&amp;amp; echo "reproducible"&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;A repeatable CI parity checklist&lt;/h2&gt;
+        &lt;ol&gt;&lt;li&gt;Use the Gradle wrapper, and commit the wrapper files.&lt;/li&gt;&lt;li&gt;Pin the JDK with a toolchain.&lt;/li&gt;&lt;li&gt;Commit dependency lock files.&lt;/li&gt;&lt;li&gt;Run &lt;code&gt;./gradlew clean build&lt;/code&gt; locally from a clean checkout before pushing.&lt;/li&gt;&lt;li&gt;Fail the build on missing resources, as shown above.&lt;/li&gt;&lt;li&gt;Compare artifact checksums between two builds periodically.&lt;/li&gt;&lt;/ol&gt;
+        &lt;h2&gt;Demo to build&lt;/h2&gt;
+        &lt;h2&gt;Failure modes&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Resources loaded by file path instead of classpath.&lt;/li&gt;&lt;li&gt;Floating dependency versions such as &lt;code&gt;1.+&lt;/code&gt; or &lt;code&gt;latest&lt;/code&gt;.&lt;/li&gt;&lt;li&gt;Tests that pass only because of leftover files in a local &lt;code&gt;build&lt;/code&gt; directory (always test after &lt;code&gt;clean&lt;/code&gt;).&lt;/li&gt;&lt;li&gt;Build plugins and tools that differ between developer machines and CI.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;Takeaways&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Load files from the classpath, and fail loudly when they are missing.&lt;/li&gt;&lt;li&gt;Pin dependencies and the JDK so two builds mean the same thing.&lt;/li&gt;&lt;li&gt;Make archives reproducible and prove it with a checksum comparison.&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Minimal Java container on OCI with TLS to DB</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/minimal-java-container-on-oci-with-tls-to-db.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/minimal-java-container-on-oci-with-tls-to-db.html" rel="alternate" /><atom:published>2026-04-14T12:00:00-07:00</atom:published><atom:updated>2026-04-14T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>A small, locked-down Java service on an Ampere A1 instance, talking to Oracle Database over TLS.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
 &lt;p&gt;I wanted the smallest useful baseline: a Java service in a container, on a cheap OCI instance, connecting to an Oracle database over TLS, with no credentials baked into the image. It should be small enough to read in one sitting and safe enough to build on.&lt;/p&gt;
 &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
 &lt;ul&gt;&lt;li&gt;Ampere A1 with Podman: efficient and economical, and you need arm64 images.&lt;/li&gt;&lt;li&gt;Docker on an x86 shape: the widest image support, at a higher cost as you scale.&lt;/li&gt;&lt;li&gt;TLS only versus mTLS with a wallet: TLS means less to handle, and mTLS gives stronger assurance.&lt;/li&gt;&lt;/ul&gt;
@@ -1248,7 +1484,87 @@ class ValidationResult:
         &lt;p&gt;Implement a verifier that separately evaluates cryptographic proof, issuer trust, subject binding, and policy gates.&lt;/p&gt;
         &lt;p&gt;Return “unverifiable” for missing binding and “invalid” for failed policy (e.g., expiry).&lt;/p&gt;
         &lt;p&gt;Measure performance across well-formed accepts vs policy failures to understand user impact.&lt;/p&gt;
-        &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://www.w3.org/TR/vc-data-model-2.0/" target="_blank" rel="noreferrer"&gt;W3C Verifiable Credentials Data Model v2.0&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://learn.microsoft.com/en-us/entra/verified-id/plan-verification-solution" target="_blank" rel="noreferrer"&gt;Microsoft Entra Verified ID verification planning&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://learn.microsoft.com/en-us/entra/verified-id/verifiable-credentials-configure-verifier" target="_blank" rel="noreferrer"&gt;Configure a Verified ID verifier&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>Don’t Ship What You Haven’t Scanned: Gating Images Before Production</atom:title><atom:id>https://www.imshubh.com/articles/docker/scanning-before-production.html</atom:id><atom:link href="https://www.imshubh.com/articles/docker/scanning-before-production.html" rel="alternate" /><atom:published>2026-03-15T12:00:00-07:00</atom:published><atom:updated>2026-03-15T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Build an SBOM, scan each container image, and gate releases on actionable vulnerability severity.</atom:summary><atom:category term="docker" /><atom:category term="containers" /><atom:content type="html">&lt;p class="article-lede"&gt;Images move quickly; vulnerability information changes just as quickly. My baseline is straightforward: make image contents visible, scan before release, gate on actionable findings, and define a narrow exception path with an owner and an expiry.&lt;/p&gt;
+        &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://www.w3.org/TR/vc-data-model-2.0/" target="_blank" rel="noreferrer"&gt;W3C Verifiable Credentials Data Model v2.0&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://learn.microsoft.com/en-us/entra/verified-id/plan-verification-solution" target="_blank" rel="noreferrer"&gt;Microsoft Entra Verified ID verification planning&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://learn.microsoft.com/en-us/entra/verified-id/verifiable-credentials-configure-verifier" target="_blank" rel="noreferrer"&gt;Configure a Verified ID verifier&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>Contract Testing a Legacy-to-gRPC Bridge in JUnit 5</atom:title><atom:id>https://www.imshubh.com/articles/java/contract-testing-a-legacy-to-grpc-bridge-in-junit-5.html</atom:id><atom:link href="https://www.imshubh.com/articles/java/contract-testing-a-legacy-to-grpc-bridge-in-junit-5.html" rel="alternate" /><atom:published>2026-03-24T12:00:00-07:00</atom:published><atom:updated>2026-03-24T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>One contract, two implementations, recorded fixtures, and fewer flaky tests</atom:summary><atom:category term="java" /><atom:category term="junit5" /><atom:category term="grpc" /><atom:category term="testing" /><atom:content type="html">&lt;h2&gt;The idea: one contract, many implementations&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;public interface ProfileApi {
+    Optional&amp;lt;Profile&amp;gt; get(String id);
+    Map&amp;lt;String, Profile&amp;gt; batchGet(Collection&amp;lt;String&amp;gt; ids);   // missing ids are omitted
+}
+
+public record Profile(String id, String headline) { }&lt;/code&gt;&lt;/pre&gt;
+        &lt;pre&gt;&lt;code&gt;import org.junit.jupiter.api.Test;
+import java.util.*;
+import static org.junit.jupiter.api.Assertions.*;
+
+public abstract class ProfileApiContract {
+
+    protected abstract ProfileApi api();
+
+    @Test
+    void getReturnsEmptyForUnknownId() {
+        assertTrue(api().get("does-not-exist").isEmpty());
+    }
+
+    @Test
+    void batchGetOmitsMissingIdsAndKeepsTheRest() {
+        Map&amp;lt;String, Profile&amp;gt; result = api().batchGet(List.of("p1", "missing", "p2"));
+        assertEquals(Set.of("p1", "p2"), result.keySet());
+    }
+
+    @Test
+    void batchGetWithNoIdsReturnsEmptyMap() {
+        assertTrue(api().batchGet(List.of()).isEmpty());
+    }
+
+    @Test
+    void batchGetWithDuplicateIdsReturnsEachOnce() {
+        assertEquals(1, api().batchGet(List.of("p1", "p1")).size());
+    }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;pre&gt;&lt;code&gt;class LegacyProfileApiTest extends ProfileApiContract {
+    @Override protected ProfileApi api() { return TestFixtures.legacyApi(); }
+}
+
+class BridgedProfileApiTest extends ProfileApiContract {
+    @Override protected ProfileApi api() { return TestFixtures.grpcBackedApi(); }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Make gRPC tests hermetic&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;import io.grpc.ManagedChannel;
+import io.grpc.Server;
+import io.grpc.inprocess.InProcessChannelBuilder;
+import io.grpc.inprocess.InProcessServerBuilder;
+
+String name = InProcessServerBuilder.generateName();
+Server server = InProcessServerBuilder.forName(name)
+        .directExecutor()
+        .addService(new ProfileGrpcService(fakeBackend))
+        .build().start();
+ManagedChannel channel = InProcessChannelBuilder.forName(name).directExecutor().build();&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Record real interactions, replay them in tests&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+
+class ReplayTest {
+
+    record Fixture(String name, List&amp;lt;String&amp;gt; ids, Set&amp;lt;String&amp;gt; expectedKeys) { }
+
+    static List&amp;lt;Fixture&amp;gt; fixtures() {
+        return FixtureLoader.loadAll("fixtures/");     // JSON files kept in src/test/resources
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("fixtures")
+    void bridgeMatchesRecordedBehavior(Fixture f) {
+        Map&amp;lt;String, Profile&amp;gt; result = TestFixtures.grpcBackedApi().batchGet(f.ids());
+        assertEquals(f.expectedKeys(), result.keySet());
+    }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Reducing flakiness&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;&lt;strong&gt;No real clocks or randomness.&lt;/strong&gt; Inject a &lt;code&gt;Clock&lt;/code&gt; and seed random generators.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;No shared state across tests.&lt;/strong&gt; Build fresh fixtures per test.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Wait on conditions, not sleeps.&lt;/strong&gt; Use Awaitility or latches.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Quarantine, then fix.&lt;/strong&gt; Tag known-flaky tests so they do not block merges, and track them.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;Coverage that matters&lt;/h2&gt;
+        &lt;h2&gt;Failure modes&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Test wiring that works locally but misses configuration files in CI. Keep test resources under standard source-set paths.&lt;/li&gt;&lt;li&gt;Contract tests that only cover happy paths.&lt;/li&gt;&lt;li&gt;Fixtures that go stale. Re-record on a schedule.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;Takeaways&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Test the bridge with one shared contract run against both implementations.&lt;/li&gt;&lt;li&gt;Use in-process gRPC for hermetic tests, and recorded, scrubbed fixtures for realism.&lt;/li&gt;&lt;li&gt;Treat batch behavior and error mapping as first-class contract items.&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Don’t Ship What You Haven’t Scanned: Gating Images Before Production</atom:title><atom:id>https://www.imshubh.com/articles/docker/scanning-before-production.html</atom:id><atom:link href="https://www.imshubh.com/articles/docker/scanning-before-production.html" rel="alternate" /><atom:published>2026-03-15T12:00:00-07:00</atom:published><atom:updated>2026-03-15T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Build an SBOM, scan each container image, and gate releases on actionable vulnerability severity.</atom:summary><atom:category term="docker" /><atom:category term="containers" /><atom:content type="html">&lt;p class="article-lede"&gt;Images move quickly; vulnerability information changes just as quickly. My baseline is straightforward: make image contents visible, scan before release, gate on actionable findings, and define a narrow exception path with an owner and an expiry.&lt;/p&gt;
         &lt;p&gt;This is not a claim that scanners make an image safe. A scan is one control in a larger process. The goal is to replace last-minute surprises with a repeatable decision before an image reaches production.&lt;/p&gt;
         &lt;h2&gt;Start with an inventory&lt;/h2&gt;&lt;p&gt;A Software Bill of Materials (SBOM) lists software components included in an image. Generating one during the build gives scanners and reviewers a concrete inventory to inspect. Docker Buildx can attach an SBOM attestation to an image:&lt;/p&gt;
         &lt;pre&gt;&lt;code&gt;# Build and push to a registry so the SBOM attestation travels with the image.
@@ -1543,7 +1859,74 @@ docker stats --no-stream api&lt;/code&gt;&lt;/pre&gt;
         &lt;h2&gt;One honest limitation&lt;/h2&gt;
         &lt;p&gt;Limits shrink the blast radius but do not prevent incidents. A service that is out of memory still fails; the point is that it fails predictably and recovers quickly.&lt;/p&gt;
         &lt;h2&gt;Sources&lt;/h2&gt;
-        &lt;ul&gt;&lt;li&gt;Docker Docs: Resource constraints&lt;/li&gt;&lt;li&gt;Oracle Java Documentation: Java in containers (JVM ergonomics)&lt;/li&gt;&lt;li&gt;Docker Docs: docker container inspect&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Benchmarking Honestly: Building a Repeatable, Trustworthy Inference Benchmark</atom:title><atom:id>https://www.imshubh.com/articles/intel/benchmarking-inference.html</atom:id><atom:link href="https://www.imshubh.com/articles/intel/benchmarking-inference.html" rel="alternate" /><atom:published>2026-01-28T12:00:00-08:00</atom:published><atom:updated>2026-01-28T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Build inference benchmarks that report warm-up, latency percentiles, output parity, and hardware conditions.</atom:summary><atom:category term="intel" /><atom:category term="edgeai" /><atom:content type="html">&lt;p class="article-lede"&gt;Benchmarks are easy to fool. Run a handful of requests on a quiet laptop, choose the number that looks good, and almost any model can appear fast. Production has warm-up, load, input variation, and hardware contention. A useful benchmark makes those conditions visible.&lt;/p&gt;
+        &lt;ul&gt;&lt;li&gt;Docker Docs: Resource constraints&lt;/li&gt;&lt;li&gt;Oracle Java Documentation: Java in containers (JVM ergonomics)&lt;/li&gt;&lt;li&gt;Docker Docs: docker container inspect&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Java Records and Jackson: Null Safety, Schema Evolution, and Round-Trip Tests</atom:title><atom:id>https://www.imshubh.com/articles/java/java-records-and-jackson-null-safety-schema-evolution-and-round-trip-tests.html</atom:id><atom:link href="https://www.imshubh.com/articles/java/java-records-and-jackson-null-safety-schema-evolution-and-round-trip-tests.html" rel="alternate" /><atom:published>2026-02-10T12:00:00-08:00</atom:published><atom:updated>2026-02-10T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Designing JSON contracts that survive years of change, with property-based tests</atom:summary><atom:category term="java" /><atom:category term="records" /><atom:category term="jackson" /><atom:category term="serialization" /><atom:content type="html">&lt;h2&gt;A record as a contract&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
+
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+
+@JsonInclude(JsonInclude.Include.NON_ABSENT)
+@JsonIgnoreProperties(ignoreUnknown = true)
+public record Profile(String id, Optional&amp;lt;String&amp;gt; headline, List&amp;lt;String&amp;gt; skills) {
+
+    public Profile {
+        Objects.requireNonNull(id, "id");
+        headline = headline == null ? Optional.empty() : headline;
+        skills = skills == null ? List.of() : List.copyOf(skills);
+    }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;ul&gt;&lt;li&gt;The compact constructor makes &lt;code&gt;id&lt;/code&gt; required and normalizes missing optional data, so no code downstream handles &lt;code&gt;null&lt;/code&gt; for &lt;code&gt;headline&lt;/code&gt; or &lt;code&gt;skills&lt;/code&gt;.&lt;/li&gt;&lt;li&gt;&lt;code&gt;Optional&amp;lt;String&amp;gt;&lt;/code&gt; marks &lt;code&gt;headline&lt;/code&gt; as optional in the type itself. (Records with &lt;code&gt;Optional&lt;/code&gt; need Jackson's &lt;code&gt;jackson-datatype-jdk8&lt;/code&gt; module registered.)&lt;/li&gt;&lt;li&gt;&lt;code&gt;NON_ABSENT&lt;/code&gt; leaves an absent optional out of the JSON instead of writing an explicit &lt;code&gt;null&lt;/code&gt;.&lt;/li&gt;&lt;li&gt;&lt;code&gt;ignoreUnknown = true&lt;/code&gt; lets this reader tolerate fields that newer producers add.&lt;/li&gt;&lt;/ul&gt;
+        &lt;pre&gt;&lt;code&gt;ObjectMapper mapper = new ObjectMapper()
+        .registerModule(new Jdk8Module());&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Why not plain POJOs?&lt;/h2&gt;
+        &lt;h2&gt;The silent coercion trap&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;Profile p = mapper.readValue("{\"id\": 42}", Profile.class);
+// p.id() is "42", with no error&lt;/code&gt;&lt;/pre&gt;
+        &lt;pre&gt;&lt;code&gt;import com.fasterxml.jackson.databind.cfg.CoercionAction;
+import com.fasterxml.jackson.databind.cfg.CoercionInputShape;
+import com.fasterxml.jackson.databind.type.LogicalType;
+
+ObjectMapper strict = new ObjectMapper().registerModule(new Jdk8Module());
+strict.coercionConfigFor(LogicalType.Textual)
+      .setCoercion(CoercionInputShape.Integer, CoercionAction.Fail)
+      .setCoercion(CoercionInputShape.Float, CoercionAction.Fail);&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Null, absent, and present&lt;/h2&gt;
+        &lt;h2&gt;Evolving schemas safely&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Add new fields as optional, with a defined default.&lt;/li&gt;&lt;li&gt;Never change a field's type in place. Add a new field and deprecate the old one.&lt;/li&gt;&lt;li&gt;Never reuse a removed field's name for different data.&lt;/li&gt;&lt;li&gt;Treat enum changes with care. Configure an unknown-value fallback (for example &lt;code&gt;READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE&lt;/code&gt; with a default) so old clients survive new symbols.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;Property-based round-trip tests&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
+import net.jqwik.api.ForAll;
+import net.jqwik.api.Property;
+
+import java.util.List;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+class ProfileRoundTripTest {
+
+    private final ObjectMapper mapper = new ObjectMapper().registerModule(new Jdk8Module());
+
+    @Property
+    void roundTripPreservesData(@ForAll String id,
+                                @ForAll Optional&amp;lt;String&amp;gt; headline,
+                                @ForAll List&amp;lt;String&amp;gt; skills) throws Exception {
+        Profile original = new Profile(id, headline, skills);
+
+        String json = mapper.writeValueAsString(original);
+        Profile parsed = mapper.readValue(json, Profile.class);
+
+        assertEquals(original, parsed);
+    }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Failure modes&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Silent type coercion hiding a producer's breaking change.&lt;/li&gt;&lt;li&gt;Explicit &lt;code&gt;null&lt;/code&gt; written by one serializer and omitted by another.&lt;/li&gt;&lt;li&gt;Enums that fail on unknown values in old clients.&lt;/li&gt;&lt;li&gt;A required field added without a default, breaking old documents.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;Demo to build&lt;/h2&gt;
+        &lt;h2&gt;Takeaways&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Put invariants and null normalization in the record's compact constructor.&lt;/li&gt;&lt;li&gt;Turn off silent coercion where the contract is strict.&lt;/li&gt;&lt;li&gt;Evolve schemas additively, and keep golden files from every release.&lt;/li&gt;&lt;li&gt;Property-based round-trip tests guard the serialization invariants.&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Benchmarking Honestly: Building a Repeatable, Trustworthy Inference Benchmark</atom:title><atom:id>https://www.imshubh.com/articles/intel/benchmarking-inference.html</atom:id><atom:link href="https://www.imshubh.com/articles/intel/benchmarking-inference.html" rel="alternate" /><atom:published>2026-01-28T12:00:00-08:00</atom:published><atom:updated>2026-01-28T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Build inference benchmarks that report warm-up, latency percentiles, output parity, and hardware conditions.</atom:summary><atom:category term="intel" /><atom:category term="edgeai" /><atom:content type="html">&lt;p class="article-lede"&gt;Benchmarks are easy to fool. Run a handful of requests on a quiet laptop, choose the number that looks good, and almost any model can appear fast. Production has warm-up, load, input variation, and hardware contention. A useful benchmark makes those conditions visible.&lt;/p&gt;
         &lt;p&gt;In &lt;code&gt;aceu-edge-infer&lt;/code&gt;, I keep a small harness that compares FP32 and INT8 inference and records latency and output deltas. The sample inputs are synthetic, so its results are method scaffolding—not evidence of production performance. The measurement discipline is what I want the demo to teach.&lt;/p&gt;
         &lt;h2&gt;Decide what question the benchmark answers&lt;/h2&gt;&lt;p&gt;Are you measuring cold start, steady-state single-request latency, or throughput under concurrent work? Those are different measurements. State the workload, model artifact, runtime and device, input shape, batch size, thread/concurrency settings, and whether preprocessing and post-processing are included.&lt;/p&gt;
         &lt;h2&gt;Warm up—and report cold start separately&lt;/h2&gt;&lt;p&gt;The first call may include model compilation, memory allocation, cache fill, or runtime initialization. If the question is steady-state latency, run a planned warm-up and keep those samples out of the measured set. If cold start matters to users, report it as its own metric instead of mixing it into steady-state numbers.&lt;/p&gt;
@@ -1712,7 +2095,131 @@ build/&lt;/code&gt;&lt;/pre&gt;
         &lt;p&gt;Common surprises include a credential accidentally left in an image layer, a slim runtime missing a required shared library, or a non-root process unable to read a root-owned file. A deliberate image review catches these before deployment.&lt;/p&gt;
         &lt;h2&gt;Try it on your next image&lt;/h2&gt;&lt;ol&gt;&lt;li&gt;Separate build and runtime stages, then compare the resulting image size.&lt;/li&gt;&lt;li&gt;Run the application under a non-root UID and verify file access.&lt;/li&gt;&lt;li&gt;Add a &lt;code&gt;.dockerignore&lt;/code&gt; file and inspect the build context.&lt;/li&gt;&lt;li&gt;Add a CI lint step for known unsafe Dockerfile or manifest settings.&lt;/li&gt;&lt;/ol&gt;
         &lt;h2&gt;Closing thought&lt;/h2&gt;&lt;p&gt;A smaller, quieter, safer image is easier to move and less likely to surprise the team in production. The demo remains illustrative; the container practices are the reusable part.&lt;/p&gt;
-        &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://docs.docker.com/build/building/best-practices/" target="_blank" rel="noreferrer"&gt;Docker build best practices&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://docs.docker.com/build/building/multi-stage/" target="_blank" rel="noreferrer"&gt;Docker multi-stage builds&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://docs.docker.com/build/building/secrets/" target="_blank" rel="noreferrer"&gt;Build secrets with Docker&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>The Conversion Gap: From ONNX Export to an Optimized Runtime Format</atom:title><atom:id>https://www.imshubh.com/articles/intel/conversion-gap.html</atom:id><atom:link href="https://www.imshubh.com/articles/intel/conversion-gap.html" rel="alternate" /><atom:published>2025-12-27T12:00:00-08:00</atom:published><atom:updated>2025-12-27T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>A practical path from ONNX to OpenVINO IR: inspect operators, handle conversion gaps, and validate output parity.</atom:summary><atom:category term="intel" /><atom:category term="edgeai" /><atom:content type="html">&lt;p class="article-lede"&gt;Training and production are different environments. Exporting a model to ONNX is a useful boundary, but a production runtime still needs to understand the graph, shapes, operators, and precision choices. Conversion friction is easier to handle when it is planned for instead of discovered at release time.&lt;/p&gt;
+        &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://docs.docker.com/build/building/best-practices/" target="_blank" rel="noreferrer"&gt;Docker build best practices&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://docs.docker.com/build/building/multi-stage/" target="_blank" rel="noreferrer"&gt;Docker multi-stage builds&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://docs.docker.com/build/building/secrets/" target="_blank" rel="noreferrer"&gt;Build secrets with Docker&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>Error Modeling in a Java REST Service: Translate Exceptions Without Changing the Wire Contract</atom:title><atom:id>https://www.imshubh.com/articles/java/error-modeling-in-a-java-rest-service-translate-exceptions-without-changing-the-wire-contract.html</atom:id><atom:link href="https://www.imshubh.com/articles/java/error-modeling-in-a-java-rest-service-translate-exceptions-without-changing-the-wire-contract.html" rel="alternate" /><atom:published>2025-12-28T12:00:00-08:00</atom:published><atom:updated>2025-12-28T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Typed vs untyped error details, and why "helpful" mapping can quietly break your clients</atom:summary><atom:category term="java" /><atom:category term="jakartarest" /><atom:category term="jackson" /><atom:category term="apidesign" /><atom:content type="html">&lt;h2&gt;The problem&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;&lt;strong&gt;Untyped&lt;/strong&gt;: a raw JSON tree (&lt;code&gt;JsonNode&lt;/code&gt;), whatever shape the producer chose.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Typed&lt;/strong&gt;: a Java class or record bound to a fixed schema.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;Principle: translate the status, preserve the details&lt;/h2&gt;
+        &lt;ol&gt;&lt;li&gt;&lt;strong&gt;Map a &lt;code&gt;Throwable&lt;/code&gt; to an HTTP status and message.&lt;/strong&gt; This is policy, and it belongs in one place.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Carry the error details through untouched.&lt;/strong&gt; If the producer's contract is untyped, leave it untyped.&lt;/li&gt;&lt;/ol&gt;
+        &lt;h2&gt;A small translator&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;import com.fasterxml.jackson.databind.JsonNode;
+
+import java.util.NoSuchElementException;
+import java.util.concurrent.TimeoutException;
+
+public final class ApiException extends RuntimeException {
+    private final int status;
+    private final String code;
+    private final JsonNode details;          // untyped on purpose
+
+    public ApiException(int status, String message, String code, JsonNode details, Throwable cause) {
+        super(message, cause);
+        this.status = status;
+        this.code = code;
+        this.details = details;
+    }
+
+    public int status() { return status; }
+    public String code() { return code; }
+    public JsonNode details() { return details; }
+
+    public static ApiException translate(Throwable t) {
+        if (t instanceof ApiException existing) {
+            return existing;                                   // never re-wrap
+        }
+        if (t instanceof IllegalArgumentException) {
+            return new ApiException(400, t.getMessage(), "BAD_REQUEST", null, t);
+        }
+        if (t instanceof NoSuchElementException) {
+            return new ApiException(404, t.getMessage(), "NOT_FOUND", null, t);
+        }
+        if (t instanceof TimeoutException) {
+            return new ApiException(504, "Upstream timeout", "TIMEOUT", null, t);
+        }
+        return new ApiException(500, "Internal error", "INTERNAL", null, t);
+    }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;ul&gt;&lt;li&gt;&lt;strong&gt;Return an existing &lt;code&gt;ApiException&lt;/code&gt; unchanged.&lt;/strong&gt; Wrapping it again discards its status and details.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Hide internals for 500s.&lt;/strong&gt; The message is generic; the cause is kept for server logs.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Keep the mapping table small and tested.&lt;/strong&gt; Every exception type you map is a promise to clients.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;One place to build the response&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.ext.ExceptionMapper;
+import jakarta.ws.rs.ext.Provider;
+
+@Provider
+public class ApiExceptionMapper implements ExceptionMapper&amp;lt;Throwable&amp;gt; {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    @Override
+    public Response toResponse(Throwable t) {
+        ApiException e = ApiException.translate(t);
+        return Response.status(e.status())
+                .type(MediaType.APPLICATION_JSON)
+                .entity(body(e).toString())
+                .build();
+    }
+
+    static ObjectNode body(ApiException e) {
+        ObjectNode node = MAPPER.createObjectNode();
+        node.put("status", e.status());
+        node.put("message", e.getMessage() == null ? "" : e.getMessage());
+        node.put("code", e.code());
+        if (e.details() != null) {
+            node.set("errorDetails", e.details());             // passed through as-is
+        }
+        return node;
+    }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Batch operations need extra care&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;public static &amp;lt;K&amp;gt; Map&amp;lt;K, ApiException&amp;gt; errorsByKey(Map&amp;lt;K, Throwable&amp;gt; failures) {
+    Map&amp;lt;K, ApiException&amp;gt; result = new LinkedHashMap&amp;lt;&amp;gt;();
+    failures.forEach((key, t) -&amp;gt; result.put(key, ApiException.translate(t)));
+    return result;
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Prove the wire does not change&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class ErrorDetailsWireTest {
+
+    private final ObjectMapper mapper = new ObjectMapper();
+
+    record ErrorInfo(String field, String reason) { }
+
+    @Test
+    void untypedDetailsSurviveUnchanged() throws Exception {
+        JsonNode details = mapper.readTree(
+                "{\"field\":\"email\",\"reason\":\"format\",\"custom\":\"kept\"}");
+
+        ApiException e = new ApiException(422, "invalid", "VALIDATION", details, null);
+        JsonNode body = mapper.readTree(ApiExceptionMapper.body(e).toString());
+
+        assertEquals(details, body.get("errorDetails"));
+    }
+
+    @Test
+    void typedConversionLosesUnknownFields() throws Exception {
+        JsonNode details = mapper.readTree(
+                "{\"field\":\"email\",\"reason\":\"format\",\"custom\":\"kept\"}");
+
+        ObjectMapper lenient = new ObjectMapper()
+                .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        JsonNode roundTripped = lenient.valueToTree(lenient.convertValue(details, ErrorInfo.class));
+
+        assertNotEquals(details, roundTripped);               // "custom" is gone
+    }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Status codes are contract too&lt;/h2&gt;
+        &lt;h2&gt;Failure modes&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Typed envelopes rejecting or dropping unknown fields.&lt;/li&gt;&lt;li&gt;Double-wrapping an exception that already has a status.&lt;/li&gt;&lt;li&gt;Whole-batch failure when only one key failed.&lt;/li&gt;&lt;li&gt;Leaking stack traces or internal messages in 500 responses.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;Demo to build&lt;/h2&gt;
+        &lt;h2&gt;Takeaways&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Separate "which status" from "which details".&lt;/li&gt;&lt;li&gt;Do not convert untyped details to typed ones unless you are deliberately versioning the contract.&lt;/li&gt;&lt;li&gt;Add a wire-level test for error responses.&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>The Conversion Gap: From ONNX Export to an Optimized Runtime Format</atom:title><atom:id>https://www.imshubh.com/articles/intel/conversion-gap.html</atom:id><atom:link href="https://www.imshubh.com/articles/intel/conversion-gap.html" rel="alternate" /><atom:published>2025-12-27T12:00:00-08:00</atom:published><atom:updated>2025-12-27T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>A practical path from ONNX to OpenVINO IR: inspect operators, handle conversion gaps, and validate output parity.</atom:summary><atom:category term="intel" /><atom:category term="edgeai" /><atom:content type="html">&lt;p class="article-lede"&gt;Training and production are different environments. Exporting a model to ONNX is a useful boundary, but a production runtime still needs to understand the graph, shapes, operators, and precision choices. Conversion friction is easier to handle when it is planned for instead of discovered at release time.&lt;/p&gt;
         &lt;p&gt;In &lt;code&gt;aceu-edge-infer&lt;/code&gt;, I convert a lightweight classifier from ONNX for use with OpenVINO. One custom activation exposed an operator gap and required a conservative CPU fallback. The demo’s ACE-U output is illustrative, not an evaluation of real people; the model-delivery practices here are the focus.&lt;/p&gt;
         &lt;h2&gt;Check the graph before you convert&lt;/h2&gt;&lt;p&gt;Inspect the ONNX graph, its opset, input names, and shapes. Look for custom operators and operations that may not be supported by the runtime version or target device. If the model has dynamic dimensions, decide which shapes production must support and test those explicitly.&lt;/p&gt;
         &lt;p&gt;OpenVINO can convert supported ONNX models to IR, and it can also read ONNX directly at runtime. Conversion is useful when you want a prepared artifact and predictable model-load behavior; first confirm the format is supported and that conversion solves a real deployment need.&lt;/p&gt;
@@ -1858,7 +2365,62 @@ docker push "$IMAGE"&lt;/code&gt;&lt;/pre&gt;
         &lt;h2&gt;Trade-offs and failure modes&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;strong&gt;Exact pins vs. security updates:&lt;/strong&gt; pins improve repeatability, while scheduled updates and scans keep them current.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Tags vs. digests:&lt;/strong&gt; tags are easier to refresh; digests make the selected base explicit and immutable.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Locks vs. setup time:&lt;/strong&gt; generating a lock adds a step, but saves time when builds need to be compared.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Registry authentication:&lt;/strong&gt; expired tokens or changed scopes should produce an explicit CI failure, not a misleading successful pipeline.&lt;/li&gt;&lt;/ul&gt;
         &lt;h2&gt;Try it in your pipeline&lt;/h2&gt;&lt;ol&gt;&lt;li&gt;Replace floating version ranges with exact direct pins and commit a full lock file.&lt;/li&gt;&lt;li&gt;Pick a base-image policy: tag plus scheduled refresh, or digest plus an explicit update cadence.&lt;/li&gt;&lt;li&gt;Build with &lt;code&gt;--pull&lt;/code&gt; when you want CI to check for updated base images.&lt;/li&gt;&lt;li&gt;Record the image tag or digest produced by CI and inspect its packages when behavior changes.&lt;/li&gt;&lt;/ol&gt;
         &lt;h2&gt;Closing thought&lt;/h2&gt;&lt;p&gt;“Same Dockerfile” rarely guarantees “same runtime.” Lock files, explicit base-image policy, and artifact inspection turn hidden drift into a change the team can review.&lt;/p&gt;
-        &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://docs.docker.com/reference/cli/docker/buildx/build/" target="_blank" rel="noreferrer"&gt;Docker Buildx build options, including &lt;code&gt;--pull&lt;/code&gt; and SBOM attestations&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://docs.docker.com/reference/cli/docker/image/pull/#pull-an-image-by-digest-immutable-identifier" target="_blank" rel="noreferrer"&gt;Pulling an image by immutable digest&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://pip-tools.readthedocs.io/en/latest/" target="_blank" rel="noreferrer"&gt;pip-tools documentation for Python dependency locking&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>Identity Domains: SAML/OIDC federation setup notes</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/identity-domains-saml-oidc-federation-setup-notes.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/identity-domains-saml-oidc-federation-setup-notes.html" rel="alternate" /><atom:published>2025-11-09T12:00:00-08:00</atom:published><atom:updated>2025-11-09T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>What I configure first so an external identity provider works cleanly with OCI.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://docs.docker.com/reference/cli/docker/buildx/build/" target="_blank" rel="noreferrer"&gt;Docker Buildx build options, including &lt;code&gt;--pull&lt;/code&gt; and SBOM attestations&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://docs.docker.com/reference/cli/docker/image/pull/#pull-an-image-by-digest-immutable-identifier" target="_blank" rel="noreferrer"&gt;Pulling an image by immutable digest&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://pip-tools.readthedocs.io/en/latest/" target="_blank" rel="noreferrer"&gt;pip-tools documentation for Python dependency locking&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>JFR as the Default: Enabling Continuous Flight Recording Safely</atom:title><atom:id>https://www.imshubh.com/articles/java/jfr-as-the-default-enabling-continuous-flight-recording-safely.html</atom:id><atom:link href="https://www.imshubh.com/articles/java/jfr-as-the-default-enabling-continuous-flight-recording-safely.html" rel="alternate" /><atom:published>2025-11-14T12:00:00-08:00</atom:published><atom:updated>2025-11-14T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Bounded, always-on recordings you can dump during an incident, and a parser that turns them into flame graph input</atom:summary><atom:category term="java" /><atom:category term="jfr" /><atom:category term="observability" /><atom:category term="profiling" /><atom:content type="html">&lt;h2&gt;Why continuous recording&lt;/h2&gt;
+        &lt;h2&gt;A safe baseline configuration&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;-XX:FlightRecorderOptions=repository=/var/tmp/jfr
+-XX:StartFlightRecording=name=continuous,delay=2m,disk=true,maxage=30m,maxsize=250m,settings=default,dumponexit=true,filename=/var/tmp/jfr/exit.jfr&lt;/code&gt;&lt;/pre&gt;
+        &lt;ul&gt;&lt;li&gt;&lt;code&gt;delay=2m&lt;/code&gt; waits until the application has started and warmed up before recording, so startup noise does not fill your window.&lt;/li&gt;&lt;li&gt;&lt;code&gt;disk=true&lt;/code&gt; writes data to disk, which allows long windows without holding everything in memory.&lt;/li&gt;&lt;li&gt;&lt;code&gt;maxage=30m&lt;/code&gt; and &lt;code&gt;maxsize=250m&lt;/code&gt; bound the recording. The data is discarded when either limit is hit, which is what keeps disk use predictable.&lt;/li&gt;&lt;li&gt;&lt;code&gt;settings=default&lt;/code&gt; selects the standard event template, which is designed to be low overhead. Use the heavier &lt;code&gt;profile&lt;/code&gt; template only for short, targeted sessions.&lt;/li&gt;&lt;li&gt;&lt;code&gt;dumponexit=true&lt;/code&gt; saves the recording when the JVM exits, which helps with crashes and deliberate restarts.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;Capturing data during an incident&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;jcmd &amp;lt;pid&amp;gt; JFR.dump name=continuous filename=/var/tmp/jfr/incident-$(date +%s).jfr&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Defaults per service class&lt;/h2&gt;
+        &lt;h2&gt;Analyze a recording in Java&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;import jdk.jfr.consumer.RecordedEvent;
+import jdk.jfr.consumer.RecordedFrame;
+import jdk.jfr.consumer.RecordedStackTrace;
+import jdk.jfr.consumer.RecordingFile;
+
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.nio.file.Path;
+import java.util.*;
+
+public final class JfrAllocationFolder {
+
+    public static void main(String[] args) throws IOException {
+        Path jfr = Path.of(args[0]);
+        Path out = Path.of(args[1]);
+
+        Map&amp;lt;String, Long&amp;gt; bytesByStack = new HashMap&amp;lt;&amp;gt;();
+
+        for (RecordedEvent event : RecordingFile.readAllEvents(jfr)) {
+            if (!"jdk.ObjectAllocationSample".equals(event.getEventType().getName())) {
+                continue;
+            }
+            RecordedStackTrace trace = event.getStackTrace();
+            if (trace == null) {
+                continue;
+            }
+            List&amp;lt;RecordedFrame&amp;gt; frames = trace.getFrames();
+            List&amp;lt;String&amp;gt; names = new ArrayList&amp;lt;&amp;gt;();
+            for (int i = frames.size() - 1; i &amp;gt;= 0; i--) {         // root first
+                var method = frames.get(i).getMethod();
+                names.add(method.getType().getName() + "." + method.getName());
+            }
+            String key = String.join(";", names);
+            bytesByStack.merge(key, event.getLong("weight"), Long::sum);
+        }
+
+        try (PrintWriter w = new PrintWriter(out.toFile())) {
+            bytesByStack.forEach((stack, bytes) -&amp;gt; w.println(stack + " " + bytes));
+        }
+    }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Gate your visualizations&lt;/h2&gt;
+        &lt;h2&gt;Failure modes&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;&lt;strong&gt;Oversized recordings.&lt;/strong&gt; Always set &lt;code&gt;maxage&lt;/code&gt; and &lt;code&gt;maxsize&lt;/code&gt;.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Mismatched JDK versions.&lt;/strong&gt; A recording from one JDK may not parse with a very different tool version. Keep your analysis tools at or above the JDK you run.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Using the heavy template by default.&lt;/strong&gt; Reserve &lt;code&gt;profile&lt;/code&gt; for short investigations.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;No access plan.&lt;/strong&gt; Decide in advance who can dump recordings and where they are stored, because recordings can contain sensitive data such as stack traces and thread names.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;Demo to build&lt;/h2&gt;
+        &lt;h2&gt;Takeaways&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Continuous JFR is safe when it is bounded by age and size.&lt;/li&gt;&lt;li&gt;Dump on demand with &lt;code&gt;jcmd&lt;/code&gt; and analyze with the consumer API or a flame graph.&lt;/li&gt;&lt;li&gt;Verify that data exists before visualizing it.&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Identity Domains: SAML/OIDC federation setup notes</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/identity-domains-saml-oidc-federation-setup-notes.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/identity-domains-saml-oidc-federation-setup-notes.html" rel="alternate" /><atom:published>2025-11-09T12:00:00-08:00</atom:published><atom:updated>2025-11-09T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>What I configure first so an external identity provider works cleanly with OCI.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
 &lt;p&gt;Most teams already have an identity provider such as Entra ID (formerly Azure AD) or Okta, and nobody wants a second set of passwords for the cloud console. Federation solves that, but a careless setup can lock out administrators or leave group membership drifting away from what the IdP says.&lt;/p&gt;
 &lt;p&gt;I wanted a repeatable order of operations that keeps a way back in at every step.&lt;/p&gt;
 &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
@@ -1959,7 +2521,73 @@ time docker build -t demo/app:dev .&lt;/code&gt;&lt;/pre&gt;
 &lt;h2&gt;One honest limitation&lt;/h2&gt;
 &lt;p&gt;The delay before membership changes take effect can surprise a rollout. I stage the change, test that the policy works for the new instances, and only then retire the old rule.&lt;/p&gt;
 &lt;h2&gt;Sources&lt;/h2&gt;
-&lt;ul&gt;&lt;li&gt;OCI Documentation: Managing Dynamic Groups (matching rules)&lt;/li&gt;&lt;li&gt;OCI Documentation: Tagging Overview&lt;/li&gt;&lt;li&gt;OCI Documentation: Calling Services from an Instance&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Least-privilege IAM policies for workloads (compartment-first)</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/least-privilege-iam-policies-for-workloads-compartment-first.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/least-privilege-iam-policies-for-workloads-compartment-first.html" rel="alternate" /><atom:published>2025-09-26T12:00:00-07:00</atom:published><atom:updated>2025-09-26T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>The policy patterns I reach for to keep OCI access narrow, readable and easy to audit.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+&lt;ul&gt;&lt;li&gt;OCI Documentation: Managing Dynamic Groups (matching rules)&lt;/li&gt;&lt;li&gt;OCI Documentation: Tagging Overview&lt;/li&gt;&lt;li&gt;OCI Documentation: Calling Services from an Instance&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>G1 vs ZGC at JDK 17+: Choosing a Collector and Sizing the Heap</atom:title><atom:id>https://www.imshubh.com/articles/java/g1-vs-zgc-at-jdk-17-choosing-a-collector-and-sizing-the-heap.html</atom:id><atom:link href="https://www.imshubh.com/articles/java/g1-vs-zgc-at-jdk-17-choosing-a-collector-and-sizing-the-heap.html" rel="alternate" /><atom:published>2025-10-01T12:00:00-07:00</atom:published><atom:updated>2025-10-01T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>When G1 still wins, what ZGC costs in memory and CPU, and how to measure it yourself</atom:summary><atom:category term="java" /><atom:category term="garbagecollection" /><atom:category term="zgc" /><atom:category term="g1" /><atom:content type="html">&lt;h2&gt;What each collector optimizes&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;&lt;strong&gt;G1&lt;/strong&gt; is the default collector since JDK 9. It balances throughput and pause time, and works well across a wide range of heap sizes.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;ZGC&lt;/strong&gt; is built for low pause times that stay short regardless of heap size, using concurrent work. On JDK 17 it is non-generational, so it examines the whole heap each cycle. JDK 21 added a generational mode (JEP 439), which lowers memory and CPU overhead compared with the single-generation version &lt;a href="https://openjdk.org/jeps/439" target="_blank" rel="noreferrer"&gt;JEP 439&lt;/a&gt;.&lt;/li&gt;&lt;/ul&gt;
+        &lt;pre&gt;&lt;code&gt;# JDK 17
+-XX:+UseG1GC
+-XX:+UseZGC
+
+# JDK 21+ (generational ZGC)
+-XX:+UseZGC -XX:+ZGenerational&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Where the cost shows up&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;&lt;strong&gt;Plan for more memory when upgrading.&lt;/strong&gt; Moving a service from G1 on an older JDK to ZGC can require a noticeably bigger heap and more native memory. Budget for it in your container limits, or the kernel's OOM killer will make the decision for you.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Watch RSS, not just heap.&lt;/strong&gt; Total process memory includes metaspace, thread stacks, code cache, GC data structures, and direct buffers. A container limit equal to &lt;code&gt;-Xmx&lt;/code&gt; is almost always too small.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;When G1 still wins&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Small to medium heaps where G1 pauses are already well inside your latency budget.&lt;/li&gt;&lt;li&gt;Throughput-oriented batch jobs, where a few longer pauses cost less than constant concurrent overhead.&lt;/li&gt;&lt;li&gt;CPU-constrained containers with very few cores, since concurrent GC threads need cores to run on.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;When ZGC is worth it&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Large heaps or strict tail-latency targets where G1's pauses show up in your p99.&lt;/li&gt;&lt;li&gt;Services with enough spare CPU and memory to give the collector room.&lt;/li&gt;&lt;li&gt;Workloads where a measured test shows fewer long pauses and no allocation stalls.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;Heap sizing rules of thumb&lt;/h2&gt;
+        &lt;ol&gt;&lt;li&gt;Measure the &lt;strong&gt;live set&lt;/strong&gt; (memory still reachable after a full collection) from GC logs.&lt;/li&gt;&lt;li&gt;Start with a heap at roughly 2x to 3x the live set for concurrent collectors, then adjust from measurement.&lt;/li&gt;&lt;li&gt;Set &lt;code&gt;-Xms&lt;/code&gt; equal to &lt;code&gt;-Xmx&lt;/code&gt; for steady services, to avoid resize pauses.&lt;/li&gt;&lt;li&gt;Keep the container limit well above &lt;code&gt;-Xmx&lt;/code&gt; to leave room for native memory.&lt;/li&gt;&lt;li&gt;Always turn on GC logging in production:&lt;/li&gt;&lt;/ol&gt;
+        &lt;pre&gt;&lt;code&gt;-Xlog:gc*:file=/var/log/app/gc.log:time,uptime,level,tags:filecount=5,filesize=20m&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;A load generator you can run&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
+
+public final class AllocationLoad {
+
+    public static void main(String[] args) {
+        int cacheEntries = Integer.parseInt(args.length &amp;gt; 0 ? args[0] : "2000000");
+        int operations   = Integer.parseInt(args.length &amp;gt; 1 ? args[1] : "5000000");
+
+        Map&amp;lt;Integer, byte[]&amp;gt; cache = new HashMap&amp;lt;&amp;gt;();
+        for (int i = 0; i &amp;lt; cacheEntries; i++) {
+            cache.put(i, new byte[64]);                       // long-lived data
+        }
+
+        long[] latencyNanos = new long[operations];
+        ThreadLocalRandom rnd = ThreadLocalRandom.current();
+
+        for (int i = 0; i &amp;lt; operations; i++) {
+            long start = System.nanoTime();
+
+            byte[] shortLived = new byte[512 + rnd.nextInt(2048)];     // garbage
+            shortLived[0] = 1;
+            if ((i &amp;amp; 0x3FF) == 0) {                                    // occasional churn in the cache
+                cache.put(rnd.nextInt(cacheEntries), new byte[64]);
+            }
+            blackhole += shortLived.length;
+
+            latencyNanos[i] = System.nanoTime() - start;
+        }
+
+        Arrays.sort(latencyNanos);
+        System.out.printf("p50=%dus p99=%dus p99.9=%dus max=%dus%n",
+                latencyNanos[operations / 2] / 1_000,
+                latencyNanos[(int) (operations * 0.99)] / 1_000,
+                latencyNanos[(int) (operations * 0.999)] / 1_000,
+                latencyNanos[operations - 1] / 1_000);
+    }
+
+    static volatile long blackhole;
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;pre&gt;&lt;code&gt;for heap in 2g 4g 8g; do
+  java -Xms$heap -Xmx$heap -XX:+UseG1GC  -Xlog:gc*:file=g1-$heap.log  AllocationLoad
+  java -Xms$heap -Xmx$heap -XX:+UseZGC   -Xlog:gc*:file=zgc-$heap.log AllocationLoad
+done&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;What to chart&lt;/h2&gt;
+        &lt;h2&gt;Failure modes&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;A heap sized to the old collector's needs, causing allocation stalls under ZGC.&lt;/li&gt;&lt;li&gt;A container limit too close to the heap size, causing out-of-memory kills from native memory.&lt;/li&gt;&lt;li&gt;Judging by averages. GC problems live in the tail.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;Takeaways&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;ZGC reduces pauses by spending CPU and memory. G1 remains a strong default.&lt;/li&gt;&lt;li&gt;Size the heap from the measured live set, and size the container from RSS.&lt;/li&gt;&lt;li&gt;Decide with your own tail-latency numbers, not slogans.&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Least-privilege IAM policies for workloads (compartment-first)</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/least-privilege-iam-policies-for-workloads-compartment-first.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/least-privilege-iam-policies-for-workloads-compartment-first.html" rel="alternate" /><atom:published>2025-09-26T12:00:00-07:00</atom:published><atom:updated>2025-09-26T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>The policy patterns I reach for to keep OCI access narrow, readable and easy to audit.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
 &lt;p&gt;IAM policies tend to grow the same way: someone is blocked, someone writes a broad statement to unblock them, and that statement lives forever. Tenancy-wide grants and &amp;quot;manage all-resources&amp;quot; lines are the usual result, and they are hard to walk back once other things depend on them.&lt;/p&gt;
 &lt;p&gt;I wanted a default that is easy to follow under time pressure. Scope every statement to a compartment, name the resource family, and pick the verb that matches the job.&lt;/p&gt;
 &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
@@ -2074,7 +2702,66 @@ docker stats --no-stream&lt;/code&gt;&lt;/pre&gt;
         &lt;h2&gt;One honest limitation&lt;/h2&gt;
         &lt;p&gt;Healthchecks add startup time, and a heavy check makes it worse. Keep them to a cheap probe, and remember that a limit set too low turns a slow job into an out-of-memory kill.&lt;/p&gt;
         &lt;h2&gt;Sources&lt;/h2&gt;
-        &lt;ul&gt;&lt;li&gt;Docker Docs: Control startup and shutdown order in Compose&lt;/li&gt;&lt;li&gt;Docker Docs: Using profiles with Compose&lt;/li&gt;&lt;li&gt;Docker Docs: Compose deploy specification (resources)&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Using OCI Instance Principals without leaking credentials</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/using-oci-instance-principals-without-leaking-credentials.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/using-oci-instance-principals-without-leaking-credentials.html" rel="alternate" /><atom:published>2025-08-19T12:00:00-07:00</atom:published><atom:updated>2025-08-19T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How I let workloads call OCI APIs with no API keys on disk, and keep the blast radius small.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Docker Docs: Control startup and shutdown order in Compose&lt;/li&gt;&lt;li&gt;Docker Docs: Using profiles with Compose&lt;/li&gt;&lt;li&gt;Docker Docs: Compose deploy specification (resources)&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Java 8 to 17 in a Multi-Module Build: Migrate Producers Without Breaking Consumers</atom:title><atom:id>https://www.imshubh.com/articles/java/java-8-to-17-in-a-multi-module-build-migrate-producers-without-breaking-consumers.html</atom:id><atom:link href="https://www.imshubh.com/articles/java/java-8-to-17-in-a-multi-module-build-migrate-producers-without-breaking-consumers.html" rel="alternate" /><atom:published>2025-08-20T12:00:00-07:00</atom:published><atom:updated>2025-08-20T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Using `--release`, Gradle toolchains, and a bytecode gate to upgrade one module at a time</atom:summary><atom:category term="java" /><atom:category term="java17" /><atom:category term="gradle" /><atom:category term="migration" /><atom:content type="html">&lt;h2&gt;The problem: producers and consumers upgrade at different speeds&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;A producer compiles with JDK 17 and publishes Java 17 class files (major version 61). A consumer on JDK 11 (which reads up to major version 55) gets &lt;code&gt;UnsupportedClassVersionError&lt;/code&gt;.&lt;/li&gt;&lt;li&gt;Gradle notices first. Each published variant declares the Java version it supports, and a consumer asking for Java 11 refuses a Java 17 variant with an "incompatible" resolution error.&lt;/li&gt;&lt;li&gt;Hidden transitive dependencies or build plugins still assume Java 8 and fail on a newer toolchain.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;The pattern: build with the new JDK, target the old bytecode&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;// build.gradle.kts (producer library)
+plugins { `java-library` }
+
+java {
+    toolchain { languageVersion.set(JavaLanguageVersion.of(17)) }   // compile with JDK 17
+}
+
+tasks.withType&amp;lt;JavaCompile&amp;gt;().configureEach {
+    options.release.set(11)    // emit Java 11 bytecode and restrict APIs to Java 11
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;ul&gt;&lt;li&gt;It sets the class-file version, so consumers on Java 11 can load the jar.&lt;/li&gt;&lt;li&gt;It limits you to the Java 11 API surface, so you cannot accidentally call a Java 17-only method. With plain &lt;code&gt;-source/-target&lt;/code&gt; you could compile against JDK 17's class library and fail at runtime on an older JVM.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;The consumer side&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;// build.gradle.kts (consumer app)
+java { toolchain { languageVersion.set(JavaLanguageVersion.of(11)) } }
+dependencies { implementation(project(":producer")) }   // or a published artifact&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;A rollout sequence that works&lt;/h2&gt;
+        &lt;ol&gt;&lt;li&gt;&lt;strong&gt;Inventory consumers&lt;/strong&gt;, including transitive ones. This step catches most surprises. Search your dependency graph, not just your team's repos.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Unlock producers&lt;/strong&gt; with the toolchain and &lt;code&gt;release&lt;/code&gt; pattern above. Nothing changes for consumers.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Gate CI&lt;/strong&gt; so no module accidentally publishes newer bytecode than planned (see below).&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Upgrade consumers&lt;/strong&gt; one at a time, starting with leaf services.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Raise &lt;code&gt;release&lt;/code&gt;&lt;/strong&gt; in producers once nobody depends on the older level.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Upgrade build plugins early.&lt;/strong&gt; Old Gradle plugins and annotation processors are the most common blockers.&lt;/li&gt;&lt;/ol&gt;
+        &lt;h2&gt;Enforce it with a bytecode gate&lt;/h2&gt;
+        &lt;pre&gt;&lt;code&gt;import java.io.DataInputStream;
+import java.io.IOException;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+
+public final class BytecodeLevelCheck {
+
+    public static void main(String[] args) throws IOException {
+        String jarPath = args[0];
+        int maxMajor = Integer.parseInt(args[1]);
+        int worst = 0;
+
+        try (ZipFile zip = new ZipFile(jarPath)) {
+            var entries = zip.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                if (!entry.getName().endsWith(".class") || entry.getName().startsWith("META-INF/versions/")) {
+                    continue;
+                }
+                try (var in = new DataInputStream(zip.getInputStream(entry))) {
+                    in.readInt();                       // magic 0xCAFEBABE
+                    in.readUnsignedShort();             // minor
+                    worst = Math.max(worst, in.readUnsignedShort());   // major
+                }
+            }
+        }
+        if (worst &amp;gt; maxMajor) {
+            System.err.println("Bytecode major " + worst + " exceeds allowed " + maxMajor);
+            System.exit(1);
+        }
+        System.out.println("OK: highest major version " + worst);
+    }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Reproducing the problem in a toy project&lt;/h2&gt;
+        &lt;h2&gt;Failure modes to expect&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;A dependency compiled for Java 8 that uses internal APIs removed in later JDKs.&lt;/li&gt;&lt;li&gt;Build plugins that read JDK internals reflectively and break on newer versions (look for &lt;code&gt;InaccessibleObjectException&lt;/code&gt;).&lt;/li&gt;&lt;li&gt;Containers and JVM flags: some legacy GC flags are removed or ignored after Java 8, so audit your startup options.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;What you gain&lt;/h2&gt;
+        &lt;h2&gt;Takeaways&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Separate the compile JDK from the bytecode target with a toolchain plus &lt;code&gt;options.release&lt;/code&gt;.&lt;/li&gt;&lt;li&gt;Inventory transitive consumers first, because the graph decides your pace.&lt;/li&gt;&lt;li&gt;Add a bytecode gate to CI so a policy becomes a failing build.&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Using OCI Instance Principals without leaking credentials</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/using-oci-instance-principals-without-leaking-credentials.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/using-oci-instance-principals-without-leaking-credentials.html" rel="alternate" /><atom:published>2025-08-19T12:00:00-07:00</atom:published><atom:updated>2025-08-19T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How I let workloads call OCI APIs with no API keys on disk, and keep the blast radius small.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
 &lt;p&gt;Every OCI SDK sample starts the same way: drop an API key and a config file on the host. That is fine on a laptop. On a fleet of compute instances it becomes a quiet liability, because those keys never expire on their own, they get copied into images, and nobody remembers which ones are still in use.&lt;/p&gt;
 &lt;p&gt;Instance principals remove that whole class of problem. The instance proves who it is with a certificate that OCI issues and rotates for it, and IAM decides what it may do through a dynamic group and a policy. There is nothing to ship, nothing to rotate by hand, and nothing to leak from a config file.&lt;/p&gt;
 &lt;h2&gt;Options and trade-offs&lt;/h2&gt;

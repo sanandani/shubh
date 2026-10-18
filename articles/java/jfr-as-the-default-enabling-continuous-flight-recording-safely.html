@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Bounded, always-on recordings you can dump during an incident, and a parser that turns them into flame graph input" />
+    <title>JFR as the Default: Enabling Continuous Flight Recording Safely — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/java/jfr-as-the-default-enabling-continuous-flight-recording-safely.html" />
+    <meta property="article:published_time" content="2025-11-14T12:00:00-08:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="JFR as the Default: Enabling Continuous Flight Recording Safely" />
+    <meta property="og:description" content="Bounded, always-on recordings you can dump during an incident, and a parser that turns them into flame graph input" />
+    <meta property="og:url" content="https://www.imshubh.com/articles/java/jfr-as-the-default-enabling-continuous-flight-recording-safely.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="java" />
+    <meta property="article:tag" content="jfr" />
+    <meta property="article:tag" content="observability" />
+    <meta property="article:tag" content="profiling" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"JFR as the Default: Enabling Continuous Flight Recording Safely","datePublished":"2025-11-14T12:00:00-08:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"Bounded, always-on recordings you can dump during an incident, and a parser that turns them into flame graph input","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/java/jfr-as-the-default-enabling-continuous-flight-recording-safely.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#java">← Java articles</a>
+      <header class="article-document-header"><p class="kicker">Java notes</p><h1>JFR as the Default: Enabling Continuous Flight Recording Safely</h1><p class="article-deck">Bounded, always-on recordings you can dump during an incident, and a parser that turns them into flame graph input</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2025-11-14T12:00:00-08:00">Published November 14, 2025</time><span>·</span><span>~9 min read</span></div></header>
+      <div class="article-prose"><h2>Why continuous recording</h2>
+        <h2>A safe baseline configuration</h2>
+        <pre><code>-XX:FlightRecorderOptions=repository=/var/tmp/jfr
+-XX:StartFlightRecording=name=continuous,delay=2m,disk=true,maxage=30m,maxsize=250m,settings=default,dumponexit=true,filename=/var/tmp/jfr/exit.jfr</code></pre>
+        <ul><li><code>delay=2m</code> waits until the application has started and warmed up before recording, so startup noise does not fill your window.</li><li><code>disk=true</code> writes data to disk, which allows long windows without holding everything in memory.</li><li><code>maxage=30m</code> and <code>maxsize=250m</code> bound the recording. The data is discarded when either limit is hit, which is what keeps disk use predictable.</li><li><code>settings=default</code> selects the standard event template, which is designed to be low overhead. Use the heavier <code>profile</code> template only for short, targeted sessions.</li><li><code>dumponexit=true</code> saves the recording when the JVM exits, which helps with crashes and deliberate restarts.</li></ul>
+        <h2>Capturing data during an incident</h2>
+        <pre><code>jcmd &lt;pid&gt; JFR.dump name=continuous filename=/var/tmp/jfr/incident-$(date +%s).jfr</code></pre>
+        <h2>Defaults per service class</h2>
+        <h2>Analyze a recording in Java</h2>
+        <pre><code>import jdk.jfr.consumer.RecordedEvent;
+import jdk.jfr.consumer.RecordedFrame;
+import jdk.jfr.consumer.RecordedStackTrace;
+import jdk.jfr.consumer.RecordingFile;
+
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.nio.file.Path;
+import java.util.*;
+
+public final class JfrAllocationFolder {
+
+    public static void main(String[] args) throws IOException {
+        Path jfr = Path.of(args[0]);
+        Path out = Path.of(args[1]);
+
+        Map&lt;String, Long&gt; bytesByStack = new HashMap&lt;&gt;();
+
+        for (RecordedEvent event : RecordingFile.readAllEvents(jfr)) {
+            if (!"jdk.ObjectAllocationSample".equals(event.getEventType().getName())) {
+                continue;
+            }
+            RecordedStackTrace trace = event.getStackTrace();
+            if (trace == null) {
+                continue;
+            }
+            List&lt;RecordedFrame&gt; frames = trace.getFrames();
+            List&lt;String&gt; names = new ArrayList&lt;&gt;();
+            for (int i = frames.size() - 1; i &gt;= 0; i--) {         // root first
+                var method = frames.get(i).getMethod();
+                names.add(method.getType().getName() + "." + method.getName());
+            }
+            String key = String.join(";", names);
+            bytesByStack.merge(key, event.getLong("weight"), Long::sum);
+        }
+
+        try (PrintWriter w = new PrintWriter(out.toFile())) {
+            bytesByStack.forEach((stack, bytes) -&gt; w.println(stack + " " + bytes));
+        }
+    }
+}</code></pre>
+        <h2>Gate your visualizations</h2>
+        <h2>Failure modes</h2>
+        <ul><li><strong>Oversized recordings.</strong> Always set <code>maxage</code> and <code>maxsize</code>.</li><li><strong>Mismatched JDK versions.</strong> A recording from one JDK may not parse with a very different tool version. Keep your analysis tools at or above the JDK you run.</li><li><strong>Using the heavy template by default.</strong> Reserve <code>profile</code> for short investigations.</li><li><strong>No access plan.</strong> Decide in advance who can dump recordings and where they are stored, because recordings can contain sensitive data such as stack traces and thread names.</li></ul>
+        <h2>Demo to build</h2>
+        <h2>Takeaways</h2>
+        <ul><li>Continuous JFR is safe when it is bounded by age and size.</li><li>Dump on demand with <code>jcmd</code> and analyze with the consumer API or a flame graph.</li><li>Verify that data exists before visualizing it.</li></ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

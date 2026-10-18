@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Resource paths, dependency locking, and byte-for-byte reproducible jars" />
+    <title>Reproducible Gradle Builds: Why It Passes Locally and Fails in CI — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/java/reproducible-gradle-builds-why-it-passes-locally-and-fails-in-ci.html" />
+    <meta property="article:published_time" content="2026-05-07T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Reproducible Gradle Builds: Why It Passes Locally and Fails in CI" />
+    <meta property="og:description" content="Resource paths, dependency locking, and byte-for-byte reproducible jars" />
+    <meta property="og:url" content="https://www.imshubh.com/articles/java/reproducible-gradle-builds-why-it-passes-locally-and-fails-in-ci.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="java" />
+    <meta property="article:tag" content="gradle" />
+    <meta property="article:tag" content="build" />
+    <meta property="article:tag" content="reproduciblebuilds" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Reproducible Gradle Builds: Why It Passes Locally and Fails in CI","datePublished":"2026-05-07T12:00:00-07:00","author":{"@type":"Person","name":"Shubham Anandani","url":"https://www.imshubh.com/"},"image":"https://www.imshubh.com/assets/shubham-anandani.jpg","description":"Resource paths, dependency locking, and byte-for-byte reproducible jars","mainEntityOfPage":{"@type":"WebPage","@id":"https://www.imshubh.com/articles/java/reproducible-gradle-builds-why-it-passes-locally-and-fails-in-ci.html"}}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#java">← Java articles</a>
+      <header class="article-document-header"><p class="kicker">Java notes</p><h1>Reproducible Gradle Builds: Why It Passes Locally and Fails in CI</h1><p class="article-deck">Resource paths, dependency locking, and byte-for-byte reproducible jars</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-05-07T12:00:00-07:00">Published May 7, 2026</time><span>·</span><span>~9 min read</span></div></header>
+      <div class="article-prose"><h2>The classic trap: files outside the classpath</h2>
+        <pre><code>// Works from an IDE or the repo root; breaks in CI or when packaged
+String json = Files.readString(Path.of("config/app-manifest.json"));</code></pre>
+        <pre><code>try (InputStream in = AppManifest.class.getResourceAsStream("/manifests/app-manifest.json")) {
+    if (in == null) {
+        throw new IllegalStateException("Missing classpath resource: /manifests/app-manifest.json");
+    }
+    return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+}</code></pre>
+        <h2>Fail the build when packaging is wrong</h2>
+        <pre><code>// build.gradle.kts
+val verifyManifest by tasks.registering {
+    dependsOn(tasks.jar)
+    doLast {
+        val jarFile = tasks.jar.get().archiveFile.get().asFile
+        java.util.zip.ZipFile(jarFile).use { zip -&gt;
+            check(zip.getEntry("manifests/app-manifest.json") != null) {
+                "manifests/app-manifest.json missing from ${jarFile.name}"
+            }
+        }
+    }
+}
+tasks.check { dependsOn(verifyManifest) }</code></pre>
+        <h2>Avoid classpath hacks in tests</h2>
+        <h2>Pin dependencies</h2>
+        <pre><code># gradle/libs.versions.toml
+[versions]
+junit = "5.10.2"
+
+[libraries]
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }</code></pre>
+        <pre><code>dependencyLocking { lockAllConfigurations() }</code></pre>
+        <pre><code>./gradlew dependencies --write-locks      # create or update lock files</code></pre>
+        <h2>Make the output reproducible</h2>
+        <pre><code>tasks.withType&lt;AbstractArchiveTask&gt;().configureEach {
+    isPreserveFileTimestamps = false
+    isReproducibleFileOrder = true
+}</code></pre>
+        <pre><code>./gradlew clean jar &amp;&amp; sha256sum build/libs/*.jar &gt; first.sum
+./gradlew clean jar &amp;&amp; sha256sum build/libs/*.jar &gt; second.sum
+diff first.sum second.sum &amp;&amp; echo "reproducible"</code></pre>
+        <h2>A repeatable CI parity checklist</h2>
+        <ol><li>Use the Gradle wrapper, and commit the wrapper files.</li><li>Pin the JDK with a toolchain.</li><li>Commit dependency lock files.</li><li>Run <code>./gradlew clean build</code> locally from a clean checkout before pushing.</li><li>Fail the build on missing resources, as shown above.</li><li>Compare artifact checksums between two builds periodically.</li></ol>
+        <h2>Demo to build</h2>
+        <h2>Failure modes</h2>
+        <ul><li>Resources loaded by file path instead of classpath.</li><li>Floating dependency versions such as <code>1.+</code> or <code>latest</code>.</li><li>Tests that pass only because of leftover files in a local <code>build</code> directory (always test after <code>clean</code>).</li><li>Build plugins and tools that differ between developer machines and CI.</li></ul>
+        <h2>Takeaways</h2>
+        <ul><li>Load files from the classpath, and fail loudly when they are missing.</li><li>Pin dependencies and the JDK so two builds mean the same thing.</li><li>Make archives reproducible and prove it with a checksum comparison.</li></ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

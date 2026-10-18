@@ -43,7 +43,7 @@ config = oci.config.from_file()
 language = oci.ai_language.AIServiceLanguageClient(config)
  
 doc = oci.ai_language.models.TextDocument(
-    key="ticket-1042", text=ticket_text, language_code="en")
+    key="example-document", text=ticket_text, language_code="en")
  
 resp = language.batch_detect_language_pii_entities(
     oci.ai_language.models.BatchDetectLanguagePiiEntitiesDetails(
