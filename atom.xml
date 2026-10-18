@@ -1,5 +1,73 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<atom:feed xmlns:atom="http://www.w3.org/2005/Atom"><atom:title>Shubham Anandani — Writing</atom:title><atom:id>https://www.imshubh.com/blog.html</atom:id><atom:updated>2026-10-16T12:00:00-07:00</atom:updated><atom:link href="https://www.imshubh.com/atom.xml" rel="self" type="application/atom+xml" /><atom:link href="https://www.imshubh.com/blog.html" rel="alternate" /><atom:entry><atom:title>Compartment design and movement: policy implications</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/compartment-design-and-movement-policy-implications.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/compartment-design-and-movement-policy-implications.html" rel="alternate" /><atom:published>2026-10-16T12:00:00-07:00</atom:published><atom:updated>2026-10-16T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How I structure compartments so access stays predictable when one has to move.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+<atom:feed xmlns:atom="http://www.w3.org/2005/Atom"><atom:title>Shubham Anandani — Writing</atom:title><atom:id>https://www.imshubh.com/blog.html</atom:id><atom:updated>2026-10-17T12:00:00-07:00</atom:updated><atom:link href="https://www.imshubh.com/atom.xml" rel="self" type="application/atom+xml" /><atom:link href="https://www.imshubh.com/blog.html" rel="alternate" /><atom:entry><atom:title>Restart-safe stream jobs in containers: checkpoints and idempotent writes</atom:title><atom:id>https://www.imshubh.com/articles/docker/restart-safe-stream-jobs-in-containers.html</atom:id><atom:link href="https://www.imshubh.com/articles/docker/restart-safe-stream-jobs-in-containers.html" rel="alternate" /><atom:published>2026-10-17T12:00:00-07:00</atom:published><atom:updated>2026-10-17T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How to make a containerised stream-processing job survive restarts without duplicates or lost work, with a runnable Java sketch.</atom:summary><atom:category term="docker" /><atom:category term="containers" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;Stream jobs are different from stateless APIs. They carry progress, they read from an offset, and they have to pick up cleanly after a restart. In a container platform, restarts are routine, not exceptional. If a restart changes your output, the job does not really own its state. Two ideas fix most of this: store progress outside the process, and make every write safe to repeat.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Keep progress in memory: fast, and all progress is lost on restart.&lt;/li&gt;&lt;li&gt;Checkpoint after every record: safest, but the overhead can dominate.&lt;/li&gt;&lt;li&gt;Checkpoint on a bounded interval and make writes idempotent: a crash replays a little work, and the replay changes nothing.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;My recommendation&lt;/h2&gt;
+        &lt;p&gt;Write idempotent upserts keyed by a stable record ID, store the checkpoint atomically, and on startup resume from the last checkpoint. Treat exactly-once as a goal you approach by combining at-least-once delivery with idempotent effects.&lt;/p&gt;
+        &lt;h2&gt;Worked example&lt;/h2&gt;
+        &lt;p&gt;The sketch below has no dependencies. It simulates a crash in the middle of a run, then restarts from the checkpoint. The replayed records are written again, but the output does not change.&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;import java.io.IOException;
+import java.nio.file.*;
+import java.util.*;
+
+public class IdempotentJob {
+
+    record Event(String id, long offset, String value) { }
+
+    static final Path CHECKPOINT = Path.of("checkpoint.txt");
+    static final Map&amp;lt;String, String&amp;gt; sink = new TreeMap&amp;lt;&amp;gt;();   // upsert by id
+
+    static long readCheckpoint() throws IOException {
+        return Files.exists(CHECKPOINT) ? Long.parseLong(Files.readString(CHECKPOINT).strip()) : 0L;
+    }
+
+    static void writeCheckpoint(long offset) throws IOException {
+        Path tmp = Path.of("checkpoint.tmp");
+        Files.writeString(tmp, Long.toString(offset));
+        Files.move(tmp, CHECKPOINT, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+    }
+
+    static void run(List&amp;lt;Event&amp;gt; source, long crashAfterOffset) throws IOException {
+        long start = readCheckpoint();
+        int sinceCheckpoint = 0;
+        for (Event e : source) {
+            if (e.offset() &amp;lt; start) continue;
+            sink.put(e.id(), e.value());                 // idempotent: same key, same value
+            if (++sinceCheckpoint == 5) {
+                writeCheckpoint(e.offset() + 1);
+                sinceCheckpoint = 0;
+            }
+            if (e.offset() == crashAfterOffset) {
+                throw new IllegalStateException("simulated crash at offset " + e.offset());
+            }
+        }
+        writeCheckpoint(source.size());
+    }
+
+    public static void main(String[] args) throws IOException {
+        Files.deleteIfExists(CHECKPOINT);
+        List&amp;lt;Event&amp;gt; source = new ArrayList&amp;lt;&amp;gt;();
+        for (int i = 0; i &amp;lt; 20; i++) source.add(new Event("evt-" + i, i, "value-" + i));
+
+        try {
+            run(source, 7);                              // crashes mid-run
+        } catch (IllegalStateException crash) {
+            System.out.println(crash.getMessage() + ", resuming from " + readCheckpoint());
+        }
+        run(source, -1);                                 // restart: replays 5..7, then finishes
+        System.out.println("records in sink = " + sink.size());   // 20, not 23
+    }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;In a container, the checkpoint file would live on a volume or, better, in an external store, so it survives the container being replaced. The same idea applies when the source is a message broker with committed offsets and the sink supports upserts or transactions.&lt;/p&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ol&gt;&lt;li&gt;Persist progress outside the container.&lt;/li&gt;&lt;li&gt;Write the checkpoint atomically, so a crash never leaves it half-written.&lt;/li&gt;&lt;li&gt;Key writes by a stable ID, and make repeating them harmless.&lt;/li&gt;&lt;li&gt;On startup, read the checkpoint and resume, and log what you recovered without logging payloads.&lt;/li&gt;&lt;li&gt;Pace catch-up after an outage with bounded batches and concurrency.&lt;/li&gt;&lt;li&gt;Test by killing the process mid-run and comparing the output with an uninterrupted run.&lt;/li&gt;&lt;/ol&gt;
+        &lt;h2&gt;Where this doesn&amp;#x27;t apply&lt;/h2&gt;
+        &lt;p&gt;This sketch is single-threaded with an in-memory sink, to show the mechanics. Real jobs also need partitioning, ordering guarantees per key, and a sink that is itself durable.&lt;/p&gt;
+        &lt;h2&gt;One honest limitation&lt;/h2&gt;
+        &lt;p&gt;Idempotency limits what a write can be. Operations like incrementing a counter are not safe to repeat, so they need a composite key, a version, or a transactional sink to be handled correctly.&lt;/p&gt;
+        &lt;h2&gt;Sources&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Apache Kafka Documentation: Message delivery semantics&lt;/li&gt;&lt;li&gt;Oracle Java Documentation: java.nio.file.Files.move (atomic move)&lt;/li&gt;&lt;li&gt;Docker Docs: Volumes&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Compartment design and movement: policy implications</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/compartment-design-and-movement-policy-implications.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/compartment-design-and-movement-policy-implications.html" rel="alternate" /><atom:published>2026-10-16T12:00:00-07:00</atom:published><atom:updated>2026-10-16T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How I structure compartments so access stays predictable when one has to move.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
 &lt;p&gt;Compartments split resources and policy scope, and the layout you choose on day one is hard to change quietly. When a compartment moves, the set of policies that apply to it can change with it, and people can gain or lose access without anyone editing a statement.&lt;/p&gt;
 &lt;p&gt;I wanted a hierarchy that makes moves boring and lets me check the result afterwards.&lt;/p&gt;
 &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
@@ -103,7 +171,70 @@ pds.setInactiveConnectionTimeout(300);    // release idle connections after 5 mi
 &lt;h2&gt;One honest limitation&lt;/h2&gt;
 &lt;p&gt;Validation costs a little on every borrow. Only widen the trust window after the basic reliability picture is clear, or you may hide the very failures you wanted to catch.&lt;/p&gt;
 &lt;h2&gt;Sources&lt;/h2&gt;
-&lt;ul&gt;&lt;li&gt;Oracle Universal Connection Pool Developer&amp;#x27;s Guide: Setting Connection Pool Properties&lt;/li&gt;&lt;li&gt;Oracle UCP Java API Reference: PoolDataSource&lt;/li&gt;&lt;li&gt;Oracle UCP Developer&amp;#x27;s Guide: Monitoring the Pool with JMX&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Revocation Is the Hard Part</atom:title><atom:id>https://www.imshubh.com/articles/microsoft/credential-revocation.html</atom:id><atom:link href="https://www.imshubh.com/articles/microsoft/credential-revocation.html" rel="alternate" /><atom:published>2026-08-25T12:00:00-07:00</atom:published><atom:updated>2026-08-25T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Revocation checks must avoid “phone home” privacy leaks. Learn lists vs status endpoints, holder stapling, caching, and short-lived credentials.</atom:summary><atom:category term="identity" /><atom:category term="credentials" /><atom:content type="html">&lt;p class="article-lede"&gt;Issuing verifiable credentials is straightforward: define a claim, sign it, return it to the holder. Revocation is harder: you need to detect when a credential should no longer be accepted, ideally without creating a surveillance channel that reveals who asked and when.&lt;/p&gt;
+&lt;ul&gt;&lt;li&gt;Oracle Universal Connection Pool Developer&amp;#x27;s Guide: Setting Connection Pool Properties&lt;/li&gt;&lt;li&gt;Oracle UCP Java API Reference: PoolDataSource&lt;/li&gt;&lt;li&gt;Oracle UCP Developer&amp;#x27;s Guide: Monitoring the Pool with JMX&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>From docker compose up to a public URL: ports, health and scale-to-zero</atom:title><atom:id>https://www.imshubh.com/articles/docker/from-compose-up-to-a-public-url.html</atom:id><atom:link href="https://www.imshubh.com/articles/docker/from-compose-up-to-a-public-url.html" rel="alternate" /><atom:published>2026-09-17T12:00:00-07:00</atom:published><atom:updated>2026-09-17T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>What changes when a local demo needs a real address, and how to keep it close to free when nobody is looking at it.</atom:summary><atom:category term="docker" /><atom:category term="containers" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;A local demo is easy. A public one raises new questions: which port is exposed, how the platform knows the app is healthy, what the first request does after a quiet night, and how to be sure a traffic spike does not turn into a surprise bill. You do not need a cluster for this. A managed container platform with scale-to-zero gives you a URL that costs almost nothing when idle.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Run a VM and keep it on: simple, but you pay for the idle hours.&lt;/li&gt;&lt;li&gt;Run a cluster: powerful, and far more than a demo needs.&lt;/li&gt;&lt;li&gt;Use a managed container platform with scale-to-zero: you accept a cold start in return for near-zero idle cost.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;My recommendation&lt;/h2&gt;
+        &lt;p&gt;Make the app platform-friendly first: it listens on a configurable port, has a health endpoint, and redirects the root path somewhere useful. Then deploy a digest-pinned image with a minimum of zero replicas, managed TLS, and budget alerts set well below the ceiling.&lt;/p&gt;
+        &lt;h2&gt;Worked example&lt;/h2&gt;
+        &lt;p&gt;A tiny Java server with no dependencies. It reads the port from the environment, answers a health check, and redirects the root path to the docs.&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
+
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+
+public class Main {
+    public static void main(String[] args) throws IOException {
+        int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "8080"));
+        HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
+
+        server.createContext("/health", ex -&amp;gt; respond(ex, 200, "application/json", "{\"status\":\"ok\"}"));
+        server.createContext("/docs", ex -&amp;gt; respond(ex, 200, "text/html", "&amp;lt;h1&amp;gt;Docs&amp;lt;/h1&amp;gt;"));
+        server.createContext("/", ex -&amp;gt; {
+            if ("/".equals(ex.getRequestURI().getPath())) {
+                ex.getResponseHeaders().add("Location", "/docs");
+                ex.sendResponseHeaders(302, -1);
+                ex.close();
+            } else {
+                respond(ex, 404, "text/plain", "not found");
+            }
+        });
+        server.start();
+    }
+
+    private static void respond(HttpExchange ex, int status, String type, String body) throws IOException {
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        ex.getResponseHeaders().add("Content-Type", type);
+        ex.sendResponseHeaders(status, bytes.length);
+        try (OutputStream out = ex.getResponseBody()) {
+            out.write(bytes);
+        }
+    }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;The deployment description is illustrative, since every platform has its own field names, but the shape is the same everywhere:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;{
+  "name": "demo-app",
+  "image": "registry.example.com/team/app@sha256:&amp;lt;digest&amp;gt;",
+  "containerPort": 8080,
+  "healthCheckPath": "/health",
+  "ingress": { "tls": true },
+  "autoscale": { "minReplicas": 0, "maxReplicas": 3 }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;pre&gt;&lt;code&gt;docker compose up --build
+curl -i http://127.0.0.1:8080/
+curl -s http://127.0.0.1:8080/health&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ol&gt;&lt;li&gt;Read the port from the environment, and expose the one the platform expects.&lt;/li&gt;&lt;li&gt;Add a cheap health endpoint, and point the platform at it.&lt;/li&gt;&lt;li&gt;Redirect the root path to something useful.&lt;/li&gt;&lt;li&gt;Deploy by digest, with managed TLS.&lt;/li&gt;&lt;li&gt;Set minimum replicas to zero, and test the first request after idle.&lt;/li&gt;&lt;li&gt;Set a budget alert well under your ceiling, and send it somewhere you will see it.&lt;/li&gt;&lt;/ol&gt;
+        &lt;h2&gt;Where this doesn&amp;#x27;t apply&lt;/h2&gt;
+        &lt;p&gt;If you need steady low latency, scale-to-zero is the wrong choice, because the first request after a quiet period will be slow.&lt;/p&gt;
+        &lt;h2&gt;One honest limitation&lt;/h2&gt;
+        &lt;p&gt;A cold start on a JVM service can take seconds. You can soften it with a smaller image and class-data sharing, but you cannot remove it, so decide whether a slow first visit is acceptable for the demo.&lt;/p&gt;
+        &lt;h2&gt;Sources&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Docker Docs: Compose file reference (ports)&lt;/li&gt;&lt;li&gt;Docker Docs: Dockerfile HEALTHCHECK&lt;/li&gt;&lt;li&gt;Oracle Java Documentation: com.sun.net.httpserver package&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Revocation Is the Hard Part</atom:title><atom:id>https://www.imshubh.com/articles/microsoft/credential-revocation.html</atom:id><atom:link href="https://www.imshubh.com/articles/microsoft/credential-revocation.html" rel="alternate" /><atom:published>2026-08-25T12:00:00-07:00</atom:published><atom:updated>2026-08-25T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Revocation checks must avoid “phone home” privacy leaks. Learn lists vs status endpoints, holder stapling, caching, and short-lived credentials.</atom:summary><atom:category term="identity" /><atom:category term="credentials" /><atom:content type="html">&lt;p class="article-lede"&gt;Issuing verifiable credentials is straightforward: define a claim, sign it, return it to the holder. Revocation is harder: you need to detect when a credential should no longer be accepted, ideally without creating a surveillance channel that reveals who asked and when.&lt;/p&gt;
         &lt;h3&gt;The failure mode&lt;/h3&gt;&lt;p&gt;A verifier calls a central revocation endpoint for every check. The endpoint sees who asked (IP or key), when, for which credential ID, and what outcome occurred. Even if the credential is privacy-preserving, the revocation lookup becomes a “phone home” channel that leaks context. Users and regulators won’t love that.&lt;/p&gt;
         &lt;h2&gt;What I learned&lt;/h2&gt;
         &lt;h3&gt;Understand the revocation design space&lt;/h3&gt;
@@ -198,7 +329,55 @@ case Unverifiable unv -&amp;gt; Map.of("type", "Unverifiable", "note", unv.note(
         &lt;p&gt;Refactor one DTO to embed a sealed state rather than a nullable numeric field. Add a type field in JSON. Update consumers to switch on type.&lt;/p&gt;
         &lt;p&gt;Write aggregation policies that return NaN or omit fields when inputs are fully unknown. Test behavior explicitly.&lt;/p&gt;
         &lt;p&gt;Add metrics that count unknowns and unverifiable states separately from numeric distributions.&lt;/p&gt;
-        &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://openjdk.org/jeps/395" target="_blank" rel="noreferrer"&gt;Records (JEP 395)&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://openjdk.org/jeps/409" target="_blank" rel="noreferrer"&gt;Sealed Classes (JEP 409)&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://openjdk.org/jeps/441" target="_blank" rel="noreferrer"&gt;Pattern Matching for switch (JEP 441)&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>JDBC/UCP to Oracle over TLS or mTLS with wallets</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/jdbc-ucp-to-oracle-over-tls-or-mtls-with-wallets.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/jdbc-ucp-to-oracle-over-tls-or-mtls-with-wallets.html" rel="alternate" /><atom:published>2026-08-11T12:00:00-07:00</atom:published><atom:updated>2026-08-11T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>My baseline for connecting a Java application to Autonomous Database or another Oracle service securely.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://openjdk.org/jeps/395" target="_blank" rel="noreferrer"&gt;Records (JEP 395)&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://openjdk.org/jeps/409" target="_blank" rel="noreferrer"&gt;Sealed Classes (JEP 409)&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://openjdk.org/jeps/441" target="_blank" rel="noreferrer"&gt;Pattern Matching for switch (JEP 441)&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>Debugging a container that gives you nothing: exit codes, thread dumps and ephemeral tools</atom:title><atom:id>https://www.imshubh.com/articles/docker/debugging-minimal-containers.html</atom:id><atom:link href="https://www.imshubh.com/articles/docker/debugging-minimal-containers.html" rel="alternate" /><atom:published>2026-08-13T12:00:00-07:00</atom:published><atom:updated>2026-08-13T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How I diagnose a failing Java container without baking a shell and a toolbox into the production image.</atom:summary><atom:category term="docker" /><atom:category term="containers" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;A container fails and all you get is an exit code and perhaps a log line. The tempting response is to add a shell, curl, a debugger and a package manager to the image so that next time you can look around. That is the wrong trade. Production images should be small and boring, and your tools should arrive only when needed and leave no trace.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Bake debugging tools into the image: convenient, but it enlarges the attack surface and the image.&lt;/li&gt;&lt;li&gt;Add an admin endpoint: useful for version and uptime, but it is one more thing to secure.&lt;/li&gt;&lt;li&gt;Use the platform: logs, exit codes, signals, and a separate short-lived container that shares the target's network.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;My recommendation&lt;/h2&gt;
+        &lt;p&gt;Start with the exit code and the last logs. Use signals the JVM already understands, such as a thread dump on SIGQUIT, before reaching for tools. Make crashes leave evidence, and attach any tooling from outside.&lt;/p&gt;
+        &lt;h2&gt;Worked example&lt;/h2&gt;
+        &lt;p&gt;The first look should cost nothing. Exit code 137 usually means the process was killed, often for memory, and 143 means it was asked to stop:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;docker ps -a --filter name=api
+docker inspect --format '{{.State.ExitCode}} oom={{.State.OOMKilled}}' api
+docker logs --since 15m api&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;The JVM prints a full thread dump to standard output when it receives SIGQUIT, so you need no tools inside the container:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;docker kill --signal=SIGQUIT api
+docker logs --tail 200 api&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Make a crash leave something behind. These flags write a heap dump on an out-of-memory error to a mounted volume:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;services:
+  api:
+    image: demo/api:1.4.2
+    environment:
+      JAVA_TOOL_OPTIONS: &amp;gt;-
+        -XX:+HeapDumpOnOutOfMemoryError
+        -XX:HeapDumpPath=/dumps
+        -XX:+ExitOnOutOfMemoryError
+    volumes:
+      - ./dumps:/dumps&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;And have the application log one structured line when it dies, so the exit code has context:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;public class Main {
+    public static void main(String[] args) {
+        Thread.setDefaultUncaughtExceptionHandler((thread, error) -&amp;gt; {
+            System.err.printf("{\"level\":\"FATAL\",\"thread\":\"%s\",\"error\":\"%s\"}%n",
+                    thread.getName(), error.getClass().getName());
+            error.printStackTrace();
+        });
+        Runtime.getRuntime().addShutdownHook(new Thread(() -&amp;gt;
+                System.err.println("{\"level\":\"INFO\",\"msg\":\"shutdown\"}")));
+        // start the application
+    }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;When you need to poke around the network or a volume, use a throwaway container that shares the target's network namespace:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;docker run --rm -it --network=container:api -v api-data:/data:ro alpine sh
+# inside: wget -qO- http://localhost:8080/health&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ol&gt;&lt;li&gt;Read the exit code, OOMKilled flag and recent logs before changing anything.&lt;/li&gt;&lt;li&gt;Use SIGQUIT for a thread dump instead of installing tools.&lt;/li&gt;&lt;li&gt;Configure heap dumps on out-of-memory errors, with a size cap and a clean-up plan.&lt;/li&gt;&lt;li&gt;Log one structured fatal line with no secrets.&lt;/li&gt;&lt;li&gt;Attach tools from a separate short-lived container and remove it afterwards.&lt;/li&gt;&lt;/ol&gt;
+        &lt;h2&gt;Where this doesn&amp;#x27;t apply&lt;/h2&gt;
+        &lt;p&gt;If the failure is inside a native library or the container never starts, thread dumps will not help. You will need the platform's events and the host's logs.&lt;/p&gt;
+        &lt;h2&gt;One honest limitation&lt;/h2&gt;
+        &lt;p&gt;An outside container can see the network and volumes but not the process's memory. Heap dumps are sensitive too, since they can contain secrets, so store them carefully and delete them quickly.&lt;/p&gt;
+        &lt;h2&gt;Sources&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Docker Docs: docker container logs&lt;/li&gt;&lt;li&gt;Docker Docs: docker container kill (signals)&lt;/li&gt;&lt;li&gt;Oracle Java Documentation: Troubleshooting guide (thread dumps and heap dumps)&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>JDBC/UCP to Oracle over TLS or mTLS with wallets</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/jdbc-ucp-to-oracle-over-tls-or-mtls-with-wallets.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/jdbc-ucp-to-oracle-over-tls-or-mtls-with-wallets.html" rel="alternate" /><atom:published>2026-08-11T12:00:00-07:00</atom:published><atom:updated>2026-08-11T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>My baseline for connecting a Java application to Autonomous Database or another Oracle service securely.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
 &lt;p&gt;A Java application needs to talk to a database, and the connection should be encrypted, should check it is talking to the right server, and should not carry a password in the source. Those three requirements are simple to state and easy to get partly wrong.&lt;/p&gt;
 &lt;p&gt;I wanted one baseline that I can adjust upward to mutual TLS when a policy asks for it, without relying on settings that change from driver version to driver version.&lt;/p&gt;
 &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
@@ -422,7 +601,57 @@ EXPOSE 8000&lt;/code&gt;&lt;/pre&gt;
         &lt;p&gt;Add .dockerignore entries for secrets and verify your build context (run docker build --no-cache and inspect logs).&lt;/p&gt;
         &lt;p&gt;Use strict readiness that fails until keys load from a managed store. Test rotation: accept signatures from two keys during an overlap window.&lt;/p&gt;
         &lt;p&gt;Add CI scans that fail on secret-like files in images. Track and eliminate false positives carefully.&lt;/p&gt;
-        &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://learn.microsoft.com/en-us/entra/verified-id/verifiable-credentials-configure-tenant" target="_blank" rel="noreferrer"&gt;Configure Verified ID with Azure Key Vault&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://learn.microsoft.com/en-us/azure/container-apps/manage-secrets" target="_blank" rel="noreferrer"&gt;Azure Container Apps secrets&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://docs.docker.com/build/concepts/context/" target="_blank" rel="noreferrer"&gt;Docker build context and .dockerignore&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>Unified Auditing: practical policies and trail hygiene</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/unified-auditing-practical-policies-and-trail-hygiene.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/unified-auditing-practical-policies-and-trail-hygiene.html" rel="alternate" /><atom:published>2026-07-04T12:00:00-07:00</atom:published><atom:updated>2026-07-04T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>A small set of audit policies that gives you useful events without drowning in noise.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://learn.microsoft.com/en-us/entra/verified-id/verifiable-credentials-configure-tenant" target="_blank" rel="noreferrer"&gt;Configure Verified ID with Azure Key Vault&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://learn.microsoft.com/en-us/azure/container-apps/manage-secrets" target="_blank" rel="noreferrer"&gt;Azure Container Apps secrets&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://docs.docker.com/build/concepts/context/" target="_blank" rel="noreferrer"&gt;Docker build context and .dockerignore&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>Tags, digests and promotion: how an image should travel from commit to production</atom:title><atom:id>https://www.imshubh.com/articles/docker/tags-digests-and-promotion.html</atom:id><atom:link href="https://www.imshubh.com/articles/docker/tags-digests-and-promotion.html" rel="alternate" /><atom:published>2026-07-10T12:00:00-07:00</atom:published><atom:updated>2026-07-10T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Stop deploying latest. Tag by commit, deploy by digest, and promote the exact artifact that passed your tests.</atom:summary><atom:category term="docker" /><atom:category term="containers" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;Why is staging running something different from production? If the answer involves the word latest, you have found the bug. A tag is a movable pointer, so two environments can point at different content under the same name, and nobody can say which one is right. Release hygiene comes down to one idea: the artifact that passed your tests is exactly the artifact that runs later.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Mutable tags such as latest or a branch name: convenient, and impossible to trace.&lt;/li&gt;&lt;li&gt;Commit-based tags: readable and traceable, but a tag can still be moved.&lt;/li&gt;&lt;li&gt;Digests: the content address of the image, which cannot change. Deploying by digest guarantees what runs.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;My recommendation&lt;/h2&gt;
+        &lt;p&gt;Tag every build with the commit it came from, record the digest, deploy by digest, and promote by copying the existing image rather than rebuilding. Keep a small catalog of what was released, so a rollback is just promoting an older entry.&lt;/p&gt;
+        &lt;h2&gt;Worked example&lt;/h2&gt;
+        &lt;p&gt;A release script that builds a multi-platform image, captures its digest, records it, and promotes the same digest to staging:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;#!/usr/bin/env bash
+set -euo pipefail
+
+REGISTRY=registry.example.com/team/app
+SHA=$(git rev-parse --short=12 HEAD)
+
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t "$REGISTRY:$SHA" \
+  --metadata-file meta.json \
+  --push .
+
+DIGEST=$(jq -r '."containerimage.digest"' meta.json)
+echo "$SHA $DIGEST $(date -u +%FT%TZ)" &amp;gt;&amp;gt; release-catalog.txt
+
+# Promote: same content, new name. No rebuild.
+docker buildx imagetools create --tag "$REGISTRY:staging" "$REGISTRY@$DIGEST"
+
+# Deploy by digest, not tag:
+echo "image: $REGISTRY@$DIGEST"&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;To make a running service tell you what it is, stamp the commit into the jar. In Gradle:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;tasks.jar {
+    manifest {
+        attributes(
+            "Implementation-Version" to providers.environmentVariable("GIT_SHA").orElse("dev")
+        )
+    }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;pre&gt;&lt;code&gt;public class Version {
+    public static String current() {
+        String v = Version.class.getPackage().getImplementationVersion();
+        return v != null ? v : "dev";
+    }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Expose Version.current() on a diagnostics route, and the answer to which build is this becomes one request.&lt;/p&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ol&gt;&lt;li&gt;Tag every image with the short commit hash, and never reuse a tag.&lt;/li&gt;&lt;li&gt;Record commit, digest and time in a catalog.&lt;/li&gt;&lt;li&gt;Deploy by digest.&lt;/li&gt;&lt;li&gt;Promote by copying the image, not by rebuilding it.&lt;/li&gt;&lt;li&gt;Check that the promoted manifest still contains every platform you need.&lt;/li&gt;&lt;li&gt;Protect release images from registry clean-up so you can still debug and roll back.&lt;/li&gt;&lt;/ol&gt;
+        &lt;h2&gt;Where this doesn&amp;#x27;t apply&lt;/h2&gt;
+        &lt;p&gt;For throwaway local images, a plain tag is fine. The discipline pays off from the first shared environment onward.&lt;/p&gt;
+        &lt;h2&gt;One honest limitation&lt;/h2&gt;
+        &lt;p&gt;Digest pinning needs tooling support, a catalog, and registry permissions to copy images. It is more work than a tag, and teams that skip the catalog lose most of the benefit.&lt;/p&gt;
+        &lt;h2&gt;Sources&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Docker Docs: Image digests&lt;/li&gt;&lt;li&gt;Docker Docs: buildx imagetools create&lt;/li&gt;&lt;li&gt;Docker Docs: Build metadata file&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Unified Auditing: practical policies and trail hygiene</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/unified-auditing-practical-policies-and-trail-hygiene.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/unified-auditing-practical-policies-and-trail-hygiene.html" rel="alternate" /><atom:published>2026-07-04T12:00:00-07:00</atom:published><atom:updated>2026-07-04T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>A small set of audit policies that gives you useful events without drowning in noise.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
 &lt;p&gt;Auditing everything produces a trail nobody reads. Auditing nothing leaves you guessing after an incident. Traditional auditing was also split across several places, which made it hard to search.&lt;/p&gt;
 &lt;p&gt;Unified Auditing puts events in one trail. My question was which policies to switch on first, and how to keep that trail from filling a tablespace.&lt;/p&gt;
 &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
@@ -541,7 +770,71 @@ template:
         &lt;p&gt;Measure the cold start path and identify high-cost steps. Record cold-start and warm-request latency as separate measurements.&lt;/p&gt;
         &lt;p&gt;Add a minimum warm replica and track tails. Compare p95 across scale-to-zero vs hybrid.&lt;/p&gt;
         &lt;p&gt;Implement readiness that runs a tiny proof self-check and confirms secret load before returning ready.&lt;/p&gt;
-        &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://learn.microsoft.com/en-us/azure/container-apps/scale-app" target="_blank" rel="noreferrer"&gt;Scale applications in Azure Container Apps&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://learn.microsoft.com/en-us/azure/container-apps/health-probes" target="_blank" rel="noreferrer"&gt;Health probes in Azure Container Apps&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>Null Isn’t False: Building Fair Credential Verifiers</atom:title><atom:id>https://www.imshubh.com/articles/microsoft/fair-credential-verifiers.html</atom:id><atom:link href="https://www.imshubh.com/articles/microsoft/fair-credential-verifiers.html" rel="alternate" /><atom:published>2026-05-30T12:00:00-07:00</atom:published><atom:updated>2026-05-30T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Conflating “missing” with “false” creates bias. Learn a verifier design that separates unverifiable from invalid and protects downstream decisions.</atom:summary><atom:category term="identity" /><atom:category term="credentials" /><atom:content type="html">&lt;p class="article-lede"&gt;One of the subtle but damaging patterns in identity systems is treating null as false. If a credential lacks a field, or a proof is absent, some code paths flip a boolean to false and move on. In verification, this collapses “we don’t know” into “disproven.” The difference matters: missing evidence isn’t proof of falsehood.&lt;/p&gt;
+        &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://learn.microsoft.com/en-us/azure/container-apps/scale-app" target="_blank" rel="noreferrer"&gt;Scale applications in Azure Container Apps&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://learn.microsoft.com/en-us/azure/container-apps/health-probes" target="_blank" rel="noreferrer"&gt;Health probes in Azure Container Apps&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>Keeping secrets out of container images, builds and logs</atom:title><atom:id>https://www.imshubh.com/articles/docker/keeping-secrets-out-of-images-builds-and-logs.html</atom:id><atom:link href="https://www.imshubh.com/articles/docker/keeping-secrets-out-of-images-builds-and-logs.html" rel="alternate" /><atom:published>2026-06-06T12:00:00-07:00</atom:published><atom:updated>2026-06-06T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>A practical playbook for build-time tokens, runtime credentials and log redaction in a Java service, using BuildKit secrets and mounted files.</atom:summary><atom:category term="docker" /><atom:category term="containers" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;Secrets leak in boring ways. A token passed as a build argument ends up in image history. An exception handler prints the whole configuration. An environment variable set for a quick test is still there six months later. The fix is not one tool. It is a set of small defaults that make the safe path the easy path, covering the build, the runtime and the logs.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;ARG and ENV for credentials: simple, but both are stored in image metadata and can be read back from the image.&lt;/li&gt;&lt;li&gt;BuildKit secret mounts: the secret is available to one build step and is never written to a layer.&lt;/li&gt;&lt;li&gt;Runtime secrets as environment variables: convenient, but they show up in diagnostics and process listings.&lt;/li&gt;&lt;li&gt;Runtime secrets as mounted files: easier to restrict, audit and rotate without rebuilding.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;My recommendation&lt;/h2&gt;
+        &lt;p&gt;Use BuildKit secret mounts for anything a build needs, mount credentials as files at runtime, and make the application hard to leak from by redacting secrets in its own types. Plan rotation as a restart, not a rebuild.&lt;/p&gt;
+        &lt;h2&gt;Worked example&lt;/h2&gt;
+        &lt;p&gt;A build step that reads a private repository token from a secret mount and exposes it only to that command:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;# syntax=docker/dockerfile:1
+FROM eclipse-temurin:21-jdk AS build
+WORKDIR /src
+COPY . .
+RUN --mount=type=secret,id=repo_token \
+    REPO_TOKEN="$(cat /run/secrets/repo_token)" ./gradlew --no-daemon build&lt;/code&gt;&lt;/pre&gt;
+        &lt;pre&gt;&lt;code&gt;docker build --secret id=repo_token,src=$HOME/.tokens/repo -t demo/app:dev .
+
+# Verify nothing leaked into the layers
+docker history --no-trunc demo/app:dev | grep -i token || echo "no token in history"&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;At runtime, mount the secret as a file and tell the app where it is:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;services:
+  api:
+    image: demo/api:1.4.2
+    environment:
+      DB_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_password
+
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;In the application, read from the file when it is configured, and make the configuration type safe to print:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+public final class Secrets {
+    private Secrets() { }
+
+    public static String read(String name) throws IOException {
+        String path = System.getenv(name + "_FILE");
+        if (path != null) {
+            return Files.readString(Path.of(path)).strip();
+        }
+        String value = System.getenv(name);
+        if (value == null) {
+            throw new IllegalStateException("Missing secret: " + name);
+        }
+        return value;
+    }
+}
+
+record DbConfig(String url, String password) {
+    @Override
+    public String toString() {
+        return "DbConfig[url=" + url + ", password=****]";
+    }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ol&gt;&lt;li&gt;Never pass credentials through ARG or ENV in a Dockerfile.&lt;/li&gt;&lt;li&gt;Use RUN --mount=type=secret, and check docker history afterwards.&lt;/li&gt;&lt;li&gt;Mount runtime secrets as files with read-only access.&lt;/li&gt;&lt;li&gt;Redact secrets in your own types so an accidental log line or stack trace cannot print them.&lt;/li&gt;&lt;li&gt;Rotate by replacing the file and restarting the container, not by rebuilding the image.&lt;/li&gt;&lt;li&gt;Run a secret scan on source and images and treat a hit as a release blocker.&lt;/li&gt;&lt;/ol&gt;
+        &lt;h2&gt;Where this doesn&amp;#x27;t apply&lt;/h2&gt;
+        &lt;p&gt;A file-based secret in Compose is a bind mount for local use. In a real deployment, use your platform's secret store rather than a file in your repository, and keep that directory in .gitignore.&lt;/p&gt;
+        &lt;h2&gt;One honest limitation&lt;/h2&gt;
+        &lt;p&gt;Anyone who can run a shell in the container can read its mounted secrets. A secret mount removes the secret from the image, not from the running process.&lt;/p&gt;
+        &lt;h2&gt;Sources&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Docker Docs: Build secrets&lt;/li&gt;&lt;li&gt;Docker Docs: Manage secrets in Compose&lt;/li&gt;&lt;li&gt;OWASP Cheat Sheet: Secrets Management&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Null Isn’t False: Building Fair Credential Verifiers</atom:title><atom:id>https://www.imshubh.com/articles/microsoft/fair-credential-verifiers.html</atom:id><atom:link href="https://www.imshubh.com/articles/microsoft/fair-credential-verifiers.html" rel="alternate" /><atom:published>2026-05-30T12:00:00-07:00</atom:published><atom:updated>2026-05-30T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Conflating “missing” with “false” creates bias. Learn a verifier design that separates unverifiable from invalid and protects downstream decisions.</atom:summary><atom:category term="identity" /><atom:category term="credentials" /><atom:content type="html">&lt;p class="article-lede"&gt;One of the subtle but damaging patterns in identity systems is treating null as false. If a credential lacks a field, or a proof is absent, some code paths flip a boolean to false and move on. In verification, this collapses “we don’t know” into “disproven.” The difference matters: missing evidence isn’t proof of falsehood.&lt;/p&gt;
         &lt;h3&gt;The failure mode&lt;/h3&gt;&lt;p&gt;A verifier expects a “proofOfX” field. The credential arrives without it. The code sets proofOfX=false. A downstream gate denies access. Later, it turns out “proofOfX” wasn’t required for this flow, or the holder didn’t have a way to request it yet. The deny was based on an absence, not a disproven claim.&lt;/p&gt;
         &lt;h2&gt;What I learned&lt;/h2&gt;
         &lt;h3&gt;Model states, not booleans&lt;/h3&gt;&lt;p&gt;Replace booleans with intent-rich types. For a given proof, consider states like Present, Missing, Expired, Revoked, Unverifiable (failed binding), and Invalid (malformed or bad signature). This simple taxonomy avoids flattening all “not present” into “false.”&lt;/p&gt;
@@ -828,7 +1121,61 @@ pds.setValidateConnectionOnBorrow(true);&lt;/code&gt;&lt;/pre&gt;
         &lt;p&gt;Replace a fixed thread pool fan-out with newVirtualThreadPerTaskExecutor() and add per-destination timeouts. Observe behavior under synthetic spikes.&lt;/p&gt;
         &lt;p&gt;Add aggregation logic that treats timeouts as Missing and downstream errors as Unverifiable. Verify exhaustive handling with pattern matching.&lt;/p&gt;
         &lt;p&gt;Measure throughput and p95 latency in a controlled environment to inform whether virtual threads help your workload.&lt;/p&gt;
-        &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://openjdk.org/jeps/444" target="_blank" rel="noreferrer"&gt;Virtual Threads (JEP 444)&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ExecutorService.html" target="_blank" rel="noreferrer"&gt;Java 21 ExecutorService API&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>Triage Without Burning Out: Sustainable Patterns for Issues and PRs</atom:title><atom:id>https://www.imshubh.com/articles/github/sustainable-triage.html</atom:id><atom:link href="https://www.imshubh.com/articles/github/sustainable-triage.html" rel="alternate" /><atom:published>2026-04-02T12:00:00-07:00</atom:published><atom:updated>2026-04-02T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Reduce burnout with sustainable triage: clear labels, response-time placeholders, friendly declines, and contributor pathways you can maintain.</atom:summary><atom:category term="github" /><atom:category term="opensource" /><atom:content type="html">&lt;p class="article-lede"&gt;Maintaining an open-source project alongside a full-time job means learning to triage sustainably. You can’t answer everything immediately or accept every idea. You can design labeling and response patterns that make your limited time effective — and that keep contributors engaged without exhausting you.&lt;/p&gt;
+        &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://openjdk.org/jeps/444" target="_blank" rel="noreferrer"&gt;Virtual Threads (JEP 444)&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/concurrent/ExecutorService.html" target="_blank" rel="noreferrer"&gt;Java 21 ExecutorService API&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>Logs, metrics and trace correlation for a Java service in a container</atom:title><atom:id>https://www.imshubh.com/articles/docker/logs-metrics-and-trace-correlation-in-containers.html</atom:id><atom:link href="https://www.imshubh.com/articles/docker/logs-metrics-and-trace-correlation-in-containers.html" rel="alternate" /><atom:published>2026-04-03T12:00:00-07:00</atom:published><atom:updated>2026-04-03T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>A small set of habits that make a containerised Java service observable without drowning in log volume or metric cost.</atom:summary><atom:category term="docker" /><atom:category term="containers" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;Logs, metrics and traces are three different tools, and they only help in an incident when they can be tied together. The common failure is not the lack of data. It is that the data is unstructured, expensive, or impossible to connect to a single request. Containers add a convention on top: write to standard output, and let the platform collect it. Everything else is about keeping that stream useful and cheap.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Plain-text logs written to files: easy at first, but hard to parse, and the files fill the container's disk.&lt;/li&gt;&lt;li&gt;Structured JSON logs on standard output: parseable, collected by the platform, and the right default.&lt;/li&gt;&lt;li&gt;Tracing everything: great detail, but the CPU and storage bill grows with traffic. Sampling keeps the cost predictable.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;My recommendation&lt;/h2&gt;
+        &lt;p&gt;Log structured JSON to standard output with a small, fixed set of fields. Put a correlation ID on every request at the edge and carry it through the logs. Keep metric labels low cardinality, and sample traces. Alert on user-facing symptoms, not on every raw number.&lt;/p&gt;
+        &lt;h2&gt;Worked example&lt;/h2&gt;
+        &lt;p&gt;A servlet filter that makes sure every request has a correlation ID, puts it in the logging context, and returns it to the caller.&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;import jakarta.servlet.*;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.MDC;
+
+import java.io.IOException;
+import java.util.UUID;
+
+public class CorrelationFilter implements Filter {
+    private static final String HEADER = "X-Correlation-Id";
+
+    @Override
+    public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain)
+            throws IOException, ServletException {
+        String id = ((HttpServletRequest) req).getHeader(HEADER);
+        if (id == null || id.isBlank() || id.length() &amp;gt; 64) {
+            id = UUID.randomUUID().toString();
+        }
+        MDC.put("correlation_id", id);
+        ((HttpServletResponse) res).setHeader(HEADER, id);
+        try {
+            chain.doFilter(req, res);
+        } finally {
+            MDC.remove("correlation_id");
+        }
+    }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;The Logback configuration that writes each event as one JSON line to standard output, including the correlation ID from the MDC. It uses the open-source Logstash encoder.&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;&amp;lt;configuration&amp;gt;
+  &amp;lt;appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender"&amp;gt;
+    &amp;lt;encoder class="net.logstash.logback.encoder.LogstashEncoder"/&amp;gt;
+  &amp;lt;/appender&amp;gt;
+  &amp;lt;root level="INFO"&amp;gt;
+    &amp;lt;appender-ref ref="STDOUT"/&amp;gt;
+  &amp;lt;/root&amp;gt;
+&amp;lt;/configuration&amp;gt;&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Then log with parameters, so nothing is formatted when the level is off:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;log.info("request_finished route={} status={} durationMs={}", route, status, elapsedMs);
+log.warn("upstream_failed upstream={} reason={}", "inventory", "timeout");&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ol&gt;&lt;li&gt;Log JSON to standard output, with level, timestamp, component, message and correlation ID.&lt;/li&gt;&lt;li&gt;Create the correlation ID at the edge, accept a sane inbound one, and cap its length.&lt;/li&gt;&lt;li&gt;Keep metric labels to a small set such as route class and outcome, never per user.&lt;/li&gt;&lt;li&gt;Sample traces, and raise the rate temporarily during an incident.&lt;/li&gt;&lt;li&gt;Alert on error rate and latency, and link the alert to a dashboard or runbook.&lt;/li&gt;&lt;/ol&gt;
+        &lt;h2&gt;Where this doesn&amp;#x27;t apply&lt;/h2&gt;
+        &lt;p&gt;A single small service may not need distributed tracing at all. Structured logs with a correlation ID will already answer most questions.&lt;/p&gt;
+        &lt;h2&gt;One honest limitation&lt;/h2&gt;
+        &lt;p&gt;Observability has a cost. Every extra log line and span uses CPU and memory, and during an incident, noisy logging can make the incident worse.&lt;/p&gt;
+        &lt;h2&gt;Sources&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;SLF4J Manual: Mapped Diagnostic Context (MDC)&lt;/li&gt;&lt;li&gt;Logback Documentation: Appenders&lt;/li&gt;&lt;li&gt;OpenTelemetry Documentation: Sampling&lt;/li&gt;&lt;li&gt;Docker Docs: View container logs&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Triage Without Burning Out: Sustainable Patterns for Issues and PRs</atom:title><atom:id>https://www.imshubh.com/articles/github/sustainable-triage.html</atom:id><atom:link href="https://www.imshubh.com/articles/github/sustainable-triage.html" rel="alternate" /><atom:published>2026-04-02T12:00:00-07:00</atom:published><atom:updated>2026-04-02T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Reduce burnout with sustainable triage: clear labels, response-time placeholders, friendly declines, and contributor pathways you can maintain.</atom:summary><atom:category term="github" /><atom:category term="opensource" /><atom:content type="html">&lt;p class="article-lede"&gt;Maintaining an open-source project alongside a full-time job means learning to triage sustainably. You can’t answer everything immediately or accept every idea. You can design labeling and response patterns that make your limited time effective — and that keep contributors engaged without exhausting you.&lt;/p&gt;
         &lt;h3&gt;The failure mode&lt;/h3&gt;&lt;p&gt;You wake up to ten new issues and three PRs. Two are duplicates, three ask for features outside the project scope, and several lack context. You try to answer quickly and get pulled into long threads that don’t move the project forward. A week later, you’re behind, less responsive, and a contributor feels ignored.&lt;/p&gt;
         &lt;h2&gt;What I learned&lt;/h2&gt;
         &lt;h3&gt;Label early, label consistently&lt;/h3&gt;&lt;p&gt;Set up labels that reflect workflow, not internal discussions: “good first issue,” “help wanted,” “needs reproduction,” “needs test,” “scope discussion,” “declined” (with a short reason). Use them as soon as you read an issue. Labels create a shared vocabulary and make your backlog scannable.&lt;/p&gt;
@@ -1139,7 +1486,64 @@ for (var e : walletSecrets.entrySet()) {          // name -&amp;gt; base64 conte
 &lt;h2&gt;One honest limitation&lt;/h2&gt;
 &lt;p&gt;Wallets are multi-file, and the cleanup of temporary files is easy to forget. Test the rebuild path and the deletion path as carefully as the connection itself.&lt;/p&gt;
 &lt;h2&gt;Sources&lt;/h2&gt;
-&lt;ul&gt;&lt;li&gt;OCI Documentation: Downloading Client Credentials (Wallets) for Autonomous Database&lt;/li&gt;&lt;li&gt;OCI CLI Reference: oci vault secret create-base64&lt;/li&gt;&lt;li&gt;OCI Documentation: Connecting with JDBC and a Wallet&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Benchmarking Honestly: Building a Repeatable, Trustworthy Inference Benchmark</atom:title><atom:id>https://www.imshubh.com/articles/intel/benchmarking-inference.html</atom:id><atom:link href="https://www.imshubh.com/articles/intel/benchmarking-inference.html" rel="alternate" /><atom:published>2026-01-28T12:00:00-08:00</atom:published><atom:updated>2026-01-28T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Build inference benchmarks that report warm-up, latency percentiles, output parity, and hardware conditions.</atom:summary><atom:category term="intel" /><atom:category term="edgeai" /><atom:content type="html">&lt;p class="article-lede"&gt;Benchmarks are easy to fool. Run a handful of requests on a quiet laptop, choose the number that looks good, and almost any model can appear fast. Production has warm-up, load, input variation, and hardware contention. A useful benchmark makes those conditions visible.&lt;/p&gt;
+&lt;ul&gt;&lt;li&gt;OCI Documentation: Downloading Client Credentials (Wallets) for Autonomous Database&lt;/li&gt;&lt;li&gt;OCI CLI Reference: oci vault secret create-base64&lt;/li&gt;&lt;li&gt;OCI Documentation: Connecting with JDBC and a Wallet&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Container limits and the JVM: why your heap is not your memory limit</atom:title><atom:id>https://www.imshubh.com/articles/docker/container-limits-and-the-jvm.html</atom:id><atom:link href="https://www.imshubh.com/articles/docker/container-limits-and-the-jvm.html" rel="alternate" /><atom:published>2026-02-14T12:00:00-08:00</atom:published><atom:updated>2026-02-14T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>A practical look at memory and CPU limits for Java services: sizing the heap, surviving back-pressure and recognising an out-of-memory kill.</atom:summary><atom:category term="docker" /><atom:category term="containers" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;Without limits, a hot container can starve its neighbours. With limits that are too tight, it gets killed and restarts in a loop. Either way, the failure spreads: one tier is slow, upstream timeouts fire, retries pile up, and a small problem becomes an outage. On the JVM there is an extra trap. The heap is only part of the memory a process uses. Metaspace, thread stacks, the code cache, direct buffers and GC structures all live outside it, so a container limit equal to the heap size is almost guaranteed to be exceeded.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;No limits: nothing gets killed by the runtime, but one runaway service can degrade the whole host.&lt;/li&gt;&lt;li&gt;A hard limit with a fixed -Xmx: predictable, but easy to get wrong when the limit changes and the heap flag does not.&lt;/li&gt;&lt;li&gt;A hard limit with a percentage-based heap: the JVM sizes the heap from the container limit, and you leave headroom for everything else.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;My recommendation&lt;/h2&gt;
+        &lt;p&gt;Set a memory limit, let the JVM size its heap from it with a percentage, and leave real headroom for native memory. Bound every queue so overload becomes a fast, explicit refusal instead of a slow death. Make the out-of-memory case easy to recognise.&lt;/p&gt;
+        &lt;h2&gt;Worked example&lt;/h2&gt;
+        &lt;p&gt;The Compose file sets the limit and tells the JVM to use 70 percent of it for the heap. The rest is headroom.&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;services:
+  api:
+    image: demo/api:1.4.2
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;A tiny program shows what the JVM actually sees inside the container, which is the first thing to check when sizing goes wrong:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;public class WhatDoIHave {
+    public static void main(String[] args) {
+        Runtime rt = Runtime.getRuntime();
+        System.out.printf("processors=%d maxHeap=%dMB%n",
+                rt.availableProcessors(), rt.maxMemory() / (1024 * 1024));
+    }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;For back-pressure, use a bounded queue and refuse work when it is full, instead of accepting everything and falling over later:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;import java.util.concurrent.*;
+
+public class BoundedWorkers {
+    private final ThreadPoolExecutor pool = new ThreadPoolExecutor(
+            4, 4, 0L, TimeUnit.MILLISECONDS,
+            new ArrayBlockingQueue&amp;lt;&amp;gt;(100),
+            new ThreadPoolExecutor.AbortPolicy());
+
+    /** Returns an HTTP-style status: 202 accepted, 503 over capacity. */
+    public int submit(Runnable task) {
+        try {
+            pool.execute(task);
+            return 202;
+        } catch (RejectedExecutionException e) {
+            return 503;
+        }
+    }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;When a container disappears with exit code 137, check whether the kernel killed it:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;docker inspect --format '{{.State.OOMKilled}} {{.State.ExitCode}}' api
+docker stats --no-stream api&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ol&gt;&lt;li&gt;Set memory and CPU limits, and write down why each number was chosen.&lt;/li&gt;&lt;li&gt;Use a heap percentage, and leave headroom for native memory.&lt;/li&gt;&lt;li&gt;Bound every queue, and return a clear over-capacity response when it is full.&lt;/li&gt;&lt;li&gt;Log queue depth, rejected work and memory use so the problem is visible before the kill.&lt;/li&gt;&lt;li&gt;Load test with the real limits applied, and watch what the upstream tier does.&lt;/li&gt;&lt;/ol&gt;
+        &lt;h2&gt;Where this doesn&amp;#x27;t apply&lt;/h2&gt;
+        &lt;p&gt;These numbers are starting points for a small service. Large heaps, many threads or heavy direct-buffer use all change the headroom you need, and only measurement on your own workload settles it.&lt;/p&gt;
+        &lt;h2&gt;One honest limitation&lt;/h2&gt;
+        &lt;p&gt;Limits shrink the blast radius but do not prevent incidents. A service that is out of memory still fails; the point is that it fails predictably and recovers quickly.&lt;/p&gt;
+        &lt;h2&gt;Sources&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Docker Docs: Resource constraints&lt;/li&gt;&lt;li&gt;Oracle Java Documentation: Java in containers (JVM ergonomics)&lt;/li&gt;&lt;li&gt;Docker Docs: docker container inspect&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Benchmarking Honestly: Building a Repeatable, Trustworthy Inference Benchmark</atom:title><atom:id>https://www.imshubh.com/articles/intel/benchmarking-inference.html</atom:id><atom:link href="https://www.imshubh.com/articles/intel/benchmarking-inference.html" rel="alternate" /><atom:published>2026-01-28T12:00:00-08:00</atom:published><atom:updated>2026-01-28T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Build inference benchmarks that report warm-up, latency percentiles, output parity, and hardware conditions.</atom:summary><atom:category term="intel" /><atom:category term="edgeai" /><atom:content type="html">&lt;p class="article-lede"&gt;Benchmarks are easy to fool. Run a handful of requests on a quiet laptop, choose the number that looks good, and almost any model can appear fast. Production has warm-up, load, input variation, and hardware contention. A useful benchmark makes those conditions visible.&lt;/p&gt;
         &lt;p&gt;In &lt;code&gt;aceu-edge-infer&lt;/code&gt;, I keep a small harness that compares FP32 and INT8 inference and records latency and output deltas. The sample inputs are synthetic, so its results are method scaffolding—not evidence of production performance. The measurement discipline is what I want the demo to teach.&lt;/p&gt;
         &lt;h2&gt;Decide what question the benchmark answers&lt;/h2&gt;&lt;p&gt;Are you measuring cold start, steady-state single-request latency, or throughput under concurrent work? Those are different measurements. State the workload, model artifact, runtime and device, input shape, batch size, thread/concurrency settings, and whether preprocessing and post-processing are included.&lt;/p&gt;
         &lt;h2&gt;Warm up—and report cold start separately&lt;/h2&gt;&lt;p&gt;The first call may include model compilation, memory allocation, cache fill, or runtime initialization. If the question is steady-state latency, run a planned warm-up and keep those samples out of the measured set. If cold start matters to users, report it as its own metric instead of mixing it into steady-state numbers.&lt;/p&gt;
@@ -1328,7 +1732,51 @@ ov.save_model(model, output)&lt;/code&gt;&lt;/pre&gt;
         &lt;h2&gt;Trade-offs and failure modes&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;strong&gt;Operator replacement vs. behavioral fidelity:&lt;/strong&gt; an equivalent-looking function can change output; verify parity against the task’s acceptance criteria.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;CPU fallback vs. uniform execution:&lt;/strong&gt; a fallback can preserve service behavior but adds a path to test and monitor.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Fast manual fix vs. reproducibility:&lt;/strong&gt; one-off flags may unblock a conversion, while a scripted fix makes future builds repeatable.&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;A model that converts and runs can still produce different outputs. A fallback that is not disclosed can make performance results misleading. A runtime update can change what converts successfully, so keep conversion inside the change-review process.&lt;/p&gt;
         &lt;h2&gt;Try it yourself&lt;/h2&gt;&lt;ol&gt;&lt;li&gt;Inventory operators, opset, shapes, and custom layers in your ONNX file.&lt;/li&gt;&lt;li&gt;Convert to IR with a scripted, versioned command and retain its logs.&lt;/li&gt;&lt;li&gt;Compare outputs on a golden set before you introduce quantization.&lt;/li&gt;&lt;li&gt;Document and test every fallback path, including how the service reports it.&lt;/li&gt;&lt;/ol&gt;
         &lt;h2&gt;Closing thought&lt;/h2&gt;&lt;p&gt;The conversion gap is manageable when operator compatibility, model parity, and fallbacks are treated as product requirements. Script the path, version what it creates, and validate the outputs before optimizing further.&lt;/p&gt;
-        &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://docs.openvino.ai/2026/openvino-workflow/model-preparation/convert-model-to-ir.html" target="_blank" rel="noreferrer"&gt;Convert supported models to OpenVINO IR&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://docs.openvino.ai/2026/openvino-workflow/model-preparation/setting-input-shapes.html" target="_blank" rel="noreferrer"&gt;Set and validate model input shapes&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://onnx.ai/onnx/operators/" target="_blank" rel="noreferrer"&gt;ONNX operator specifications&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>Identity Domains: MFA policies and admin-safe rollout</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/identity-domains-mfa-policies-and-admin-safe-rollout.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/identity-domains-mfa-policies-and-admin-safe-rollout.html" rel="alternate" /><atom:published>2025-12-16T12:00:00-08:00</atom:published><atom:updated>2025-12-16T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How I turn on MFA without locking the administrators out of their own console.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://docs.openvino.ai/2026/openvino-workflow/model-preparation/convert-model-to-ir.html" target="_blank" rel="noreferrer"&gt;Convert supported models to OpenVINO IR&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://docs.openvino.ai/2026/openvino-workflow/model-preparation/setting-input-shapes.html" target="_blank" rel="noreferrer"&gt;Set and validate model input shapes&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://onnx.ai/onnx/operators/" target="_blank" rel="noreferrer"&gt;ONNX operator specifications&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>Building multi-architecture images when your laptop is arm64 and your servers are x86</atom:title><atom:id>https://www.imshubh.com/articles/docker/building-multi-architecture-images.html</atom:id><atom:link href="https://www.imshubh.com/articles/docker/building-multi-architecture-images.html" rel="alternate" /><atom:published>2025-12-27T12:00:00-08:00</atom:published><atom:updated>2025-12-27T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How I publish one image tag that runs on Apple Silicon and on x86 hosts, and why I avoid emulation for anything that matters.</atom:summary><atom:category term="docker" /><atom:category term="containers" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;I develop on an arm64 laptop, and a lot of the places I deploy to are x86. If I push an image built only for my laptop, the failure shows up later and far from the cause, usually as an unhelpful exec format error on a server. Docker can build for several platforms in one command, but there are a few traps: emulation is slow and sometimes subtly wrong, vendor binaries downloaded during a build may be for the wrong CPU, and a manifest that is missing a platform fails on pull.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Build only for the laptop architecture: quick, but it breaks the first time the image runs elsewhere.&lt;/li&gt;&lt;li&gt;Build every platform under emulation: one command, but slow, and it only proves the code starts, not that it behaves.&lt;/li&gt;&lt;li&gt;Build natively per architecture, or avoid per-architecture work entirely: fastest and most faithful, but it needs either runners for each architecture or a build that does not depend on the CPU.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;My recommendation&lt;/h2&gt;
+        &lt;p&gt;Be explicit about platforms and publish a manifest list. For JVM services, I go one step further: compile the jar once on the build platform, because bytecode is architecture independent, and only the runtime image differs per platform. That removes emulation from the expensive step.&lt;/p&gt;
+        &lt;h2&gt;Worked example&lt;/h2&gt;
+        &lt;p&gt;The build stage is pinned to the platform doing the build, so it runs natively. Only the small runtime stage is produced per target architecture.&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;# syntax=docker/dockerfile:1
+FROM --platform=$BUILDPLATFORM eclipse-temurin:21-jdk AS build
+WORKDIR /src
+COPY . .
+RUN ./gradlew --no-daemon installDist -x test
+
+FROM eclipse-temurin:21-jre
+ARG TARGETARCH
+WORKDIR /opt/app
+COPY --from=build /src/build/install/app/ ./
+RUN echo "runtime image for ${TARGETARCH}"
+ENTRYPOINT ["/opt/app/bin/app"]&lt;/code&gt;&lt;/pre&gt;
+        &lt;pre&gt;&lt;code&gt;docker buildx create --name multiarch --use
+docker buildx inspect --bootstrap
+
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t registry.example.com/demo/app:1.4.2 \
+  --push .
+
+docker buildx imagetools inspect registry.example.com/demo/app:1.4.2&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;A tiny smoke test confirms which architecture you are actually running on:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;public class Arch {
+    public static void main(String[] args) {
+        System.out.println(System.getProperty("os.name") + " / " + System.getProperty("os.arch"));
+    }
+}&lt;/code&gt;&lt;/pre&gt;
+        &lt;pre&gt;&lt;code&gt;docker run --rm --platform linux/amd64 registry.example.com/demo/app:1.4.2
+docker run --rm --platform linux/arm64 registry.example.com/demo/app:1.4.2&lt;/code&gt;&lt;/pre&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ol&gt;&lt;li&gt;State --platform explicitly, every time.&lt;/li&gt;&lt;li&gt;Run the compile step on the build platform when the output is architecture independent.&lt;/li&gt;&lt;li&gt;Check any downloaded binary against the target architecture.&lt;/li&gt;&lt;li&gt;Inspect the pushed manifest list and confirm every platform you need is present.&lt;/li&gt;&lt;li&gt;Run real tests on native hardware for each platform you ship.&lt;/li&gt;&lt;/ol&gt;
+        &lt;h2&gt;Where this doesn&amp;#x27;t apply&lt;/h2&gt;
+        &lt;p&gt;If you ship native code (JNI libraries, native-image binaries, or CPU-specific agents), the compile step is no longer architecture independent, and you need native builds for each target.&lt;/p&gt;
+        &lt;h2&gt;One honest limitation&lt;/h2&gt;
+        &lt;p&gt;Emulation is useful for a smoke test and not much else. It can hide timing and system-call differences, and a JIT-heavy workload will behave differently from the real thing.&lt;/p&gt;
+        &lt;h2&gt;Sources&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Docker Docs: Multi-platform builds&lt;/li&gt;&lt;li&gt;Docker Docs: buildx imagetools inspect&lt;/li&gt;&lt;li&gt;Docker Docs: Multi-stage builds (BUILDPLATFORM and TARGETARCH)&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Identity Domains: MFA policies and admin-safe rollout</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/identity-domains-mfa-policies-and-admin-safe-rollout.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/identity-domains-mfa-policies-and-admin-safe-rollout.html" rel="alternate" /><atom:published>2025-12-16T12:00:00-08:00</atom:published><atom:updated>2025-12-16T12:00:00-08:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How I turn on MFA without locking the administrators out of their own console.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
 &lt;p&gt;Turning on MFA is the right call, and it is also the change most likely to produce a locked-out admin at 5 p.m. on a Friday. Automation that signs in as a user can break as well.&lt;/p&gt;
 &lt;p&gt;My goal was a rollout order that protects administrators first, leaves one deliberate escape hatch while things settle, and then closes that hatch.&lt;/p&gt;
 &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
@@ -1436,7 +1884,57 @@ docker push "$IMAGE"&lt;/code&gt;&lt;/pre&gt;
 &lt;h2&gt;One honest limitation&lt;/h2&gt;
 &lt;p&gt;An expired or rotated IdP certificate can break sign-in without warning. I keep a calendar entry for it and a short, written refresh procedure.&lt;/p&gt;
 &lt;h2&gt;Sources&lt;/h2&gt;
-&lt;ul&gt;&lt;li&gt;OCI Documentation: Federating with Identity Domains (SAML identity providers)&lt;/li&gt;&lt;li&gt;OCI Documentation: Identity Provider Policies in Identity Domains&lt;/li&gt;&lt;li&gt;OCI Documentation: Manually Federating Your Tenancy&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Dynamic groups with tag-based scoping (illustrative patterns)</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/dynamic-groups-with-tag-based-scoping-illustrative-patterns.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/dynamic-groups-with-tag-based-scoping-illustrative-patterns.html" rel="alternate" /><atom:published>2025-10-02T12:00:00-07:00</atom:published><atom:updated>2025-10-02T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Using compartment and tag rules so only the instances you intend can assume a group's permissions.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+&lt;ul&gt;&lt;li&gt;OCI Documentation: Federating with Identity Domains (SAML identity providers)&lt;/li&gt;&lt;li&gt;OCI Documentation: Identity Provider Policies in Identity Domains&lt;/li&gt;&lt;li&gt;OCI Documentation: Manually Federating Your Tenancy&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Faster Docker builds for a Java service: context, layers and cache mounts</atom:title><atom:id>https://www.imshubh.com/articles/docker/faster-docker-builds-for-a-java-service.html</atom:id><atom:link href="https://www.imshubh.com/articles/docker/faster-docker-builds-for-a-java-service.html" rel="alternate" /><atom:published>2025-10-23T12:00:00-07:00</atom:published><atom:updated>2025-10-23T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Most of the speed-up comes from three boring changes: a smaller build context, a sensible layer order and a BuildKit cache mount for Gradle.</atom:summary><atom:category term="docker" /><atom:category term="containers" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;When a container build takes minutes, people stop iterating and start batching changes, which is when bugs hide. Teams usually respond by turning caching on and hoping. That helps a little, but the real gains come from what you send to the builder and the order you ask it to do things in. A Java service is a good case. The dependencies change rarely and the source changes constantly, yet a naive Dockerfile downloads the world on every edit.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Do nothing and rely on the default layer cache: fine until the first COPY of the whole repo, after which every code change re-downloads dependencies.&lt;/li&gt;&lt;li&gt;Copy only the build files first, resolve dependencies, then copy the source: much better, but a changed build file still re-downloads everything.&lt;/li&gt;&lt;li&gt;Add a BuildKit cache mount for the Gradle home: dependency downloads survive across builds, even when the layer itself is invalidated.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;My recommendation&lt;/h2&gt;
+        &lt;p&gt;Start with a .dockerignore, because it is the cheapest win. Order layers from least to most volatile, use a cache mount for the dependency cache, and use a multi-stage build so the JDK and build tools stay out of the runtime image. Pin dependency versions so speed does not come at the cost of repeatability.&lt;/p&gt;
+        &lt;h2&gt;Worked example&lt;/h2&gt;
+        &lt;p&gt;A two-stage Dockerfile for a Gradle project. The cache mount is only available during the RUN step, so the build that needs it happens inside the same step.&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;# syntax=docker/dockerfile:1
+FROM eclipse-temurin:21-jdk AS build
+WORKDIR /src
+
+# Build files first: this layer only changes when dependencies change
+COPY gradlew settings.gradle.kts build.gradle.kts ./
+COPY gradle gradle
+RUN --mount=type=cache,target=/root/.gradle \
+    ./gradlew --no-daemon dependencies &amp;gt; /dev/null
+
+# Source last: this is the layer that changes on every edit
+COPY src src
+RUN --mount=type=cache,target=/root/.gradle \
+    ./gradlew --no-daemon installDist -x test
+
+FROM eclipse-temurin:21-jre
+WORKDIR /opt/app
+RUN useradd --uid 10001 --create-home appuser
+COPY --from=build /src/build/install/app/ ./
+USER 10001
+EXPOSE 8080
+ENTRYPOINT ["/opt/app/bin/app"]&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;And the context file that keeps the build fast before any layer is considered:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;.git
+.gradle/
+build/
+out/
+*.iml
+.idea/
+.env&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;To see the effect, time a cold build, change one line of source, and time it again:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;time DOCKER_BUILDKIT=1 docker build -t demo/app:dev .
+echo '// touch' &amp;gt;&amp;gt; src/main/java/App.java
+time docker build -t demo/app:dev .&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;The second build should skip the dependency steps entirely. Bump a dependency version and confirm that step does re-run.&lt;/p&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ol&gt;&lt;li&gt;Add a .dockerignore before changing anything else.&lt;/li&gt;&lt;li&gt;Copy build files, resolve dependencies, then copy source.&lt;/li&gt;&lt;li&gt;Use a cache mount for the Gradle home, and run the build in the same RUN step.&lt;/li&gt;&lt;li&gt;Use a multi-stage build and run as a non-root user.&lt;/li&gt;&lt;li&gt;Pin dependency versions, and rebuild without cache now and then to catch drift.&lt;/li&gt;&lt;/ol&gt;
+        &lt;h2&gt;Where this doesn&amp;#x27;t apply&lt;/h2&gt;
+        &lt;p&gt;If your dependencies change on every commit, or the project is tiny, none of this will be noticeable. A remote build service with its own cache may also change which of these steps matter.&lt;/p&gt;
+        &lt;h2&gt;One honest limitation&lt;/h2&gt;
+        &lt;p&gt;Cache mounts live on the builder, not in the image, so a fresh CI runner starts cold unless you export and import the cache. A fast local build says little about a CI build.&lt;/p&gt;
+        &lt;h2&gt;Sources&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Docker Docs: Optimize cache usage in builds&lt;/li&gt;&lt;li&gt;Docker Docs: Multi-stage builds&lt;/li&gt;&lt;li&gt;Docker Docs: Dockerfile reference (RUN --mount)&lt;/li&gt;&lt;li&gt;Docker Docs: .dockerignore&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Dynamic groups with tag-based scoping (illustrative patterns)</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/dynamic-groups-with-tag-based-scoping-illustrative-patterns.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/dynamic-groups-with-tag-based-scoping-illustrative-patterns.html" rel="alternate" /><atom:published>2025-10-02T12:00:00-07:00</atom:published><atom:updated>2025-10-02T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>Using compartment and tag rules so only the instances you intend can assume a group's permissions.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
 &lt;p&gt;A dynamic group rule that says &amp;quot;every instance in compartment X&amp;quot; is easy to write and easy to regret. The day someone launches a test box or a bastion in that compartment, it silently picks up the same permissions as your production services.&lt;/p&gt;
 &lt;p&gt;I wanted membership that is predictable and explainable: this instance is in the group because it is in this compartment and carries this tag.&lt;/p&gt;
 &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
@@ -1509,7 +2007,74 @@ Allow group platform-admins to read policies in compartment apps&lt;/code&gt;&lt
           &lt;h2&gt;Trade-offs to make explicit&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;strong&gt;Strict readiness vs. first-green speed:&lt;/strong&gt; better gating can delay traffic, while reducing user-facing failures.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Longer soak vs. delivery pace:&lt;/strong&gt; more observation lowers rollout risk but delays full exposure.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Graceful drain vs. implementation effort:&lt;/strong&gt; draining takes work; skipping it risks incomplete operations.&lt;/li&gt;&lt;li&gt;&lt;strong&gt;Frequent liveness checks vs. flapping:&lt;/strong&gt; overly sensitive checks can restart a service during resource spikes and worsen an incident.&lt;/li&gt;&lt;/ul&gt;
           &lt;h2&gt;Try it in your service&lt;/h2&gt;&lt;ol&gt;&lt;li&gt;Add a separate &lt;code&gt;/ready&lt;/code&gt; endpoint that checks the critical dependency before returning success.&lt;/li&gt;&lt;li&gt;Write down a staged rollout, soak period, and rollback trigger before your next release.&lt;/li&gt;&lt;li&gt;Handle &lt;code&gt;SIGTERM&lt;/code&gt; by draining requests and closing resources cleanly.&lt;/li&gt;&lt;li&gt;Extend your runbook with infrastructure checks and first suspects for latency spikes.&lt;/li&gt;&lt;/ol&gt;
           &lt;h2&gt;Closing thought&lt;/h2&gt;&lt;p&gt;Separating startup, readiness, and liveness reduces confusion during incidents and helps limit their blast radius. The demo illustrates the distinction with a local health endpoint and a reversible deployment path. Its ACE-U dimensions—Authenticity, Credibility, Empathy, and Uniqueness—remain conceptual in this context, not a judgment of real people.&lt;/p&gt;
-          &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://docs.docker.com/reference/dockerfile/#healthcheck" target="_blank" rel="noreferrer"&gt;Dockerfile &lt;code&gt;HEALTHCHECK&lt;/code&gt; reference&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/" target="_blank" rel="noreferrer"&gt;Kubernetes startup, readiness, and liveness probes&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>Using OCI Instance Principals without leaking credentials</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/using-oci-instance-principals-without-leaking-credentials.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/using-oci-instance-principals-without-leaking-credentials.html" rel="alternate" /><atom:published>2025-08-19T12:00:00-07:00</atom:published><atom:updated>2025-08-19T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How I let workloads call OCI APIs with no API keys on disk, and keep the blast radius small.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+          &lt;aside class="article-references"&gt;&lt;h2&gt;Further reading&lt;/h2&gt;&lt;ul&gt;&lt;li&gt;&lt;a href="https://docs.docker.com/reference/dockerfile/#healthcheck" target="_blank" rel="noreferrer"&gt;Dockerfile &lt;code&gt;HEALTHCHECK&lt;/code&gt; reference&lt;/a&gt;&lt;/li&gt;&lt;li&gt;&lt;a href="https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/" target="_blank" rel="noreferrer"&gt;Kubernetes startup, readiness, and liveness probes&lt;/a&gt;&lt;/li&gt;&lt;/ul&gt;&lt;/aside&gt;</atom:content></atom:entry><atom:entry><atom:title>Starting a local data pipeline in the right order, on a laptop that stays usable</atom:title><atom:id>https://www.imshubh.com/articles/docker/starting-a-local-data-pipeline-in-the-right-order.html</atom:id><atom:link href="https://www.imshubh.com/articles/docker/starting-a-local-data-pipeline-in-the-right-order.html" rel="alternate" /><atom:published>2025-08-20T12:00:00-07:00</atom:published><atom:updated>2025-08-20T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How I use Compose profiles, health-gated startup and hard resource caps so a multi-service stack boots predictably and does not eat my machine.</atom:summary><atom:category term="docker" /><atom:category term="containers" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
+        &lt;p&gt;Everyone has had the local stack that mostly works. The database is still initialising when the API connects, a worker grabs a port something else expected, and a few minutes later the fans are screaming because three containers decided they own every core. None of this is exotic. It comes from three habits: relying on start order instead of readiness, letting ports be whatever they turn out to be, and leaving resource limits at their defaults. All three are cheap to fix in a Compose file.&lt;/p&gt;
+        &lt;h2&gt;Options and trade-offs&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Fixed sleeps in an entrypoint: easy to write, wrong on a slow day and wasteful on a fast one.&lt;/li&gt;&lt;li&gt;Wait-for scripts: they work, but you maintain a script per dependency and each one hides a different definition of ready.&lt;/li&gt;&lt;li&gt;Healthchecks plus depends_on with condition service_healthy: Compose does the waiting, and readiness is defined once, next to the service it describes.&lt;/li&gt;&lt;/ul&gt;
+        &lt;h2&gt;My recommendation&lt;/h2&gt;
+        &lt;p&gt;I keep a small default stack (database and API) and put the heavy pipeline workers behind a profile, so day-to-day work does not pay for ETL. Every service gets a real healthcheck, downstream services wait on health rather than on container start, ports are bound to 127.0.0.1 and written down, and each service has a CPU and memory ceiling.&lt;/p&gt;
+        &lt;h2&gt;Worked example&lt;/h2&gt;
+        &lt;p&gt;The example below starts a Postgres database and an API by default. The worker only starts when you ask for the etl profile, and it will not start until the database reports healthy.&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: local-only-password
+    ports:
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  api:
+    build: .
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/postgres
+    depends_on:
+      db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+  etl-worker:
+    build: ./worker
+    profiles: ["etl"]
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/postgres
+    depends_on:
+      db:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;Start the base stack and wait until everything is healthy, then add the pipeline when you need it:&lt;/p&gt;
+        &lt;pre&gt;&lt;code&gt;docker compose up -d --wait
+docker compose --profile etl up -d
+docker compose ps
+docker stats --no-stream&lt;/code&gt;&lt;/pre&gt;
+        &lt;p&gt;The last command is the quick check that the limits are actually applied. If a container sits at its memory ceiling, that is information, not a bug in the cap.&lt;/p&gt;
+        &lt;h2&gt;Checklist&lt;/h2&gt;
+        &lt;ol&gt;&lt;li&gt;Put a real readiness check on every service that others depend on.&lt;/li&gt;&lt;li&gt;Use condition: service_healthy instead of sleeps or start-order assumptions.&lt;/li&gt;&lt;li&gt;Bind ports explicitly, to 127.0.0.1, and keep them in a small documented range.&lt;/li&gt;&lt;li&gt;Set CPU and memory limits on every service, and make workers back off or fail with a clear message when they hit them.&lt;/li&gt;&lt;li&gt;Mark throwaway volumes clearly and prune them on a schedule.&lt;/li&gt;&lt;/ol&gt;
+        &lt;h2&gt;Where this doesn&amp;#x27;t apply&lt;/h2&gt;
+        &lt;p&gt;This is a local-development pattern. Profiles are a convenience that can drift from how the real system is orchestrated, so do not treat a passing local stack as proof that production wiring is right.&lt;/p&gt;
+        &lt;h2&gt;One honest limitation&lt;/h2&gt;
+        &lt;p&gt;Healthchecks add startup time, and a heavy check makes it worse. Keep them to a cheap probe, and remember that a limit set too low turns a slow job into an out-of-memory kill.&lt;/p&gt;
+        &lt;h2&gt;Sources&lt;/h2&gt;
+        &lt;ul&gt;&lt;li&gt;Docker Docs: Control startup and shutdown order in Compose&lt;/li&gt;&lt;li&gt;Docker Docs: Using profiles with Compose&lt;/li&gt;&lt;li&gt;Docker Docs: Compose deploy specification (resources)&lt;/li&gt;&lt;/ul&gt;</atom:content></atom:entry><atom:entry><atom:title>Using OCI Instance Principals without leaking credentials</atom:title><atom:id>https://www.imshubh.com/articles/oracle-ace/using-oci-instance-principals-without-leaking-credentials.html</atom:id><atom:link href="https://www.imshubh.com/articles/oracle-ace/using-oci-instance-principals-without-leaking-credentials.html" rel="alternate" /><atom:published>2025-08-19T12:00:00-07:00</atom:published><atom:updated>2025-08-19T12:00:00-07:00</atom:updated><atom:author><atom:name>Shubham Anandani</atom:name></atom:author><atom:summary>How I let workloads call OCI APIs with no API keys on disk, and keep the blast radius small.</atom:summary><atom:category term="oracleace" /><atom:category term="oci" /><atom:content type="html">&lt;h2&gt;Problem&lt;/h2&gt;
 &lt;p&gt;Every OCI SDK sample starts the same way: drop an API key and a config file on the host. That is fine on a laptop. On a fleet of compute instances it becomes a quiet liability, because those keys never expire on their own, they get copied into images, and nobody remembers which ones are still in use.&lt;/p&gt;
 &lt;p&gt;Instance principals remove that whole class of problem. The instance proves who it is with a certificate that OCI issues and rotates for it, and IAM decides what it may do through a dynamic group and a policy. There is nothing to ship, nothing to rotate by hand, and nothing to leak from a config file.&lt;/p&gt;
 &lt;h2&gt;Options and trade-offs&lt;/h2&gt;

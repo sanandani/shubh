@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A small set of habits that make a containerised Java service observable without drowning in log volume or metric cost." />
+    <title>Logs, metrics and trace correlation for a Java service in a container — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/docker/logs-metrics-and-trace-correlation-in-containers.html" />
+    <meta property="article:published_time" content="2026-04-03T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Logs, metrics and trace correlation for a Java service in a container" />
+    <meta property="og:description" content="A small set of habits that make a containerised Java service observable without drowning in log volume or metric cost." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/docker/logs-metrics-and-trace-correlation-in-containers.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="docker" />
+    <meta property="article:tag" content="containers" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "Article", "headline": "Logs, metrics and trace correlation for a Java service in a container", "datePublished": "2026-04-03T12:00:00-07:00", "author": {"@type": "Person", "name": "Shubham Anandani", "url": "https://www.imshubh.com/"}, "image": "https://www.imshubh.com/assets/shubham-anandani.jpg"}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#docker">← Docker articles</a>
+      <header class="article-document-header"><p class="kicker">ACE-U field notes</p><h1>Logs, metrics and trace correlation for a Java service in a container</h1><p class="article-deck">A small set of habits that make a containerised Java service observable without drowning in log volume or metric cost.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-04-03T12:00:00-07:00">Published April 3, 2026</time><span>·</span><span>4 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+        <p>Logs, metrics and traces are three different tools, and they only help in an incident when they can be tied together. The common failure is not the lack of data. It is that the data is unstructured, expensive, or impossible to connect to a single request. Containers add a convention on top: write to standard output, and let the platform collect it. Everything else is about keeping that stream useful and cheap.</p>
+        <h2>Options and trade-offs</h2>
+        <ul><li>Plain-text logs written to files: easy at first, but hard to parse, and the files fill the container's disk.</li><li>Structured JSON logs on standard output: parseable, collected by the platform, and the right default.</li><li>Tracing everything: great detail, but the CPU and storage bill grows with traffic. Sampling keeps the cost predictable.</li></ul>
+        <h2>My recommendation</h2>
+        <p>Log structured JSON to standard output with a small, fixed set of fields. Put a correlation ID on every request at the edge and carry it through the logs. Keep metric labels low cardinality, and sample traces. Alert on user-facing symptoms, not on every raw number.</p>
+        <h2>Worked example</h2>
+        <p>A servlet filter that makes sure every request has a correlation ID, puts it in the logging context, and returns it to the caller.</p>
+        <pre><code>import jakarta.servlet.*;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.MDC;
+
+import java.io.IOException;
+import java.util.UUID;
+
+public class CorrelationFilter implements Filter {
+    private static final String HEADER = "X-Correlation-Id";
+
+    @Override
+    public void doFilter(ServletRequest req, ServletResponse res, FilterChain chain)
+            throws IOException, ServletException {
+        String id = ((HttpServletRequest) req).getHeader(HEADER);
+        if (id == null || id.isBlank() || id.length() &gt; 64) {
+            id = UUID.randomUUID().toString();
+        }
+        MDC.put("correlation_id", id);
+        ((HttpServletResponse) res).setHeader(HEADER, id);
+        try {
+            chain.doFilter(req, res);
+        } finally {
+            MDC.remove("correlation_id");
+        }
+    }
+}</code></pre>
+        <p>The Logback configuration that writes each event as one JSON line to standard output, including the correlation ID from the MDC. It uses the open-source Logstash encoder.</p>
+        <pre><code>&lt;configuration&gt;
+  &lt;appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender"&gt;
+    &lt;encoder class="net.logstash.logback.encoder.LogstashEncoder"/&gt;
+  &lt;/appender&gt;
+  &lt;root level="INFO"&gt;
+    &lt;appender-ref ref="STDOUT"/&gt;
+  &lt;/root&gt;
+&lt;/configuration&gt;</code></pre>
+        <p>Then log with parameters, so nothing is formatted when the level is off:</p>
+        <pre><code>log.info("request_finished route={} status={} durationMs={}", route, status, elapsedMs);
+log.warn("upstream_failed upstream={} reason={}", "inventory", "timeout");</code></pre>
+        <h2>Checklist</h2>
+        <ol><li>Log JSON to standard output, with level, timestamp, component, message and correlation ID.</li><li>Create the correlation ID at the edge, accept a sane inbound one, and cap its length.</li><li>Keep metric labels to a small set such as route class and outcome, never per user.</li><li>Sample traces, and raise the rate temporarily during an incident.</li><li>Alert on error rate and latency, and link the alert to a dashboard or runbook.</li></ol>
+        <h2>Where this doesn&#x27;t apply</h2>
+        <p>A single small service may not need distributed tracing at all. Structured logs with a correlation ID will already answer most questions.</p>
+        <h2>One honest limitation</h2>
+        <p>Observability has a cost. Every extra log line and span uses CPU and memory, and during an incident, noisy logging can make the incident worse.</p>
+        <h2>Sources</h2>
+        <ul><li>SLF4J Manual: Mapped Diagnostic Context (MDC)</li><li>Logback Documentation: Appenders</li><li>OpenTelemetry Documentation: Sampling</li><li>Docker Docs: View container logs</li></ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

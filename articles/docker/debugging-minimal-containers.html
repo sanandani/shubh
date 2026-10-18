@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="How I diagnose a failing Java container without baking a shell and a toolbox into the production image." />
+    <title>Debugging a container that gives you nothing: exit codes, thread dumps and ephemeral tools — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/docker/debugging-minimal-containers.html" />
+    <meta property="article:published_time" content="2026-08-13T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Debugging a container that gives you nothing: exit codes, thread dumps and ephemeral tools" />
+    <meta property="og:description" content="How I diagnose a failing Java container without baking a shell and a toolbox into the production image." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/docker/debugging-minimal-containers.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="docker" />
+    <meta property="article:tag" content="containers" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "Article", "headline": "Debugging a container that gives you nothing: exit codes, thread dumps and ephemeral tools", "datePublished": "2026-08-13T12:00:00-07:00", "author": {"@type": "Person", "name": "Shubham Anandani", "url": "https://www.imshubh.com/"}, "image": "https://www.imshubh.com/assets/shubham-anandani.jpg"}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#docker">← Docker articles</a>
+      <header class="article-document-header"><p class="kicker">ACE-U field notes</p><h1>Debugging a container that gives you nothing: exit codes, thread dumps and ephemeral tools</h1><p class="article-deck">How I diagnose a failing Java container without baking a shell and a toolbox into the production image.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-08-13T12:00:00-07:00">Published August 13, 2026</time><span>·</span><span>5 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+        <p>A container fails and all you get is an exit code and perhaps a log line. The tempting response is to add a shell, curl, a debugger and a package manager to the image so that next time you can look around. That is the wrong trade. Production images should be small and boring, and your tools should arrive only when needed and leave no trace.</p>
+        <h2>Options and trade-offs</h2>
+        <ul><li>Bake debugging tools into the image: convenient, but it enlarges the attack surface and the image.</li><li>Add an admin endpoint: useful for version and uptime, but it is one more thing to secure.</li><li>Use the platform: logs, exit codes, signals, and a separate short-lived container that shares the target's network.</li></ul>
+        <h2>My recommendation</h2>
+        <p>Start with the exit code and the last logs. Use signals the JVM already understands, such as a thread dump on SIGQUIT, before reaching for tools. Make crashes leave evidence, and attach any tooling from outside.</p>
+        <h2>Worked example</h2>
+        <p>The first look should cost nothing. Exit code 137 usually means the process was killed, often for memory, and 143 means it was asked to stop:</p>
+        <pre><code>docker ps -a --filter name=api
+docker inspect --format '{{.State.ExitCode}} oom={{.State.OOMKilled}}' api
+docker logs --since 15m api</code></pre>
+        <p>The JVM prints a full thread dump to standard output when it receives SIGQUIT, so you need no tools inside the container:</p>
+        <pre><code>docker kill --signal=SIGQUIT api
+docker logs --tail 200 api</code></pre>
+        <p>Make a crash leave something behind. These flags write a heap dump on an out-of-memory error to a mounted volume:</p>
+        <pre><code>services:
+  api:
+    image: demo/api:1.4.2
+    environment:
+      JAVA_TOOL_OPTIONS: &gt;-
+        -XX:+HeapDumpOnOutOfMemoryError
+        -XX:HeapDumpPath=/dumps
+        -XX:+ExitOnOutOfMemoryError
+    volumes:
+      - ./dumps:/dumps</code></pre>
+        <p>And have the application log one structured line when it dies, so the exit code has context:</p>
+        <pre><code>public class Main {
+    public static void main(String[] args) {
+        Thread.setDefaultUncaughtExceptionHandler((thread, error) -&gt; {
+            System.err.printf("{\"level\":\"FATAL\",\"thread\":\"%s\",\"error\":\"%s\"}%n",
+                    thread.getName(), error.getClass().getName());
+            error.printStackTrace();
+        });
+        Runtime.getRuntime().addShutdownHook(new Thread(() -&gt;
+                System.err.println("{\"level\":\"INFO\",\"msg\":\"shutdown\"}")));
+        // start the application
+    }
+}</code></pre>
+        <p>When you need to poke around the network or a volume, use a throwaway container that shares the target's network namespace:</p>
+        <pre><code>docker run --rm -it --network=container:api -v api-data:/data:ro alpine sh
+# inside: wget -qO- http://localhost:8080/health</code></pre>
+        <h2>Checklist</h2>
+        <ol><li>Read the exit code, OOMKilled flag and recent logs before changing anything.</li><li>Use SIGQUIT for a thread dump instead of installing tools.</li><li>Configure heap dumps on out-of-memory errors, with a size cap and a clean-up plan.</li><li>Log one structured fatal line with no secrets.</li><li>Attach tools from a separate short-lived container and remove it afterwards.</li></ol>
+        <h2>Where this doesn&#x27;t apply</h2>
+        <p>If the failure is inside a native library or the container never starts, thread dumps will not help. You will need the platform's events and the host's logs.</p>
+        <h2>One honest limitation</h2>
+        <p>An outside container can see the network and volumes but not the process's memory. Heap dumps are sensitive too, since they can contain secrets, so store them carefully and delete them quickly.</p>
+        <h2>Sources</h2>
+        <ul><li>Docker Docs: docker container logs</li><li>Docker Docs: docker container kill (signals)</li><li>Oracle Java Documentation: Troubleshooting guide (thread dumps and heap dumps)</li></ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

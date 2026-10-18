@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="A practical look at memory and CPU limits for Java services: sizing the heap, surviving back-pressure and recognising an out-of-memory kill." />
+    <title>Container limits and the JVM: why your heap is not your memory limit — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/docker/container-limits-and-the-jvm.html" />
+    <meta property="article:published_time" content="2026-02-14T12:00:00-08:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Container limits and the JVM: why your heap is not your memory limit" />
+    <meta property="og:description" content="A practical look at memory and CPU limits for Java services: sizing the heap, surviving back-pressure and recognising an out-of-memory kill." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/docker/container-limits-and-the-jvm.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="docker" />
+    <meta property="article:tag" content="containers" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "Article", "headline": "Container limits and the JVM: why your heap is not your memory limit", "datePublished": "2026-02-14T12:00:00-08:00", "author": {"@type": "Person", "name": "Shubham Anandani", "url": "https://www.imshubh.com/"}, "image": "https://www.imshubh.com/assets/shubham-anandani.jpg"}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#docker">← Docker articles</a>
+      <header class="article-document-header"><p class="kicker">ACE-U field notes</p><h1>Container limits and the JVM: why your heap is not your memory limit</h1><p class="article-deck">A practical look at memory and CPU limits for Java services: sizing the heap, surviving back-pressure and recognising an out-of-memory kill.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-02-14T12:00:00-08:00">Published February 14, 2026</time><span>·</span><span>5 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+        <p>Without limits, a hot container can starve its neighbours. With limits that are too tight, it gets killed and restarts in a loop. Either way, the failure spreads: one tier is slow, upstream timeouts fire, retries pile up, and a small problem becomes an outage. On the JVM there is an extra trap. The heap is only part of the memory a process uses. Metaspace, thread stacks, the code cache, direct buffers and GC structures all live outside it, so a container limit equal to the heap size is almost guaranteed to be exceeded.</p>
+        <h2>Options and trade-offs</h2>
+        <ul><li>No limits: nothing gets killed by the runtime, but one runaway service can degrade the whole host.</li><li>A hard limit with a fixed -Xmx: predictable, but easy to get wrong when the limit changes and the heap flag does not.</li><li>A hard limit with a percentage-based heap: the JVM sizes the heap from the container limit, and you leave headroom for everything else.</li></ul>
+        <h2>My recommendation</h2>
+        <p>Set a memory limit, let the JVM size its heap from it with a percentage, and leave real headroom for native memory. Bound every queue so overload becomes a fast, explicit refusal instead of a slow death. Make the out-of-memory case easy to recognise.</p>
+        <h2>Worked example</h2>
+        <p>The Compose file sets the limit and tells the JVM to use 70 percent of it for the heap. The rest is headroom.</p>
+        <pre><code>services:
+  api:
+    image: demo/api:1.4.2
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M</code></pre>
+        <p>A tiny program shows what the JVM actually sees inside the container, which is the first thing to check when sizing goes wrong:</p>
+        <pre><code>public class WhatDoIHave {
+    public static void main(String[] args) {
+        Runtime rt = Runtime.getRuntime();
+        System.out.printf("processors=%d maxHeap=%dMB%n",
+                rt.availableProcessors(), rt.maxMemory() / (1024 * 1024));
+    }
+}</code></pre>
+        <p>For back-pressure, use a bounded queue and refuse work when it is full, instead of accepting everything and falling over later:</p>
+        <pre><code>import java.util.concurrent.*;
+
+public class BoundedWorkers {
+    private final ThreadPoolExecutor pool = new ThreadPoolExecutor(
+            4, 4, 0L, TimeUnit.MILLISECONDS,
+            new ArrayBlockingQueue&lt;&gt;(100),
+            new ThreadPoolExecutor.AbortPolicy());
+
+    /** Returns an HTTP-style status: 202 accepted, 503 over capacity. */
+    public int submit(Runnable task) {
+        try {
+            pool.execute(task);
+            return 202;
+        } catch (RejectedExecutionException e) {
+            return 503;
+        }
+    }
+}</code></pre>
+        <p>When a container disappears with exit code 137, check whether the kernel killed it:</p>
+        <pre><code>docker inspect --format '{{.State.OOMKilled}} {{.State.ExitCode}}' api
+docker stats --no-stream api</code></pre>
+        <h2>Checklist</h2>
+        <ol><li>Set memory and CPU limits, and write down why each number was chosen.</li><li>Use a heap percentage, and leave headroom for native memory.</li><li>Bound every queue, and return a clear over-capacity response when it is full.</li><li>Log queue depth, rejected work and memory use so the problem is visible before the kill.</li><li>Load test with the real limits applied, and watch what the upstream tier does.</li></ol>
+        <h2>Where this doesn&#x27;t apply</h2>
+        <p>These numbers are starting points for a small service. Large heaps, many threads or heavy direct-buffer use all change the headroom you need, and only measurement on your own workload settles it.</p>
+        <h2>One honest limitation</h2>
+        <p>Limits shrink the blast radius but do not prevent incidents. A service that is out of memory still fails; the point is that it fails predictably and recovers quickly.</p>
+        <h2>Sources</h2>
+        <ul><li>Docker Docs: Resource constraints</li><li>Oracle Java Documentation: Java in containers (JVM ergonomics)</li><li>Docker Docs: docker container inspect</li></ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>

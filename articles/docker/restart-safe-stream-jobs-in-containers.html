@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="How to make a containerised stream-processing job survive restarts without duplicates or lost work, with a runnable Java sketch." />
+    <title>Restart-safe stream jobs in containers: checkpoints and idempotent writes — Shubham Anandani</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Playfair+Display:ital,wght@0,500;0,600;1,500;1,600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="../../styles.css" />
+    <link rel="icon" href="../../assets/icon.svg" type="image/svg+xml" />
+    <link rel="canonical" href="https://www.imshubh.com/articles/docker/restart-safe-stream-jobs-in-containers.html" />
+    <meta property="article:published_time" content="2026-10-17T12:00:00-07:00" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Restart-safe stream jobs in containers: checkpoints and idempotent writes" />
+    <meta property="og:description" content="How to make a containerised stream-processing job survive restarts without duplicates or lost work, with a runnable Java sketch." />
+    <meta property="og:url" content="https://www.imshubh.com/articles/docker/restart-safe-stream-jobs-in-containers.html" />
+    <meta property="og:image" content="https://www.imshubh.com/assets/shubham-anandani.jpg" />
+    <meta property="article:author" content="Shubham Anandani" />
+    <meta property="article:tag" content="docker" />
+    <meta property="article:tag" content="containers" />
+    <link rel="alternate" type="application/rss+xml" title="RSS" href="https://www.imshubh.com/rss.xml" />
+    <link rel="alternate" type="application/atom+xml" title="Atom" href="https://www.imshubh.com/atom.xml" />
+    <script type="application/ld+json">{"@context": "https://schema.org", "@type": "Article", "headline": "Restart-safe stream jobs in containers: checkpoints and idempotent writes", "datePublished": "2026-10-17T12:00:00-07:00", "author": {"@type": "Person", "name": "Shubham Anandani", "url": "https://www.imshubh.com/"}, "image": "https://www.imshubh.com/assets/shubham-anandani.jpg"}</script>
+  </head>
+  <body class="blog-page article-page">
+    <header class="site-header"><div class="brand-block"><a class="brand" href="../../#top" aria-label="Home">imshubh<span>.</span></a><p class="brand-tagline">Product leader · IEEE Senior Member · CMU MSE board member</p></div><nav aria-label="Primary navigation"><a href="../../#about">About</a><a href="../../#practice">What I do</a><a href="../../#recognition">Recognition</a><a href="../../#research">Research</a><a href="../../#outcomes">Impact</a><a href="../../#community">Community</a><a href="../../blog.html" class="active">Writing</a><a href="../../#connect">Connect</a></nav><a class="menu-link" href="../../#connect">Connect<span>↗</span></a></header>
+    <main><article class="article-document"><a class="article-back" href="../../blog.html#docker">← Docker articles</a>
+      <header class="article-document-header"><p class="kicker">ACE-U field notes</p><h1>Restart-safe stream jobs in containers: checkpoints and idempotent writes</h1><p class="article-deck">How to make a containerised stream-processing job survive restarts without duplicates or lost work, with a runnable Java sketch.</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2026-10-17T12:00:00-07:00">Published October 17, 2026</time><span>·</span><span>5 min read</span></div></header>
+      <div class="article-prose"><h2>Problem</h2>
+        <p>Stream jobs are different from stateless APIs. They carry progress, they read from an offset, and they have to pick up cleanly after a restart. In a container platform, restarts are routine, not exceptional. If a restart changes your output, the job does not really own its state. Two ideas fix most of this: store progress outside the process, and make every write safe to repeat.</p>
+        <h2>Options and trade-offs</h2>
+        <ul><li>Keep progress in memory: fast, and all progress is lost on restart.</li><li>Checkpoint after every record: safest, but the overhead can dominate.</li><li>Checkpoint on a bounded interval and make writes idempotent: a crash replays a little work, and the replay changes nothing.</li></ul>
+        <h2>My recommendation</h2>
+        <p>Write idempotent upserts keyed by a stable record ID, store the checkpoint atomically, and on startup resume from the last checkpoint. Treat exactly-once as a goal you approach by combining at-least-once delivery with idempotent effects.</p>
+        <h2>Worked example</h2>
+        <p>The sketch below has no dependencies. It simulates a crash in the middle of a run, then restarts from the checkpoint. The replayed records are written again, but the output does not change.</p>
+        <pre><code>import java.io.IOException;
+import java.nio.file.*;
+import java.util.*;
+
+public class IdempotentJob {
+
+    record Event(String id, long offset, String value) { }
+
+    static final Path CHECKPOINT = Path.of("checkpoint.txt");
+    static final Map&lt;String, String&gt; sink = new TreeMap&lt;&gt;();   // upsert by id
+
+    static long readCheckpoint() throws IOException {
+        return Files.exists(CHECKPOINT) ? Long.parseLong(Files.readString(CHECKPOINT).strip()) : 0L;
+    }
+
+    static void writeCheckpoint(long offset) throws IOException {
+        Path tmp = Path.of("checkpoint.tmp");
+        Files.writeString(tmp, Long.toString(offset));
+        Files.move(tmp, CHECKPOINT, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+    }
+
+    static void run(List&lt;Event&gt; source, long crashAfterOffset) throws IOException {
+        long start = readCheckpoint();
+        int sinceCheckpoint = 0;
+        for (Event e : source) {
+            if (e.offset() &lt; start) continue;
+            sink.put(e.id(), e.value());                 // idempotent: same key, same value
+            if (++sinceCheckpoint == 5) {
+                writeCheckpoint(e.offset() + 1);
+                sinceCheckpoint = 0;
+            }
+            if (e.offset() == crashAfterOffset) {
+                throw new IllegalStateException("simulated crash at offset " + e.offset());
+            }
+        }
+        writeCheckpoint(source.size());
+    }
+
+    public static void main(String[] args) throws IOException {
+        Files.deleteIfExists(CHECKPOINT);
+        List&lt;Event&gt; source = new ArrayList&lt;&gt;();
+        for (int i = 0; i &lt; 20; i++) source.add(new Event("evt-" + i, i, "value-" + i));
+
+        try {
+            run(source, 7);                              // crashes mid-run
+        } catch (IllegalStateException crash) {
+            System.out.println(crash.getMessage() + ", resuming from " + readCheckpoint());
+        }
+        run(source, -1);                                 // restart: replays 5..7, then finishes
+        System.out.println("records in sink = " + sink.size());   // 20, not 23
+    }
+}</code></pre>
+        <p>In a container, the checkpoint file would live on a volume or, better, in an external store, so it survives the container being replaced. The same idea applies when the source is a message broker with committed offsets and the sink supports upserts or transactions.</p>
+        <h2>Checklist</h2>
+        <ol><li>Persist progress outside the container.</li><li>Write the checkpoint atomically, so a crash never leaves it half-written.</li><li>Key writes by a stable ID, and make repeating them harmless.</li><li>On startup, read the checkpoint and resume, and log what you recovered without logging payloads.</li><li>Pace catch-up after an outage with bounded batches and concurrency.</li><li>Test by killing the process mid-run and comparing the output with an uninterrupted run.</li></ol>
+        <h2>Where this doesn&#x27;t apply</h2>
+        <p>This sketch is single-threaded with an in-memory sink, to show the mechanics. Real jobs also need partitioning, ordering guarantees per key, and a sink that is itself durable.</p>
+        <h2>One honest limitation</h2>
+        <p>Idempotency limits what a write can be. Operations like incrementing a counter are not safe to repeat, so they need a composite key, a version, or a transactional sink to be handled correctly.</p>
+        <h2>Sources</h2>
+        <ul><li>Apache Kafka Documentation: Message delivery semantics</li><li>Oracle Java Documentation: java.nio.file.Files.move (atomic move)</li><li>Docker Docs: Volumes</li></ul></div>
+      <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
+    </article></main>
+    <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>
+  </body>
+</html>
