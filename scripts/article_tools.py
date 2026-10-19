@@ -200,6 +200,101 @@ SOURCE_ITEM = re.compile(r"<li\b[^>]*>.*?</li>", re.I | re.S)
 SOURCE_TEXT_TOKEN = re.compile(r"<a\b[^>]*>.*?</a>|<code\b[^>]*>.*?</code>|<[^>]+>|[^<]+", re.I | re.S)
 SOURCE_MARKDOWN = re.compile(r"\[([^\]]+)\]\((https?://[^)\s]+)\)")
 SOURCE_URL = re.compile(r"https?://[^\s<>\"']+", re.I)
+ACCESSED_DATE = re.compile(
+    r"\s*\(\s*accessed\s*:?\s*\d{4}-\d{2}-\d{2}(?:\s*;\s*([^)]*?))?\s*\)", re.I
+)
+ACCESSED_DATE_TEXT = re.compile(r"\baccessed\s*:?\s*\d{4}-\d{2}-\d{2}", re.I)
+TITLE_URL_ITEM = re.compile(r"\s+[—–-]\s*$")
+EMPTY_HEADING_ALLOWLIST = {
+    ("articles/github/plugin-contracts.html", "Failure modes"),
+    ("articles/java/java-partial-data.html", "Failure modes"),
+    ("articles/java/parallel-test-state.html", "Failure modes"),
+    ("articles/java/records-sealed-types.html", "Failure modes"),
+    ("articles/microsoft/credential-revocation.html", "Understand the revocation design space"),
+    ("articles/microsoft/issuer-holder-verifier.html", "Distinguish “invalid” from “unverifiable”"),
+    ("articles/java/java-8-to-17-in-a-multi-module-build-migrate-producers-without-breaking-consumers.html", "Reproducing the problem in a toy project"),
+    ("articles/java/java-8-to-17-in-a-multi-module-build-migrate-producers-without-breaking-consumers.html", "What you gain"),
+    ("articles/java/g1-vs-zgc-at-jdk-17-choosing-a-collector-and-sizing-the-heap.html", "What to chart"),
+    ("articles/java/jfr-as-the-default-enabling-continuous-flight-recording-safely.html", "Why continuous recording"),
+    ("articles/java/jfr-as-the-default-enabling-continuous-flight-recording-safely.html", "Defaults per service class"),
+    ("articles/java/jfr-as-the-default-enabling-continuous-flight-recording-safely.html", "Gate your visualizations"),
+    ("articles/java/jfr-as-the-default-enabling-continuous-flight-recording-safely.html", "Demo to build"),
+    ("articles/java/error-modeling-in-a-java-rest-service-translate-exceptions-without-changing-the-wire-contract.html", "Status codes are contract too"),
+    ("articles/java/error-modeling-in-a-java-rest-service-translate-exceptions-without-changing-the-wire-contract.html", "Demo to build"),
+    ("articles/java/java-records-and-jackson-null-safety-schema-evolution-and-round-trip-tests.html", "Why not plain POJOs?"),
+    ("articles/java/java-records-and-jackson-null-safety-schema-evolution-and-round-trip-tests.html", "Null, absent, and present"),
+    ("articles/java/java-records-and-jackson-null-safety-schema-evolution-and-round-trip-tests.html", "Demo to build"),
+    ("articles/java/contract-testing-a-legacy-to-grpc-bridge-in-junit-5.html", "Coverage that matters"),
+    ("articles/java/reproducible-gradle-builds-why-it-passes-locally-and-fails-in-ci.html", "Avoid classpath hacks in tests"),
+    ("articles/java/reproducible-gradle-builds-why-it-passes-locally-and-fails-in-ci.html", "Demo to build"),
+    ("articles/java/allocation-hotspot-hunting-with-jfr-and-async-profiler.html", "Step 5: validate in the real service"),
+    ("articles/java/api-evolution-keep-wire-contracts-stable-for-java-clients.html", "Demo to build"),
+}
+
+
+def remove_accessed_dates(text: str) -> str:
+    return ACCESSED_DATE.sub(lambda match: f" ({match.group(1).strip()})" if match.group(1) else "", text)
+
+
+class EmptyHeadingParser(HTMLParser):
+    CONTENT_TAGS = {"p", "ul", "ol", "pre", "table", "figure", "blockquote"}
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.stack: list[dict[str, object]] = []
+        self.empty: list[str] = []
+
+    def finish_heading(self, heading: dict[str, object]) -> None:
+        if not heading["content"]:
+            title = re.sub(r"\s+", " ", str(heading["text"])).strip()
+            if title:
+                self.empty.append(title)
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag in {"h2", "h3", "h4"}:
+            level = int(tag[1])
+            while self.stack and int(self.stack[-1]["level"]) >= level:
+                self.finish_heading(self.stack.pop())
+            self.stack.append({"level": level, "text": "", "content": False, "inside": True})
+            return
+        if tag in self.CONTENT_TAGS:
+            for heading in self.stack:
+                heading["content"] = True
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in {"h2", "h3", "h4"}:
+            level = int(tag[1])
+            for heading in reversed(self.stack):
+                if heading["level"] == level:
+                    heading["inside"] = False
+                    break
+
+    def handle_data(self, data: str) -> None:
+        for heading in self.stack:
+            if heading["inside"]:
+                heading["text"] = str(heading["text"]) + data
+
+    def close(self) -> None:
+        super().close()
+        while self.stack:
+            self.finish_heading(self.stack.pop())
+
+
+def empty_headings(text: str) -> list[str]:
+    parser = EmptyHeadingParser()
+    parser.feed(text)
+    parser.close()
+    return parser.empty
+
+
+def title_url_source_items(body: str) -> int:
+    violations = 0
+    for section in SOURCE_LIST.finditer(body):
+        for item in SOURCE_ITEM.finditer(section.group(2)):
+            content = item.group()
+            if re.search(r"\s+[—–-]\s*(?:<a\b[^>]*>\s*https?://|\[https?://|https?://)", content, re.I):
+                violations += 1
+    return violations
 
 
 def visible_unlinked_links(text: str) -> tuple[int, int]:
@@ -268,11 +363,48 @@ def linkify_source_item(item: str) -> str:
                    for token in SOURCE_TEXT_TOKEN.findall(item))
 
 
+def format_source_item(item: str) -> str:
+    item = remove_accessed_dates(item)
+    match = re.match(r"(<li\b[^>]*>)(.*?)(</li>)", item, re.I | re.S)
+    if not match:
+        return linkify_source_item(item)
+    opening, content, closing = match.groups()
+
+    def source_title(prefix: str) -> str:
+        visible = html.unescape(re.sub(r"<[^>]*>", "", prefix)).strip()
+        title = TITLE_URL_ITEM.sub("", visible).strip()
+        return title if title != visible else ""
+
+    anchor_match = re.search(r"<a\b([^>]*)>(.*?)</a>", content, re.I | re.S)
+    markdown_match = SOURCE_MARKDOWN.search(content)
+    url_match = SOURCE_URL.search(content)
+    title = ""
+    url = ""
+    if anchor_match:
+        title = source_title(content[:anchor_match.start()])
+        href = re.search(r"\bhref\s*=\s*(['\"])(.*?)\1", anchor_match.group(1), re.I | re.S)
+        if title and href:
+            url = html.unescape(href.group(2))
+    elif markdown_match:
+        title = source_title(content[:markdown_match.start()])
+        if title:
+            url = markdown_match.group(2)
+    elif url_match:
+        title = source_title(content[:url_match.start()])
+        if title:
+            url = url_match.group()
+    if title and url:
+        link = (f'<a href="{html.escape(url, quote=True)}" target="_blank" rel="noreferrer">'
+                f'{html.escape(title, quote=False)}</a>')
+        return opening + link + closing
+    return opening + linkify_source_item(content) + closing
+
+
 def linkify_sources(body: str) -> str:
     def replace_section(match: re.Match) -> str:
-        contents = SOURCE_ITEM.sub(lambda item: linkify_source_item(item.group()), match.group(2))
+        contents = SOURCE_ITEM.sub(lambda item: format_source_item(item.group()), match.group(2))
         return match.group(1) + contents + match.group(3)
-    return SOURCE_LIST.sub(replace_section, body)
+    return remove_accessed_dates(SOURCE_LIST.sub(replace_section, body))
 
 
 def validate_article_link_css(css: str) -> list[str]:
@@ -488,6 +620,18 @@ def validate(articles: list[dict]) -> list[str]:
         missing_source_links = unlinked_source_items(page_html)
         if missing_source_links:
             errors.append(f"{slug}: {missing_source_links} Sources list items missing links")
+        if ACCESSED_DATE_TEXT.search(page_html):
+            errors.append(f"{slug}: accessed-date annotation remains")
+        old_source_format = title_url_source_items(page_html)
+        if old_source_format:
+            errors.append(f"{slug}: {old_source_format} Sources items still show title — URL")
+        source_empty = empty_headings(article["body"])
+        rendered_empty = empty_headings(page_html)
+        allowed = {heading for path, heading in EMPTY_HEADING_ALLOWLIST if path == article["page"]}
+        if set(source_empty) != allowed:
+            errors.append(f"{slug}: unexpected source-empty headings: {sorted(set(source_empty) ^ allowed)}")
+        if source_empty != rendered_empty:
+            errors.append(f"{slug}: rendered empty headings differ from source")
         parser = StrictArticleParser()
         try:
             parser.feed(page_html); parser.close()
@@ -703,8 +847,13 @@ def validate(articles: list[dict]) -> list[str]:
         if ".git" in page.parts:
             continue
         try:
+            page_html = page.read_text(encoding="utf-8")
+            if ACCESSED_DATE_TEXT.search(page_html):
+                errors.append(f"{page.relative_to(ROOT)}: accessed-date annotation remains")
+            if title_url_source_items(page_html):
+                errors.append(f"{page.relative_to(ROOT)}: Sources item still shows title — URL")
             parser = VisibleLinkParser()
-            parser.feed(page.read_text(encoding="utf-8")); parser.close()
+            parser.feed(page_html); parser.close()
             markdown_count, bare_count = visible_unlinked_links("".join(parser.parts))
             if markdown_count or bare_count:
                 errors.append(f"{page.relative_to(ROOT)}: {markdown_count} visible markdown links, {bare_count} bare visible URLs")
@@ -936,6 +1085,14 @@ def validate_data(articles: list[dict]) -> list[str]:
         for tag in a["tags"]:
             if not re.fullmatch(r"[a-z0-9]{1,20}",tag):errors.append(f"{a['slug']}: invalid category {tag!r}")
         if a["url"] != BASE_URL+a["page"]:errors.append(f"{a['slug']}: URL/page mismatch")
+        if ACCESSED_DATE_TEXT.search(a.get("body", "")):
+            errors.append(f"{a['slug']}: source contains an accessed-date annotation")
+        if title_url_source_items(a.get("body", "")):
+            errors.append(f"{a['slug']}: source Sources item still shows title — URL")
+        empty = set(empty_headings(a.get("body", "")))
+        allowed = {heading for path, heading in EMPTY_HEADING_ALLOWLIST if path == a["page"]}
+        if empty != allowed:
+            errors.append(f"{a['slug']}: unexpected source-empty headings: {sorted(empty ^ allowed)}")
     return errors
 
 
