@@ -200,6 +200,7 @@ SOURCE_ITEM = re.compile(r"<li\b[^>]*>.*?</li>", re.I | re.S)
 SOURCE_TEXT_TOKEN = re.compile(r"<a\b[^>]*>.*?</a>|<code\b[^>]*>.*?</code>|<[^>]+>|[^<]+", re.I | re.S)
 SOURCE_MARKDOWN = re.compile(r"\[([^\]]+)\]\((https?://[^)\s]+)\)")
 SOURCE_URL = re.compile(r"https?://[^\s<>\"']+", re.I)
+MAX_KICKER_LENGTH = 40
 ACCESSED_DATE = re.compile(
     r"\s*\(\s*accessed\s*:?\s*\d{4}-\d{2}-\d{2}(?:\s*;\s*([^)]*?))?\s*\)", re.I
 )
@@ -318,6 +319,21 @@ def clip_meta_description(value: str) -> str:
     if " " in shortened:
         shortened = shortened.rsplit(" ", 1)[0]
     return shortened.rstrip(" ,;:-") + "…"
+
+
+def kicker_issues(kicker: str, *summaries: str) -> list[str]:
+    errors = []
+    if len(kicker) > MAX_KICKER_LENGTH:
+        errors.append(f"kicker length {len(kicker)} exceeds {MAX_KICKER_LENGTH}")
+    if re.search(r"\.\s|\.$", kicker):
+        errors.append("kicker contains sentence punctuation")
+    if any(kicker.strip().casefold() == value.strip().casefold() for value in summaries if value.strip()):
+        errors.append("kicker duplicates summary/dek")
+    return errors
+
+
+def plain_inline_text(value: str) -> str:
+    return html.unescape(re.sub(r"<[^>]*>", "", value)).strip()
 
 
 def linkify_source_text(text: str) -> str:
@@ -600,6 +616,11 @@ def validate(articles: list[dict]) -> list[str]:
                 errors.append(f"{slug}: {key} must be absolute: {article[key]}")
         if article["url"] != BASE_URL + article["page"]:
             errors.append(f"{slug}: canonical URL/page mismatch")
+        kicker = article.get("kicker", "")
+        for issue in kicker_issues(kicker, article.get("summary", ""), article.get("subtitle", ""), article.get("archive_summary", "")):
+            errors.append(f"{slug}: {issue}")
+        if article.get("archive_label", kicker) != kicker:
+            errors.append(f"{slug}: archive label differs from kicker")
         try:
             published = parse_iso(article["published"], slug)
             if "updated" in article and parse_iso(article["updated"], slug + " updated") < published:
@@ -617,6 +638,23 @@ def validate(articles: list[dict]) -> list[str]:
             errors.append(f"{slug}: page missing: {article['page']}")
             continue
         page_html = page.read_text(encoding="utf-8")
+        kicker_match = re.search(r'<p\b[^>]*class="kicker"[^>]*>(.*?)</p>', page_html, re.I | re.S)
+        page_kicker = plain_inline_text(kicker_match.group(1)) if kicker_match else ""
+        if page_kicker != kicker:
+            errors.append(f"{slug}: article page kicker differs from source")
+        for issue in kicker_issues(page_kicker, article.get("summary", ""), article.get("subtitle", ""), article.get("archive_summary", "")):
+            errors.append(f"{slug}: article page {issue}")
+        blog_html = (ROOT / "blog.html").read_text(encoding="utf-8")
+        card_match = re.search(
+            rf'<a\b[^>]*class="docker-article-card"[^>]*href="{re.escape(article["page"])}"[^>]*>(.*?)</a>',
+            blog_html, re.I | re.S,
+        )
+        card_label_match = re.search(r'<div class="article-meta">\s*<span>(.*?)</span>', card_match.group(1), re.I | re.S) if card_match else None
+        card_kicker = plain_inline_text(card_label_match.group(1)) if card_label_match else ""
+        if card_kicker != kicker:
+            errors.append(f"{slug}: blog card kicker differs from source")
+        for issue in kicker_issues(card_kicker, article.get("summary", ""), article.get("subtitle", ""), article.get("archive_summary", "")):
+            errors.append(f"{slug}: blog card {issue}")
         missing_source_links = unlinked_source_items(page_html)
         if missing_source_links:
             errors.append(f"{slug}: {missing_source_links} Sources list items missing links")
@@ -961,8 +999,8 @@ def create_article(args: argparse.Namespace) -> int:
     summary = re.sub(r"\s+", " ", html.unescape(summary)).strip()[:280]
     article = {"title": args.title, "slug": slug, "page": page, "url": url, "published": published,
         "summary": summary, "tags": tags, "cover": BASE_URL + "assets/shubham-anandani.jpg", "author": "Shubham Anandani",
-        "category": category, "kicker": html.escape(category), "subtitle": "", "minutes": "5", "body": body,
-        "section": section, "archive_label": tags[0].upper(), "archive_summary": summary}
+        "category": category, "kicker": category, "subtitle": "", "minutes": "5", "body": body,
+        "section": section, "archive_label": category, "archive_summary": summary}
     records.append(article)
     (ROOT / "data/articles.json").write_text(json.dumps(records, ensure_ascii=False, indent=2) + "\n")
     render_all(records)
@@ -1020,7 +1058,7 @@ def render_archive(articles: list[dict]) -> None:
         for number, article in enumerate(items, 1):
             date_value = parse_iso(article["published"], article["slug"])
             card = (f'<a class="docker-article-card" href="{html.escape(article["page"], quote=True)}">'
-                f'<span class="docker-index">{number:02}</span><div><div class="article-meta"><span>{html.escape(article.get("archive_label", article["category"]).upper())}</span>'
+                f'<span class="docker-index">{number:02}</span><div><div class="article-meta"><span>{html.escape(article.get("kicker", article["category"]))}</span>'
                 f'<time datetime="{date_value.date().isoformat()}">{date_value.strftime("%b %d, %Y").upper()}</time></div>'
                 f'<h3>{html.escape(article["title"])}</h3><p>{html.escape(article.get("archive_summary", article["summary"]))}</p>'
                 f'<span class="read-time">{html.escape(article.get("read_label", str(article.get("minutes", 5)) + " MIN READ ↗"))}</span></div></a>')
@@ -1085,6 +1123,10 @@ def validate_data(articles: list[dict]) -> list[str]:
         for tag in a["tags"]:
             if not re.fullmatch(r"[a-z0-9]{1,20}",tag):errors.append(f"{a['slug']}: invalid category {tag!r}")
         if a["url"] != BASE_URL+a["page"]:errors.append(f"{a['slug']}: URL/page mismatch")
+        for issue in kicker_issues(a.get("kicker", ""), a.get("summary", ""), a.get("subtitle", ""), a.get("archive_summary", "")):
+            errors.append(f"{a['slug']}: {issue}")
+        if a.get("archive_label", a.get("kicker", "")) != a.get("kicker", ""):
+            errors.append(f"{a['slug']}: archive label differs from kicker")
         if ACCESSED_DATE_TEXT.search(a.get("body", "")):
             errors.append(f"{a['slug']}: source contains an accessed-date annotation")
         if title_url_source_items(a.get("body", "")):
