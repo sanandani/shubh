@@ -108,8 +108,10 @@ class ErrorEnvelopeTest {
         <h2>Failure modes</h2>
         <ul><li>A status change (for example 400 to 422) with no announcement.</li><li>A strict client parser that rejects new fields.</li><li>Error details forced into a typed structure that drops data.</li><li>Batch handlers that fail the whole batch or hide partial failures.</li><li>Requests without projections returning a different shape than before.</li></ul>
         <h2>Demo to build</h2>
+        <p>Create a client fixture from the current API response, then evolve the server by adding an optional field and a new error detail. Verify the tolerant client still reads the old and new payloads, that unknown details survive, and that status codes and batch partial-failure behavior match the contract. Review golden-file diffs as part of the change.</p>
         <h2>Takeaways</h2>
-        <ul><li>The contract includes errors, status codes, and batch behavior.</li><li>Clients should be tolerant readers and keep free-form details untyped.</li><li>Golden-file tests turn accidental contract changes into visible diffs.</li></ul></div>
+        <ul><li>The contract includes errors, status codes, and batch behavior.</li><li>Clients should be tolerant readers and keep free-form details untyped.</li><li>Golden-file tests turn accidental contract changes into visible diffs.</li></ul>
+        <aside class="article-references"><h2>Sources</h2><ul><li><a href="https://www.rfc-editor.org/rfc/rfc9457.html" target="_blank" rel="noreferrer">RFC 9457: Problem Details for HTTP APIs</a></li><li><a href="https://github.com/FasterXML/jackson-databind" target="_blank" rel="noreferrer">Jackson Databind documentation</a></li><li><a href="https://spec.openapis.org/oas/v3.1.0.html" target="_blank" rel="noreferrer">OpenAPI 3.1 specification</a></li></ul></aside></div>
       <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
     </article></main>
     <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>

@@ -87,6 +87,7 @@ junit.jupiter.execution.parallel.mode.classes.default = concurrent</code></pre>
         <p>Parallelism vs determinism: Parallel runs surface concurrency bugs but may require more careful test design. The benefits outweigh the cost.</p>
         <p>Container lifecycle vs developer ergonomics: Per-test containers are robust but slower. Consider class-level containers for read-only tests with clear resets.</p>
         <h3>Failure modes</h3>
+        <p>Shared mutable fixtures can make tests order-dependent: one test changes a static object, a reused database row collides with another test, or a fixed port is claimed twice. Give each test independent state, use unique resource names, and clean up in a guaranteed teardown path. If isolation is impossible, serialize only the narrow tests that share that resource and document why.</p>
         <h3>“Hidden globals”</h3><p>A helper modifies a static map. Under parallel, tests interleave and fail intermittently.</p>
         <p>“Order assumptions”: Tests rely on iteration order of sets or maps; parallel runs expose different orders.</p>
         <p>“Implicit sleeps”: Tests use fixed sleeps; faster/slower environments cause out-of-order expectations.</p>
@@ -94,7 +95,7 @@ junit.jupiter.execution.parallel.mode.classes.default = concurrent</code></pre>
         <p>Switch to PER_METHOD lifecycle and remove static mutable fields in tests. Add unique keys per test to seed data. Enable parallel execution and watch for failures that indicate hidden shared state.</p>
         <p>Replace sleep-based readiness with explicit condition checks. Add timeouts and backoff policies.</p>
         <p>Document which tests are parallel-safe and why; make non-parallel tests the exception and note the reason.</p>
-        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://junit.org/junit5/docs/current/user-guide/#writing-tests-parallel-execution" target="_blank" rel="noreferrer">JUnit 5 parallel execution</a></li><li><a href="https://java.testcontainers.org/" target="_blank" rel="noreferrer">Testcontainers for Java</a></li></ul></aside></div>
+        <aside class="article-references"><h2>Sources</h2><ul><li><a href="https://junit.org/junit5/docs/current/user-guide/#writing-tests-parallel-execution" target="_blank" rel="noreferrer">JUnit 5 parallel execution</a></li><li><a href="https://java.testcontainers.org/" target="_blank" rel="noreferrer">Testcontainers for Java</a></li><li><a href="https://junit.org/junit5/docs/current/user-guide/#extensions" target="_blank" rel="noreferrer">JUnit 5 extension model</a></li></ul></aside></div>
       <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
     </article></main>
     <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>

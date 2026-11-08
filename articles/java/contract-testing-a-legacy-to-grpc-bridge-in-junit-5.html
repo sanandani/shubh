@@ -110,10 +110,12 @@ class ReplayTest {
         <h2>Reducing flakiness</h2>
         <ul><li><strong>No real clocks or randomness.</strong> Inject a <code>Clock</code> and seed random generators.</li><li><strong>No shared state across tests.</strong> Build fresh fixtures per test.</li><li><strong>Wait on conditions, not sleeps.</strong> Use Awaitility or latches.</li><li><strong>Quarantine, then fix.</strong> Tag known-flaky tests so they do not block merges, and track them.</li></ul>
         <h2>Coverage that matters</h2>
+        <p>Run the same contract against both the legacy and gRPC-backed implementations. Cover absent IDs, duplicate inputs, empty batches, ordering guarantees, malformed requests, timeouts, and error translation. Keep each assertion about observable behavior so implementation-specific details do not make the shared suite brittle.</p>
         <h2>Failure modes</h2>
         <ul><li>Test wiring that works locally but misses configuration files in CI. Keep test resources under standard source-set paths.</li><li>Contract tests that only cover happy paths.</li><li>Fixtures that go stale. Re-record on a schedule.</li></ul>
         <h2>Takeaways</h2>
-        <ul><li>Test the bridge with one shared contract run against both implementations.</li><li>Use in-process gRPC for hermetic tests, and recorded, scrubbed fixtures for realism.</li><li>Treat batch behavior and error mapping as first-class contract items.</li></ul></div>
+        <ul><li>Test the bridge with one shared contract run against both implementations.</li><li>Use in-process gRPC for hermetic tests, and recorded, scrubbed fixtures for realism.</li><li>Treat batch behavior and error mapping as first-class contract items.</li></ul>
+        <aside class="article-references"><h2>Sources</h2><ul><li><a href="https://junit.org/junit5/docs/current/user-guide/" target="_blank" rel="noreferrer">JUnit 5 User Guide</a></li><li><a href="https://github.com/grpc/grpc-java" target="_blank" rel="noreferrer">gRPC Java in-process transport</a></li><li><a href="https://grpc.github.io/grpc-java/javadoc/" target="_blank" rel="noreferrer">gRPC Java testing utilities</a></li></ul></aside></div>
       <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
     </article></main>
     <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>

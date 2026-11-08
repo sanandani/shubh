@@ -86,7 +86,8 @@ public class LoggingBenchmark {
         <h2>A starter checklist</h2>
         <ol><li>Parameterized logging everywhere, with guards for expensive arguments.</li><li>No logging inside locks or tight loops.</li><li>Async appender with a bounded queue.</li><li>Parent-based ratio sampling, with the ratio justified by numbers.</li><li>Attribute and label cardinality reviewed.</li><li>A benchmark or load test whenever you add instrumentation to a hot path.</li></ol>
         <h2>Takeaways</h2>
-        <ul><li>Observability has a runtime cost that shows up in the tail.</li><li>Sample traces, bound log queues, and keep cardinality low.</li><li>Benchmark instrumentation like any other hot-path code.</li></ul></div>
+        <ul><li>Observability has a runtime cost that shows up in the tail.</li><li>Sample traces, bound log queues, and keep cardinality low.</li><li>Benchmark instrumentation like any other hot-path code.</li></ul>
+        <aside class="article-references"><h2>Sources</h2><ul><li><a href="https://www.slf4j.org/manual.html" target="_blank" rel="noreferrer">SLF4J manual</a></li><li><a href="https://opentelemetry.io/docs/languages/java/" target="_blank" rel="noreferrer">OpenTelemetry Java instrumentation</a></li><li><a href="https://docs.oracle.com/en/java/javase/21/troubleshoot/troubleshoot-performance-issues-using-jfr.html" target="_blank" rel="noreferrer">JDK Flight Recorder troubleshooting guide</a></li></ul></aside></div>
       <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
     </article></main>
     <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>

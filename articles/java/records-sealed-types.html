@@ -73,6 +73,7 @@ case Unverifiable unv  -&gt; "unverifiable=" + unv.note();</code></pre>
         <p>Exhaustiveness vs flexibility: Exhaustive switches break on new states until handled. That’s a feature (safety) but can feel strict when you prototype quickly.</p>
         <p>Text reasons vs structured codes: Free-form strings are easier; structured enums enable programmatic handling. Choose based on how callers use the data.</p>
         <h3>Failure modes</h3>
+        <p>Common failures include allowing a boundary null to bypass the sealed model, serializing a state without its discriminator, and adding a catch-all switch branch that silently accepts a new subtype. Convert external values at adapters, assert the wire representation in tests, and keep switches exhaustive so new states require an explicit decision.</p>
         <h3>“Shadow nulls”</h3><p>A downstream library returns null and you forget to wrap it in a sealed state. Guard external boundaries with adapters.</p>
         <p>“State leakage”: Someone serializes ScoreOrUnknown to a shape that drops the state label (e.g., value=0.0 only). Add JSON configuration that includes a type field and test the wire format.</p>
         <p>“Catch-all case”: Using a default branch in pattern matching reintroduces ambiguity. Avoid default; keep exhaustive cases explicit.</p>
@@ -80,7 +81,7 @@ case Unverifiable unv  -&gt; "unverifiable=" + unv.note();</code></pre>
         <p>Replace nullable fields for ambiguous states with a sealed interface and record implementations. Add exhaustive pattern matching where you consume them.</p>
         <p>Write tests that construct each state per dimension and assert wire-format correctness (e.g., JSON includes the state “type”).</p>
         <p>Audit one path where a null sneaks through and add an adapter to convert it into Missing or Unverifiable with a reason code.</p>
-        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://openjdk.org/jeps/395" target="_blank" rel="noreferrer">Records (JEP 395)</a></li><li><a href="https://openjdk.org/jeps/409" target="_blank" rel="noreferrer">Sealed Classes (JEP 409)</a></li><li><a href="https://openjdk.org/jeps/441" target="_blank" rel="noreferrer">Pattern Matching for switch (JEP 441)</a></li></ul></aside></div>
+        <aside class="article-references"><h2>Sources</h2><ul><li><a href="https://openjdk.org/jeps/395" target="_blank" rel="noreferrer">Records (JEP 395)</a></li><li><a href="https://openjdk.org/jeps/409" target="_blank" rel="noreferrer">Sealed Classes (JEP 409)</a></li><li><a href="https://openjdk.org/jeps/441" target="_blank" rel="noreferrer">Pattern Matching for switch (JEP 441)</a></li></ul></aside></div>
       <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
     </article></main>
     <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>

@@ -34,6 +34,7 @@
     <main><article class="article-document"><a class="article-back" href="../../blog.html#java">← Java articles</a>
       <header class="article-document-header"><p class="kicker">Java notes</p><h1>JFR as the Default: Enabling Continuous Flight Recording Safely</h1><p class="article-deck">Bounded, always-on recordings you can dump during an incident, and a parser that turns them into flame graph input</p><div class="article-document-meta"><span>Shubham Anandani</span><span>·</span><time datetime="2025-11-14T12:00:00-08:00">Published November 14, 2025</time><span>·</span><span>~9 min read</span></div></header>
       <div class="article-prose"><h2>Why continuous recording</h2>
+        <p>A bounded continuous recording preserves a rolling window of low-overhead diagnostic events before an alert fires. During an incident, that history can show allocation, lock contention, thread states, and CPU activity without requiring an operator to reproduce the problem first.</p>
         <h2>A safe baseline configuration</h2>
         <pre><code>-XX:FlightRecorderOptions=repository=/var/tmp/jfr
 -XX:StartFlightRecording=name=continuous,delay=2m,disk=true,maxage=30m,maxsize=250m,settings=default,dumponexit=true,filename=/var/tmp/jfr/exit.jfr</code></pre>
@@ -41,6 +42,8 @@
         <h2>Capturing data during an incident</h2>
         <pre><code>jcmd &lt;pid&gt; JFR.dump name=continuous filename=/var/tmp/jfr/incident-$(date +%s).jfr</code></pre>
         <h2>Defaults per service class</h2>
+        <p>Set retention based on diagnostic value and storage limits, then use a recording template appropriate to the workload. A low-volume batch worker and a latency-sensitive API may need different windows, but both should have an explicit disk budget and a tested dump procedure.</p>
+        <p>Start with the <code>default</code> template, a short retention window, and a disk quota sized for the service. Keep <code>profile</code> recordings short and targeted, since they collect more detail. For latency-sensitive services, measure recording overhead under representative load before rolling the configuration broadly.</p>
         <h2>Analyze a recording in Java</h2>
         <pre><code>import jdk.jfr.consumer.RecordedEvent;
 import jdk.jfr.consumer.RecordedFrame;
@@ -84,11 +87,14 @@ public final class JfrAllocationFolder {
     }
 }</code></pre>
         <h2>Gate your visualizations</h2>
+        <p>Before building a flame graph, check the recording’s event types, time range, and sample counts. Confirm the selected event actually represents the question—allocation samples for allocation pressure, execution samples for CPU—and label weighted samples correctly so the chart does not imply exact counts.</p>
         <h2>Failure modes</h2>
         <ul><li><strong>Oversized recordings.</strong> Always set <code>maxage</code> and <code>maxsize</code>.</li><li><strong>Mismatched JDK versions.</strong> A recording from one JDK may not parse with a very different tool version. Keep your analysis tools at or above the JDK you run.</li><li><strong>Using the heavy template by default.</strong> Reserve <code>profile</code> for short investigations.</li><li><strong>No access plan.</strong> Decide in advance who can dump recordings and where they are stored, because recordings can contain sensitive data such as stack traces and thread names.</li></ul>
         <h2>Demo to build</h2>
+        <p>Run a small Java service with bounded continuous recording, create a burst of allocations, dump the recording with <code>jcmd</code>, and feed it to the consumer API example above. Compare the generated stack weights with a known hot method, then repeat with no load to see which events remain present.</p>
         <h2>Takeaways</h2>
-        <ul><li>Continuous JFR is safe when it is bounded by age and size.</li><li>Dump on demand with <code>jcmd</code> and analyze with the consumer API or a flame graph.</li><li>Verify that data exists before visualizing it.</li></ul></div>
+        <ul><li>Continuous JFR is safe when it is bounded by age and size.</li><li>Dump on demand with <code>jcmd</code> and analyze with the consumer API or a flame graph.</li><li>Verify that data exists before visualizing it.</li></ul>
+        <aside class="article-references"><h2>Sources</h2><ul><li><a href="https://docs.oracle.com/en/java/javase/21/troubleshoot/troubleshoot-performance-issues-using-jfr.html" target="_blank" rel="noreferrer">JDK Flight Recorder troubleshooting guide</a></li><li><a href="https://docs.oracle.com/en/java/javase/21/docs/specs/man/jcmd.html" target="_blank" rel="noreferrer">jcmd command reference</a></li><li><a href="https://docs.oracle.com/en/java/javase/21/docs/api/jdk.jfr/jdk/jfr/consumer/package-summary.html" target="_blank" rel="noreferrer">Java Flight Recorder API</a></li></ul></aside></div>
       <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
     </article></main>
     <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>

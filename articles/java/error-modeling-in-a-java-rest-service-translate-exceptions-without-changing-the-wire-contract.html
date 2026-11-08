@@ -153,11 +153,14 @@ class ErrorDetailsWireTest {
     }
 }</code></pre>
         <h2>Status codes are contract too</h2>
+        <p>Clients often branch on status before reading the body. Changing a validation response from <code>400</code> to <code>422</code>, or returning <code>200</code> for a partial batch failure, can therefore break callers even when the JSON shape stays the same. Record expected status and body together in wire-level tests, and version or announce deliberate behavior changes.</p>
         <h2>Failure modes</h2>
         <ul><li>Typed envelopes rejecting or dropping unknown fields.</li><li>Double-wrapping an exception that already has a status.</li><li>Whole-batch failure when only one key failed.</li><li>Leaking stack traces or internal messages in 500 responses.</li></ul>
         <h2>Demo to build</h2>
+        <p>Expose one endpoint that returns an untyped validation detail and another that reports per-item batch errors. Capture the current status and JSON responses as fixtures, add an unknown detail field, and verify that translation preserves it while mapping exceptions to the documented status. Include a server error case that confirms internal stack traces are not sent to clients.</p>
         <h2>Takeaways</h2>
-        <ul><li>Separate "which status" from "which details".</li><li>Do not convert untyped details to typed ones unless you are deliberately versioning the contract.</li><li>Add a wire-level test for error responses.</li></ul></div>
+        <ul><li>Separate "which status" from "which details".</li><li>Do not convert untyped details to typed ones unless you are deliberately versioning the contract.</li><li>Add a wire-level test for error responses.</li></ul>
+        <aside class="article-references"><h2>Sources</h2><ul><li><a href="https://www.rfc-editor.org/rfc/rfc9457.html" target="_blank" rel="noreferrer">RFC 9457: Problem Details for HTTP APIs</a></li><li><a href="https://jakarta.ee/specifications/restful-ws/" target="_blank" rel="noreferrer">Jakarta RESTful Web Services specification</a></li><li><a href="https://javadoc.io/doc/com.fasterxml.jackson.core/jackson-databind/latest/com/fasterxml/jackson/databind/JsonNode.html" target="_blank" rel="noreferrer">Jackson JsonNode API</a></li></ul></aside></div>
       <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
     </article></main>
     <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>

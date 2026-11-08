@@ -88,11 +88,14 @@ public final class BytecodeLevelCheck {
     }
 }</code></pre>
         <h2>Reproducing the problem in a toy project</h2>
+        <p>Create a producer library compiled with a JDK 17 toolchain and a consumer configured for Java 11. First compile without <code>options.release</code> and inspect the class version with <code>javap -verbose</code>; then set <code>options.release = 11</code>, publish the producer to a local Maven repository, and verify that the Java 11 consumer resolves and runs it. The small two-module setup makes the compatibility boundary easy to see.</p>
         <h2>Failure modes to expect</h2>
         <ul><li>A dependency compiled for Java 8 that uses internal APIs removed in later JDKs.</li><li>Build plugins that read JDK internals reflectively and break on newer versions (look for <code>InaccessibleObjectException</code>).</li><li>Containers and JVM flags: some legacy GC flags are removed or ignored after Java 8, so audit your startup options.</li></ul>
         <h2>What you gain</h2>
+        <p>Consumers can move on their own schedule while producers use a supported build JDK. The toolchain controls which compiler runs, <code>--release</code> constrains the emitted bytecode and API surface, and the CI gate catches accidental target changes before publication.</p>
         <h2>Takeaways</h2>
-        <ul><li>Separate the compile JDK from the bytecode target with a toolchain plus <code>options.release</code>.</li><li>Inventory transitive consumers first, because the graph decides your pace.</li><li>Add a bytecode gate to CI so a policy becomes a failing build.</li></ul></div>
+        <ul><li>Separate the compile JDK from the bytecode target with a toolchain plus <code>options.release</code>.</li><li>Inventory transitive consumers first, because the graph decides your pace.</li><li>Add a bytecode gate to CI so a policy becomes a failing build.</li></ul>
+        <aside class="article-references"><h2>Sources</h2><ul><li><a href="https://docs.oracle.com/en/java/javase/17/docs/specs/man/javac.html" target="_blank" rel="noreferrer">Java compiler options, including --release</a></li><li><a href="https://docs.gradle.org/current/userguide/toolchains.html" target="_blank" rel="noreferrer">Gradle Java toolchains</a></li><li><a href="https://docs.gradle.org/current/userguide/variant_attributes.html" target="_blank" rel="noreferrer">Gradle Java compatibility and variants</a></li></ul></aside></div>
       <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
     </article></main>
     <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>

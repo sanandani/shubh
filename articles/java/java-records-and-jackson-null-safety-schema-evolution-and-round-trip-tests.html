@@ -55,6 +55,7 @@ public record Profile(String id, Optional&lt;String&gt; headline, List&lt;String
         <pre><code>ObjectMapper mapper = new ObjectMapper()
         .registerModule(new Jdk8Module());</code></pre>
         <h2>Why not plain POJOs?</h2>
+        <p>Mutable POJOs can work, but their setters allow partially initialized objects and spread null checks across callers. A record gives the contract a compact immutable shape, while its canonical constructor centralizes required-field checks and normalization. Use a class when mutation or framework constraints require it; choose based on the contract rather than syntax preference.</p>
         <h2>The silent coercion trap</h2>
         <pre><code>Profile p = mapper.readValue("{\"id\": 42}", Profile.class);
 // p.id() is "42", with no error</code></pre>
@@ -67,6 +68,8 @@ strict.coercionConfigFor(LogicalType.Textual)
       .setCoercion(CoercionInputShape.Integer, CoercionAction.Fail)
       .setCoercion(CoercionInputShape.Float, CoercionAction.Fail);</code></pre>
         <h2>Null, absent, and present</h2>
+        <p>JSON distinguishes a missing property from an explicit <code>null</code>, and both differ from a present value. Decide what each means for every field, represent optionality in the Java type, and test serialization in both directions. Avoid relying on a serializer’s default inclusion rules to define API semantics accidentally.
+        <p>JSON distinguishes a missing property from an explicit <code>null</code>, and both differ from a present value. Decide what each means for every field, represent optionality in the Java type, and test serialization in both directions. Avoid relying on a serializer’s default inclusion rules to define API semantics accidentally.</p>
         <h2>Evolving schemas safely</h2>
         <ul><li>Add new fields as optional, with a defined default.</li><li>Never change a field's type in place. Add a new field and deprecate the old one.</li><li>Never reuse a removed field's name for different data.</li><li>Treat enum changes with care. Configure an unknown-value fallback (for example <code>READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE</code> with a default) so old clients survive new symbols.</li></ul>
         <h2>Property-based round-trip tests</h2>
@@ -99,8 +102,10 @@ class ProfileRoundTripTest {
         <h2>Failure modes</h2>
         <ul><li>Silent type coercion hiding a producer's breaking change.</li><li>Explicit <code>null</code> written by one serializer and omitted by another.</li><li>Enums that fail on unknown values in old clients.</li><li>A required field added without a default, breaking old documents.</li></ul>
         <h2>Demo to build</h2>
+        <p>Keep golden JSON fixtures for a record with a missing optional field, an explicit <code>null</code>, an unknown property, and a value of the wrong type. Run deserialization and serialization against each fixture, then add a property-based round-trip check to cover combinations that hand-written examples miss.</p>
         <h2>Takeaways</h2>
-        <ul><li>Put invariants and null normalization in the record's compact constructor.</li><li>Turn off silent coercion where the contract is strict.</li><li>Evolve schemas additively, and keep golden files from every release.</li><li>Property-based round-trip tests guard the serialization invariants.</li></ul></div>
+        <ul><li>Put invariants and null normalization in the record's compact constructor.</li><li>Turn off silent coercion where the contract is strict.</li><li>Evolve schemas additively, and keep golden files from every release.</li><li>Property-based round-trip tests guard the serialization invariants.</li></ul>
+        <aside class="article-references"><h2>Sources</h2><ul><li><a href="https://openjdk.org/jeps/395" target="_blank" rel="noreferrer">Records (JEP 395)</a></li><li><a href="https://github.com/FasterXML/jackson-databind" target="_blank" rel="noreferrer">Jackson Databind documentation</a></li><li><a href="https://jqwik.net/docs/current/user-guide.html" target="_blank" rel="noreferrer">jqwik user guide</a></li></ul></aside></div>
       <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
     </article></main>
     <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>

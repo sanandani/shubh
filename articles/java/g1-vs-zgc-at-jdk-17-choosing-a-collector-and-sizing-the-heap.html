@@ -96,10 +96,12 @@ public final class AllocationLoad {
   java -Xms$heap -Xmx$heap -XX:+UseZGC   -Xlog:gc*:file=zgc-$heap.log AllocationLoad
 done</code></pre>
         <h2>What to chart</h2>
+        <p>Compare the same workload and heap settings across collectors. Record throughput, p50/p99/p99.9 request latency, pause duration and frequency, allocation rate, GC CPU, heap occupancy after collection, and process RSS. Run long enough to include warm-up and steady state, and repeat each run; collector choice should follow the latency and resource budget that matters for the service.</p>
         <h2>Failure modes</h2>
         <ul><li>A heap sized to the old collector's needs, causing allocation stalls under ZGC.</li><li>A container limit too close to the heap size, causing out-of-memory kills from native memory.</li><li>Judging by averages. GC problems live in the tail.</li></ul>
         <h2>Takeaways</h2>
-        <ul><li>ZGC reduces pauses by spending CPU and memory. G1 remains a strong default.</li><li>Size the heap from the measured live set, and size the container from RSS.</li><li>Decide with your own tail-latency numbers, not slogans.</li></ul></div>
+        <ul><li>ZGC reduces pauses by spending CPU and memory. G1 remains a strong default.</li><li>Size the heap from the measured live set, and size the container from RSS.</li><li>Decide with your own tail-latency numbers, not slogans.</li></ul>
+        <aside class="article-references"><h2>Sources</h2><ul><li><a href="https://docs.oracle.com/en/java/javase/17/gctuning/" target="_blank" rel="noreferrer">Java 17 garbage collectors</a></li><li><a href="https://docs.oracle.com/en/java/javase/17/gctuning/z-garbage-collector.html" target="_blank" rel="noreferrer">Z Garbage Collector</a></li><li><a href="https://openjdk.org/jeps/439" target="_blank" rel="noreferrer">Generational ZGC (JEP 439)</a></li></ul></aside></div>
       <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
     </article></main>
     <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>

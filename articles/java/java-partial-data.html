@@ -77,7 +77,7 @@ case Unverifiable unv -&gt; Map.of("type", "Unverifiable", "note", unv.note());<
         <p>Transparency vs brevity: Returning types and reasons increases payload size but improves clarity. Favor clarity when ambiguity matters.</p>
         <p>Strictness vs convenience: Throwing on invalid scores and disallowing defaults catches bugs early but may frustrate callers used to flexible shapes.</p>
         <p>NaN vs explicit omission: NaN signals “no numeric value” but can be mishandled by consumers. Omitting a field or providing a separate state field avoids confusion.</p>
-        <h3>Failure modes</h3>
+        <h3>Failure modes</h3><p>Defaulting an unknown value to zero, dropping the reason during serialization, or letting a new state fall through a catch-all branch can all make incomplete evidence look certain. Preserve the state across boundaries, expose uncertainty in the response, and test each case explicitly.</p>
         <h3>“Silent flattening”</h3><p>A downstream transforms unknowns to zero—likely out of habit. Catch this in contract tests.</p>
         <h3>“Enum drift”</h3><p>If reason codes evolve, consumers break. Document codes and provide a safe default handling path.</p>
         <p>“Partial measures hiding in averages”: An average of one numeric with three unknowns looks “complete” unless you also surface unknown counts.</p>
@@ -85,7 +85,7 @@ case Unverifiable unv -&gt; Map.of("type", "Unverifiable", "note", unv.note());<
         <p>Refactor one DTO to embed a sealed state rather than a nullable numeric field. Add a type field in JSON. Update consumers to switch on type.</p>
         <p>Write aggregation policies that return NaN or omit fields when inputs are fully unknown. Test behavior explicitly.</p>
         <p>Add metrics that count unknowns and unverifiable states separately from numeric distributions.</p>
-        <aside class="article-references"><h2>Further reading</h2><ul><li><a href="https://openjdk.org/jeps/395" target="_blank" rel="noreferrer">Records (JEP 395)</a></li><li><a href="https://openjdk.org/jeps/409" target="_blank" rel="noreferrer">Sealed Classes (JEP 409)</a></li><li><a href="https://openjdk.org/jeps/441" target="_blank" rel="noreferrer">Pattern Matching for switch (JEP 441)</a></li></ul></aside></div>
+        <aside class="article-references"><h2>Sources</h2><ul><li><a href="https://openjdk.org/jeps/395" target="_blank" rel="noreferrer">Records (JEP 395)</a></li><li><a href="https://openjdk.org/jeps/409" target="_blank" rel="noreferrer">Sealed Classes (JEP 409)</a></li><li><a href="https://openjdk.org/jeps/441" target="_blank" rel="noreferrer">Pattern Matching for switch (JEP 441)</a></li></ul></aside></div>
       <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
     </article></main>
     <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>

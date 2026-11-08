@@ -57,6 +57,7 @@ val verifyManifest by tasks.registering {
 }
 tasks.check { dependsOn(verifyManifest) }</code></pre>
         <h2>Avoid classpath hacks in tests</h2>
+        <p>Do not make a test pass by reading files relative to the repository root; the working directory can differ in CI and packaged runs. Put fixtures in <code>src/test/resources</code> and load them through the classloader. This tests the same resource lookup model the application uses after packaging.</p>
         <h2>Pin dependencies</h2>
         <pre><code># gradle/libs.versions.toml
 [versions]
@@ -77,10 +78,12 @@ diff first.sum second.sum &amp;&amp; echo "reproducible"</code></pre>
         <h2>A repeatable CI parity checklist</h2>
         <ol><li>Use the Gradle wrapper, and commit the wrapper files.</li><li>Pin the JDK with a toolchain.</li><li>Commit dependency lock files.</li><li>Run <code>./gradlew clean build</code> locally from a clean checkout before pushing.</li><li>Fail the build on missing resources, as shown above.</li><li>Compare artifact checksums between two builds periodically.</li></ol>
         <h2>Demo to build</h2>
+        <p>Move a sample manifest into the standard resources directory, assert that it is present in the built JAR, and load it through the classloader in a test. Run the test from a clean checkout and after <code>clean</code>; then compare two archive checksums with timestamps disabled and file order made reproducible.</p>
         <h2>Failure modes</h2>
         <ul><li>Resources loaded by file path instead of classpath.</li><li>Floating dependency versions such as <code>1.+</code> or <code>latest</code>.</li><li>Tests that pass only because of leftover files in a local <code>build</code> directory (always test after <code>clean</code>).</li><li>Build plugins and tools that differ between developer machines and CI.</li></ul>
         <h2>Takeaways</h2>
-        <ul><li>Load files from the classpath, and fail loudly when they are missing.</li><li>Pin dependencies and the JDK so two builds mean the same thing.</li><li>Make archives reproducible and prove it with a checksum comparison.</li></ul></div>
+        <ul><li>Load files from the classpath, and fail loudly when they are missing.</li><li>Pin dependencies and the JDK so two builds mean the same thing.</li><li>Make archives reproducible and prove it with a checksum comparison.</li></ul>
+        <aside class="article-references"><h2>Sources</h2><ul><li><a href="https://docs.gradle.org/current/userguide/java_plugin.html" target="_blank" rel="noreferrer">Gradle Java plugin and archive tasks</a></li><li><a href="https://docs.gradle.org/current/userguide/dependency_locking.html" target="_blank" rel="noreferrer">Gradle dependency locking</a></li><li><a href="https://docs.gradle.org/current/userguide/java_testing.html" target="_blank" rel="noreferrer">Gradle testing in Java projects</a></li></ul></aside></div>
       <footer class="article-copyright">© 2026 Shubham Anandani. All rights reserved.</footer>
     </article></main>
     <footer><a class="brand" href="../../index.html#top">imshubh<span>.</span></a><span>© <span id="year"></span> Shubham Anandani</span><span><a href="../../blog.html">Writing</a> · <a href="https://www.linkedin.com/in/shubhamanandani" target="_blank" rel="noreferrer">LinkedIn ↗</a></span></footer><script src="../../script.js"></script>

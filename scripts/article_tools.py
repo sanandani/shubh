@@ -208,28 +208,8 @@ ACCESSED_DATE_TEXT = re.compile(r"\baccessed\s*:?\s*\d{4}-\d{2}-\d{2}", re.I)
 TITLE_URL_ITEM = re.compile(r"\s+[—–-]\s*$")
 EMPTY_HEADING_ALLOWLIST = {
     ("articles/github/plugin-contracts.html", "Failure modes"),
-    ("articles/java/java-partial-data.html", "Failure modes"),
-    ("articles/java/parallel-test-state.html", "Failure modes"),
-    ("articles/java/records-sealed-types.html", "Failure modes"),
     ("articles/microsoft/credential-revocation.html", "Understand the revocation design space"),
     ("articles/microsoft/issuer-holder-verifier.html", "Distinguish “invalid” from “unverifiable”"),
-    ("articles/java/java-8-to-17-in-a-multi-module-build-migrate-producers-without-breaking-consumers.html", "Reproducing the problem in a toy project"),
-    ("articles/java/java-8-to-17-in-a-multi-module-build-migrate-producers-without-breaking-consumers.html", "What you gain"),
-    ("articles/java/g1-vs-zgc-at-jdk-17-choosing-a-collector-and-sizing-the-heap.html", "What to chart"),
-    ("articles/java/jfr-as-the-default-enabling-continuous-flight-recording-safely.html", "Why continuous recording"),
-    ("articles/java/jfr-as-the-default-enabling-continuous-flight-recording-safely.html", "Defaults per service class"),
-    ("articles/java/jfr-as-the-default-enabling-continuous-flight-recording-safely.html", "Gate your visualizations"),
-    ("articles/java/jfr-as-the-default-enabling-continuous-flight-recording-safely.html", "Demo to build"),
-    ("articles/java/error-modeling-in-a-java-rest-service-translate-exceptions-without-changing-the-wire-contract.html", "Status codes are contract too"),
-    ("articles/java/error-modeling-in-a-java-rest-service-translate-exceptions-without-changing-the-wire-contract.html", "Demo to build"),
-    ("articles/java/java-records-and-jackson-null-safety-schema-evolution-and-round-trip-tests.html", "Why not plain POJOs?"),
-    ("articles/java/java-records-and-jackson-null-safety-schema-evolution-and-round-trip-tests.html", "Null, absent, and present"),
-    ("articles/java/java-records-and-jackson-null-safety-schema-evolution-and-round-trip-tests.html", "Demo to build"),
-    ("articles/java/contract-testing-a-legacy-to-grpc-bridge-in-junit-5.html", "Coverage that matters"),
-    ("articles/java/reproducible-gradle-builds-why-it-passes-locally-and-fails-in-ci.html", "Avoid classpath hacks in tests"),
-    ("articles/java/reproducible-gradle-builds-why-it-passes-locally-and-fails-in-ci.html", "Demo to build"),
-    ("articles/java/allocation-hotspot-hunting-with-jfr-and-async-profiler.html", "Step 5: validate in the real service"),
-    ("articles/java/api-evolution-keep-wire-contracts-stable-for-java-clients.html", "Demo to build"),
 }
 
 
